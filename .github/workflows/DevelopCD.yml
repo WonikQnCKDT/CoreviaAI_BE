@@ -2,7 +2,7 @@ name: CoreviaAI_BE_Develop_CD
 
 on:
   push:
-    branches: ["develope"]
+    branches: ["develop"]
 
 permissions:
   contents: read
