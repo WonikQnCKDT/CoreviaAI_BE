@@ -1,0 +1,45 @@
+name: CoreviaAI_BE_Develop_CD
+
+on:
+  push:
+    branches: ["develope"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: corevia-be-develop
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout Github Repository
+        uses: actions/checkout@v7
+
+      - name: Copy project to Remote Server (SCP)
+        uses: appleboy/scp-action@v1.0.0
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          password: ${{ secrets.SERVER_PASSWORD }}
+          port: ${{ secrets.SERVER_PORT }}
+          source: "./*"
+          target: "/home/corevia/dockers/CoreviaAI_BE/service"
+          rm: true
+
+      - name: Deploy with docker compose (SSH)
+        uses: appleboy/ssh-action@v1.2.5
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          password: ${{ secrets.SERVER_PASSWORD }}
+          port: ${{ secrets.SERVER_PORT }}
+          script: |
+            set -euo pipefail
+            cd /home/corevia/dockers/CoreviaAI_BE/service
+            docker compose -p corevia-be config --quiet
+            docker compose -p corevia-be up -d --build --remove-orphans
+            docker compose -p corevia-be ps
