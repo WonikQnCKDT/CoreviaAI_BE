@@ -1,0 +1,35 @@
+
+name: PR Source Guard
+
+on:
+  pull_request:
+    branches:
+      - main
+    types:
+      - opened
+      - reopened
+      - synchronize
+      - edited
+
+jobs:
+  source-branch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate PR source branch
+        env:
+          HEAD: ${{ github.head_ref }}
+          HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+          BASE_REPO: ${{ github.repository }}
+        run: |
+          if [[ "$HEAD_REPO" != "$BASE_REPO" ]]; then
+            echo "::error::Cross-repository PR is not allowed"
+            exit 1
+          fi
+
+          if [[ "$HEAD" == "develop" ||
+                "$HEAD" == hotfix/* ]]; then
+            exit 0
+          fi
+
+          echo "::error::Only develop or hotfix/** can target main"
+          exit 1
