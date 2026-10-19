@@ -2,7 +2,7 @@ name: CoreviaAI_BE_Develop_CI
 
 on:
   pull_request:
-    branches: ["main", "develope"]
+    branches: ["main", "develop"]
 
 permissions:
   contents: read
