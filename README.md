@@ -2,7 +2,7 @@
 
 > 상태: Draft
 > 담당자: 미정 (팀에서 지정 필요)
-> 마지막 검토일: 2026-11-07
+> 마지막 검토일: 2026-11-12
 > 적용 범위: `CoreviaAI_BE/` 백엔드 (Spring Boot)
 
 ## 1. 프로젝트 개요
@@ -10,6 +10,7 @@
 - 목적: CoreviaAI(원익큐앤씨 전사 AI 협업관리 웹앱)의 백엔드 API. 요구사항 기준은 Confluence [요구사항 명세서 (전사관리)](https://jnu-team-aaptc1y6.atlassian.net/wiki/spaces/CoreviaAI/pages/8126909)다.
 - 구현된 기능
   - FR-ADM-01 로그인·계정 (Jira SCRUM-96): ID/PW 로그인·로그아웃, 토큰 재발급, 내 계정 조회, 비밀번호 변경, 관리자 비밀번호 초기화, 5회 연속 실패 잠금, 30분 무활동 세션 만료, 로그인 시도 기록
+  - FR-ADM-02 사용자·조직 관리 (Jira SCRUM-97): 사용자 추가·수정·활성/비활성, 시스템 역할 변경, 프로젝트 생성 권한 부여·회수, 부서(계층) 관리, 변경 이력(감사 로그) 조회
 - 기술 stack: Java 17, Spring Boot 4.1.2 (Web MVC, Security, Data JPA, Data Redis, Validation, Flyway), jjwt 0.13, PostgreSQL, Redis 7.4
 
 ## 2. 개발 환경
@@ -88,18 +89,27 @@ org.wonik
 │  │  ├─ bootstrap                   최초 관리자 생성
 │  │  └─ dto
 │  ├─ domain/credential              LocalCredential(local_credentials): 비밀번호 해시·실패 횟수·잠금·변경 강제
-│  └─ security                       AuthServerSecurityConfig, AuthSessionLoginResolver
-├─ coreviaai_be/                     업무 모듈 (프로젝트·WBS 등, 이후 기능부터 추가)
+│  └─ security                       AuthServerSecurityConfig, AuthSessionLoginResolver, AuthSessionTerminator
+├─ coreviaai_be/                     업무 모듈
+│  ├─ domain/admin                   관리자 콘솔 (FR-ADM-02)
+│  │  ├─ controller                  AdminUserController, AdminDepartmentController, AdminExceptionHandler(동시 수정 409)
+│  │  ├─ service                     AdminUserService, AdminDepartmentService
+│  │  │  ├─ command                  서비스 입력 (요청 DTO와 분리)
+│  │  │  └─ result                   서비스 결과 (응답 DTO는 컨트롤러에서 변환)
+│  │  └─ dto                         request / response
 │  └─ security                       CoreviaSecurityConfig
 └─ global/                           공통. authserver·coreviaai_be를 import하지 않는다
-   ├─ user                           User(users): 사람·조직 정보. authserver·업무 모듈이 함께 사용
+   ├─ user                           User(users): 사람·조직 정보(소속 부서·직무·프로젝트 생성 권한 포함). authserver·업무 모듈이 함께 사용
+   ├─ department                     Department(departments): 부서 계층(parentId). 사용자 소속과 이후 프로젝트 주관 부서의 기준
+   ├─ audit                          AuditLog(audit_logs), AuditLogger, AuditActor: 감사 로그. 변경과 같은 트랜잭션에서 기록
    ├─ jwt                            JwtTokenProvider, AuthCookieManager, JwtProperties, LoginUser(principal)
-   ├─ security                       JwtAuthenticationFilter, LoginSessionResolver(인터페이스), ApiSecuritySupport
+   ├─ security                       JwtAuthenticationFilter, LoginSessionResolver·UserSessionTerminator(인터페이스), ApiSecuritySupport
    ├─ common/type                    SystemRole
    ├─ common/entity                  BaseTimeEntity (createdAt·updatedAt, UTC Instant)
    ├─ common/exception               ErrorCode, CustomException, GlobalExceptionHandler
    ├─ common/response                ApiResponse
-   └─ config                         Clock, JPA auditing, PasswordEncoder, 401/403 JSON 응답
+   ├─ common/pagination              CursorCodec, CursorPageRequest, CursorPage (커서 목록)
+   └─ config                         Clock, JPA auditing, PasswordEncoder, 401/403 JSON 응답, AuditActor 인자 주입(web)
 ```
 
 - 의존 방향: `authserver → global`, `coreviaai_be → global`. 업무 코드는 인증 결과를 `@AuthenticationPrincipal LoginUser`(global)로만 받고 `authserver`를 import하지 않는다. 그래서 SSO로 바뀌면 `authserver`만 교체하면 된다.
@@ -110,11 +120,13 @@ org.wonik
   - 마지막 `global.config.security.WebSecurityConfig`: 위에 속하지 않는 경로는 모두 거부(`/error`만 허용)
   - 공통 설정과 JWT 필터는 `global.security`에 있고, 세션 확인은 `LoginSessionResolver` 인터페이스로만 한다. 구현(`AuthSessionLoginResolver`, Redis 세션)은 authserver에 있어 SSO 교체 시 이것만 바꾸면 업무 체인은 그대로 쓴다.
 - 사용자와 로그인 정보 분리: 사람·조직 정보(`users`, `global.user`)와 로컬 ID/PW 로그인 정보(`local_credentials`, `authserver.domain.credential`)를 나눴다. `LocalCredential`은 `User`와 JPA 연관관계 없이 `user_id`만 갖는다. SSO로 바꾸면 `local_credentials` 테이블과 `authserver`만 제거하고, `users`와 이를 참조하는 업무 데이터는 그대로 둔다. FR-ADM-02의 사용자 추가는 `users` 생성(업무 모듈) + 임시 비밀번호 발급(authserver 관리자 초기화 API) 두 단계가 된다.
+- 관리자 기능의 계층: 컨트롤러는 요청 DTO를 command로 바꿔 서비스에 넘기고, 서비스 결과(result)를 응답 DTO로 바꾼다. 감사 로그 행위자(`AuditActor`)는 `AuditActorArgumentResolver`가 로그인 사용자와 접속 IP로 채운다.
+- 세션 끊기: 관리자가 역할을 바꾸거나 계정을 비활성화하면 업무 모듈이 `UserSessionTerminator`(global)를 호출하고, authserver 구현(`AuthSessionTerminator`)이 Redis 세션을 지운다. 세션에 저장된 역할로 인가하므로 기존 세션을 끊어야 바뀐 권한이 즉시 적용된다. 업무 모듈은 authserver를 import하지 않는다.
 - ADR: 아직 없음. 세션+JWT 인증 방식과 이 패키지 구성은 ADR로 남길 대상이다(팀 결정 필요).
 
 ## 6. API
 
-- API 명세 위치: **미정** (Notion 또는 Excel 위치를 팀에서 지정 예정. 지정 전에는 이 절을 참고).
+- API 명세 위치: Confluence CoreviaAI [API 명세서](https://jnu-team-aaptc1y6.atlassian.net/wiki/spaces/CoreviaAI/folder/12877843) (공통 규약은 `00. 공통 규약`, 관리 API는 `BE_API/02. 관리`). 이 절은 요약이다.
 - 응답 형식: `{"success": bool, "response": ..., "error": {"message": "...", "status": 400}}`
 
 | Method | Path | 인증 | 설명 |
@@ -125,6 +137,18 @@ org.wonik
 | GET | `/api/auth/me` | 필요 | 내 계정 정보 (`mustChangePassword` 포함) |
 | PATCH | `/api/users/me/password` | 필요 | `{currentPassword, newPassword}` → 성공 시 모든 세션 종료, 재로그인 |
 | POST | `/api/admin/users/{userId}/password-reset` | SYSTEM_ADMIN | 임시 비밀번호 발급(응답에 1회), 잠금 해제, 대상 사용자 세션 종료 |
+| GET | `/api/admin/users` | SYSTEM_ADMIN | 사용자 목록(커서). `cursor`, `size`, `departmentId`, `status`, `systemRole`, `keyword` |
+| GET | `/api/admin/users/{userId}` | SYSTEM_ADMIN | 사용자 상세 |
+| POST | `/api/admin/users` | SYSTEM_ADMIN | 사용자 추가. 비밀번호는 이어서 password-reset으로 발급 |
+| PATCH | `/api/admin/users/{userId}` | SYSTEM_ADMIN | 이름·부서·직무 수정(보낸 값으로 덮어씀) |
+| PATCH | `/api/admin/users/{userId}/system-role` | SYSTEM_ADMIN | 역할 변경 + 대상 세션 종료. USER가 아니게 되면 프로젝트 생성 권한 회수 |
+| PATCH | `/api/admin/users/{userId}/status` | SYSTEM_ADMIN | 활성·비활성. 비활성 시 대상 세션 종료 |
+| PATCH | `/api/admin/users/{userId}/project-creation` | SYSTEM_ADMIN | 프로젝트 생성 권한 부여·회수(USER만) |
+| GET | `/api/admin/users/{userId}/histories` | SYSTEM_ADMIN | 변경 이력(감사 로그, 커서) |
+| GET | `/api/admin/departments` | SYSTEM_ADMIN | 부서 목록(커서, id 오름차순). `cursor`, `size`, `status` |
+| POST | `/api/admin/departments` | SYSTEM_ADMIN | 부서 추가 |
+| PATCH | `/api/admin/departments/{departmentId}` | SYSTEM_ADMIN | 이름 변경·상위 부서 이동 |
+| PATCH | `/api/admin/departments/{departmentId}/status` | SYSTEM_ADMIN | 활성·비활성 |
 
 ### 인증 방식 (세션 + JWT)
 
@@ -151,13 +175,37 @@ org.wonik
 - CSRF: 토큰 대신 SameSite=Lax 쿠키로 막는다. FE와 BE가 nginx로 같은 origin에서 서비스된다는 전제이며, origin이 달라지면 재검토해야 한다. CORS는 설정하지 않았다(same-origin).
 - pagination·idempotency: 이 기능에는 해당 없음(목록 API 없음, 로그인은 재시도해도 새 세션만 생김).
 
+### 사용자·조직 관리 규칙 (FR-ADM-02)
+
+- 사용자는 1개 부서에 소속된다. 시스템 관리자가 아니면 부서 필수, 비활성 부서에는 새로 배치할 수 없다.
+- 아이디: 영문·숫자·`.`·`_`·`-`, 50자 이하.
+- 프로젝트 생성 권한은 시스템 관리자가 일반 사용자(USER)에게만 부여한다.
+- 본인 계정의 역할·상태는 바꿀 수 없고, 마지막 활성 시스템 관리자는 강등·비활성화할 수 없다.
+- 부서 이름은 같은 상위 부서 안에서 중복 불가(최상위끼리 포함). 자기 자신·하위 부서 밑으로 이동 불가. 활성 소속 인원이나 활성 하위 부서가 있으면 비활성화 불가.
+- 사용자·부서는 삭제하지 않고 비활성화한다. 모든 변경은 `audit_logs`에 변경 전·후 값·변경자·IP와 함께 남는다.
+
+### 목록 페이지네이션 (커서)
+
+- 요청: `?cursor={이전 응답의 nextCursor}&size=20` (기본 20, 최대 100). 첫 페이지는 `cursor` 없이 요청한다.
+- 응답: `{"items": [...], "nextCursor": "..." | null, "hasNext": true | false}`
+- 정렬은 API마다 고정한다: 사용자 목록·변경 이력은 id 내림차순(최신순), 부서 목록은 id 오름차순(상위 부서가 먼저 와서 트리 구성이 쉬움).
+- 커서는 불투명 문자열이며 형식이 틀리면 400 `INVALID_CURSOR`. size+1개를 읽어 다음 페이지 여부를 판단한다(count 쿼리 없음).
+
+### 중복 요청(idempotency)
+
+- 사용자 추가: `loginId`가 자연 키다. 같은 요청을 다시 보내면 409 `DUPLICATE_LOGIN_ID`로 끝나고 계정은 하나만 생긴다. 별도 Idempotency-Key는 쓰지 않는다.
+- 부서 추가: (상위 부서, 이름)이 자연 키다. 재전송은 409 `DUPLICATE_DEPARTMENT_NAME`.
+- 수정·상태 변경(PATCH): 현재와 같은 값이면 변경·이력 없이 현재 상태를 돌려준다. 역할 변경·비활성화는 DB 커밋 후 세션을 끊는데, 세션 저장소 장애로 실패하면 오류가 반환되고 같은 요청을 다시 보내면 세션 끊기만 다시 수행된다.
+
 ## 7. Database와 Migration
 
-- 저장소: PostgreSQL (`users`, `local_credentials`, `login_history`), Redis (세션).
+- 저장소: PostgreSQL (`users`, `local_credentials`, `login_history`, `departments`, `audit_logs`), Redis (세션). 테이블 정의는 Confluence [BE_ERD](https://jnu-team-aaptc1y6.atlassian.net/wiki/spaces/CoreviaAI/folder/12878096) 도메인 페이지 참고. ERD 원본은 `docs/erd/`(draw.io, 현재 `02-admin.drawio`).
 - 시각은 모두 UTC instant(`timestamptz`)로 저장한다. KST 표시는 응답·화면 경계에서 변환한다.
 - 동시성: 로그인 시 `users` → `local_credentials` 순서로 `SELECT … FOR UPDATE`해 같은 계정의 동시 로그인과 실패 횟수 갱신을 순서대로 처리한다. 비밀번호 변경·초기화는 `local_credentials`만 잠근다. 두 테이블 모두 `version`으로 낙관적 잠금도 건다.
+- 동시성(관리자 기능): `users`·`departments`는 `version` 낙관적 잠금으로 동시 수정을 막고 충돌 시 409 `CONCURRENT_MODIFICATION`. 마지막 관리자 보호는 활성 관리자 행을 `FOR UPDATE`로 잠근 뒤 확인한다. 아이디·부서 이름 중복은 사전 검사 + DB 유니크 제약으로 막는다(최상위 부서 이름은 NULL 특성상 사전 검사만).
+- V2(`V2__create_departments_and_audit_logs.sql`): `departments`, `audit_logs` 생성, `users`에 NULL 허용·기본값 컬럼만 추가해 기존 행과 V1 기준 코드에 영향 없음(expand). 되돌릴 때는 추가 컬럼·테이블을 지우는 새 버전을 추가한다.
 - Migration: `src/main/resources/db/migration/V{n}__설명.sql`, 기동 시 Flyway 자동 적용. 이미 적용된 파일은 수정하지 않고 새 버전을 추가한다(roll-forward).
-- backup·보존: DB 백업은 NFR-13(일 1회) 기준으로 회사 DB 측 운영. `login_history` 1년 보관 정리 작업은 FR-ADM-04에서 구현 예정.
+- backup·보존: DB 백업은 NFR-13(일 1회) 기준으로 회사 DB 측 운영. `login_history`·`audit_logs` 1년 보관(NFR-07) 정리 작업은 FR-ADM-04에서 구현 예정. `audit_logs`는 추가만 하고 수정·삭제 API가 없다.
 
 ## 8. 외부 연동
 
@@ -178,7 +226,7 @@ org.wonik
 ## 9-1. 문서와 보안 운영 메타데이터
 
 - 문서 담당자·검증일: 상단 참고 (담당자 미정).
-- 민감 정보: 비밀번호(해시만 저장), JWT 서명 키, 로그인 IP(개인정보). 분류 기준·로그 접근 권한: 미정.
+- 민감 정보: 비밀번호(해시만 저장), JWT 서명 키, 로그인 IP·감사 로그 IP(개인정보). 감사 로그 details에는 비밀값을 넣지 않는다. 분류 기준·로그 접근 권한: 미정.
 - secret rotation·incident 대응 절차: 미정.
 
 ## 10. 테스트
@@ -188,6 +236,9 @@ org.wonik
 ```
 
 - unit: `PasswordPolicyTest`, `LocalCredentialTest`(잠금·초기화), `JwtTokenProviderTest`(만료·위조·용도), `TemporaryPasswordGeneratorTest`, `InitialAdminInitializerTest`
+- unit(FR-ADM-02): `UserTest`(역할 변경 시 권한 회수 등), `CursorCodecTest`, `CursorPageTest`, `AuditChangesTest`
+- integration(FR-ADM-02): `AdminUserApiIntegrationTest`(추가→비밀번호 발급→로그인, 중복 재전송, 부서 필수·비활성 부서, 비활성화 로그인 차단·세션 종료, 역할 변경·세션 종료, 본인 변경 금지, 마지막 관리자 보호, 프로젝트 생성 권한, 이력, 커서 목록·필터·잘못된 커서), `AdminDepartmentApiIntegrationTest`(계층, 이름 중복, 순환 이동, 사용 중 비활성화, 커서 목록·경계)
+- 미검증(FR-ADM-02): 낙관적 잠금 충돌(409)과 세션 저장소 장애 시 재전송 동작은 자동 테스트가 없다.
 - integration: `AuthApiIntegrationTest` (MockMvc + H2 + 메모리 세션 저장소 + 시간 이동 가능한 Clock). 미인증 차단, 로그인 성공·실패 기록, 5회 잠금, 비활성 계정, 30분 무활동 만료·연장, 로그아웃, 비밀번호 변경, 관리자 초기화 흐름, 로컬 로그인 정보가 없는 사용자, 모듈별 보안 체인.
 - 미검증: `RedisAuthSessionStore`는 실제 Redis가 필요해 자동 테스트가 없다(Testcontainers 도입 시 추가).
 - CI gate: 미구성.
