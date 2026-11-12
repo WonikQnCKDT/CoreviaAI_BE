@@ -97,6 +97,14 @@ class AdminUserApiIntegrationTest extends AdminApiTestSupport {
 		assertThat(createdLog.getIpAddress()).isNotBlank();
 		// 기록 시각은 주입된 Clock(UTC instant)을 따른다
 		assertThat(createdLog.getOccurredAt()).isEqualTo(TestClockConfig.START);
+
+		// 비밀번호 초기화도 행위자·대상과 함께 남고, 임시 비밀번호는 기록하지 않는다
+		final List<AuditLog> resetLogs = auditLogs(AuditAction.PASSWORD_RESET);
+		assertThat(resetLogs).hasSize(1);
+		assertThat(resetLogs.get(0).getActorUserId()).isEqualTo(adminId);
+		assertThat(resetLogs.get(0).getTargetId()).isEqualTo(userId);
+		assertThat(resetLogs.get(0).getIpAddress()).isNotBlank();
+		assertThat(resetLogs.get(0).getDetails()).isNull();
 	}
 
 	@Test

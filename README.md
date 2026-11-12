@@ -136,7 +136,7 @@ org.wonik
 | POST | `/api/auth/logout` | 불필요(있으면 세션 종료) | 세션 삭제, 쿠키 만료 |
 | GET | `/api/auth/me` | 필요 | 내 계정 정보 (`mustChangePassword` 포함) |
 | PATCH | `/api/users/me/password` | 필요 | `{currentPassword, newPassword}` → 성공 시 모든 세션 종료, 재로그인 |
-| POST | `/api/admin/users/{userId}/password-reset` | SYSTEM_ADMIN | 임시 비밀번호 발급(응답에 1회), 잠금 해제, 대상 사용자 세션 종료 |
+| POST | `/api/admin/users/{userId}/password-reset` | SYSTEM_ADMIN | 임시 비밀번호 발급(응답에 1회), 잠금 해제, 대상 사용자 세션 종료, 감사 로그(`PASSWORD_RESET`) 기록 |
 | GET | `/api/admin/users` | SYSTEM_ADMIN | 사용자 목록(커서). `cursor`, `size`, `departmentId`, `status`, `systemRole`, `keyword` |
 | GET | `/api/admin/users/{userId}` | SYSTEM_ADMIN | 사용자 상세 |
 | POST | `/api/admin/users` | SYSTEM_ADMIN | 사용자 추가. 비밀번호는 이어서 password-reset으로 발급 |
@@ -182,7 +182,7 @@ org.wonik
 - 프로젝트 생성 권한은 시스템 관리자가 일반 사용자(USER)에게만 부여한다.
 - 본인 계정의 역할·상태는 바꿀 수 없고, 마지막 활성 시스템 관리자는 강등·비활성화할 수 없다.
 - 부서 이름은 같은 상위 부서 안에서 중복 불가(최상위끼리 포함). 자기 자신·하위 부서 밑으로 이동 불가. 활성 소속 인원이나 활성 하위 부서가 있으면 비활성화 불가.
-- 사용자·부서는 삭제하지 않고 비활성화한다. 모든 변경은 `audit_logs`에 변경 전·후 값·변경자·IP와 함께 남는다.
+- 사용자·부서는 삭제하지 않고 비활성화한다. 모든 변경과 관리자 비밀번호 초기화는 `audit_logs`에 변경 전·후 값·변경자·IP와 함께 남는다(임시 비밀번호는 기록하지 않음).
 
 ### 목록 페이지네이션 (커서)
 
@@ -237,7 +237,7 @@ org.wonik
 
 - unit: `PasswordPolicyTest`, `LocalCredentialTest`(잠금·초기화), `JwtTokenProviderTest`(만료·위조·용도), `TemporaryPasswordGeneratorTest`, `InitialAdminInitializerTest`
 - unit(FR-ADM-02): `UserTest`(역할 변경 시 권한 회수 등), `CursorCodecTest`, `CursorPageTest`, `AuditChangesTest`
-- integration(FR-ADM-02): `AdminUserApiIntegrationTest`(추가→비밀번호 발급→로그인, 중복 재전송, 부서 필수·비활성 부서, 비활성화 로그인 차단·세션 종료, 역할 변경·세션 종료, 본인 변경 금지, 마지막 관리자 보호, 프로젝트 생성 권한, 이력, 커서 목록·필터·잘못된 커서), `AdminDepartmentApiIntegrationTest`(계층, 이름 중복, 순환 이동, 사용 중 비활성화, 커서 목록·경계)
+- integration(FR-ADM-02): `AdminUserApiIntegrationTest`(추가→비밀번호 발급→로그인·초기화 감사 로그, 중복 재전송, 부서 필수·비활성 부서, 비활성화 로그인 차단·세션 종료, 역할 변경·세션 종료, 본인 변경 금지, 마지막 관리자 보호, 프로젝트 생성 권한, 이력, 커서 목록·필터·잘못된 커서), `AdminDepartmentApiIntegrationTest`(계층, 이름 중복, 순환 이동, 사용 중 비활성화, 커서 목록·경계)
 - 미검증(FR-ADM-02): 낙관적 잠금 충돌(409)과 세션 저장소 장애 시 재전송 동작은 자동 테스트가 없다.
 - integration: `AuthApiIntegrationTest` (MockMvc + H2 + 메모리 세션 저장소 + 시간 이동 가능한 Clock). 미인증 차단, 로그인 성공·실패 기록, 5회 잠금, 비활성 계정, 30분 무활동 만료·연장, 로그아웃, 비밀번호 변경, 관리자 초기화 흐름, 로컬 로그인 정보가 없는 사용자, 모듈별 보안 체인.
 - 미검증: `RedisAuthSessionStore`는 실제 Redis가 필요해 자동 테스트가 없다(Testcontainers 도입 시 추가).
