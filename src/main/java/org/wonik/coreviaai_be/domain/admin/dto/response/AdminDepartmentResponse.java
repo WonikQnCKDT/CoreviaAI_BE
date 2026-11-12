@@ -3,8 +3,8 @@ package org.wonik.coreviaai_be.domain.admin.dto.response;
 import java.time.Instant;
 
 import org.wonik.coreviaai_be.domain.admin.service.result.AdminDepartmentResult;
-import org.wonik.global.department.entity.Department;
-import org.wonik.global.department.entity.DepartmentStatus;
+import org.wonik.coreviaai_be.domain.department.entity.Department;
+import org.wonik.coreviaai_be.domain.department.entity.DepartmentStatus;
 
 /**
  * 관리자 부서 응답 항목. 계층은 parentId로 표현하며 트리 구성은 FE에서 한다.

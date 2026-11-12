@@ -13,11 +13,11 @@ import org.wonik.coreviaai_be.domain.admin.dto.request.CreateDepartmentRequest;
 import org.wonik.coreviaai_be.domain.admin.dto.request.UpdateDepartmentRequest;
 import org.wonik.coreviaai_be.domain.admin.dto.response.AdminDepartmentResponse;
 import org.wonik.coreviaai_be.domain.admin.service.AdminDepartmentService;
+import org.wonik.coreviaai_be.domain.department.entity.DepartmentStatus;
 import org.wonik.global.audit.AuditActor;
 import org.wonik.global.common.pagination.CursorPage;
 import org.wonik.global.common.pagination.CursorPageRequest;
 import org.wonik.global.common.response.ApiResponse;
-import org.wonik.global.department.entity.DepartmentStatus;
 
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;

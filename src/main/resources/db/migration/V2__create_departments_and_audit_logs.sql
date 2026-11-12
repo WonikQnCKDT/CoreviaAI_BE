@@ -1,5 +1,5 @@
 -- FR-ADM-02 사용자·조직 관리
---   departments : 부서(조직). parent_id로 상위·하위 계층을 표현한다. 삭제하지 않고 status=INACTIVE로 비활성화한다 (global.department)
+--   departments : 부서(조직). parent_id로 상위·하위 계층을 표현한다. 삭제하지 않고 status=INACTIVE로 비활성화한다 (coreviaai_be.domain.department)
 --   users       : 소속 부서(1인 1부서), 직무, 프로젝트 생성 권한 컬럼 추가 (global.user)
 --   audit_logs  : 감사 로그(권한·계정·조직 변경 등). append-only, 조회 화면·1년 보관 정리는 FR-ADM-04 (global.audit)
 -- 기존 데이터 영향: users에 NULL 허용 컬럼과 기본값(false)이 있는 컬럼만 추가하므로 기존 행은 그대로 유효하다.

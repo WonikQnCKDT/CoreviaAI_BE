@@ -12,10 +12,10 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.dao.DataAccessResourceFailureException;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
+import org.wonik.coreviaai_be.domain.department.entity.Department;
 import org.wonik.global.audit.AuditAction;
 import org.wonik.global.common.exception.ErrorCode;
 import org.wonik.global.common.type.SystemRole;
-import org.wonik.global.department.entity.Department;
 import org.wonik.global.security.UserSessionTerminator;
 import org.wonik.global.user.entity.User;
 

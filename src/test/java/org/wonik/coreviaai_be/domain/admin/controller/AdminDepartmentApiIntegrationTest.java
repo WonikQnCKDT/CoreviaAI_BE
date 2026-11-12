@@ -12,11 +12,11 @@ import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.test.context.ActiveProfiles;
+import org.wonik.coreviaai_be.domain.department.entity.Department;
 import org.wonik.global.audit.AuditAction;
 import org.wonik.global.audit.AuditTargetType;
 import org.wonik.global.common.exception.ErrorCode;
 import org.wonik.global.common.type.SystemRole;
-import org.wonik.global.department.entity.Department;
 import org.wonik.global.user.entity.User;
 
 import jakarta.servlet.http.Cookie;

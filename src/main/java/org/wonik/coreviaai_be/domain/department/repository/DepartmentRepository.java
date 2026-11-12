@@ -1,4 +1,4 @@
-package org.wonik.global.department.repository;
+package org.wonik.coreviaai_be.domain.department.repository;
 
 import java.util.List;
 
@@ -6,8 +6,8 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
-import org.wonik.global.department.entity.Department;
-import org.wonik.global.department.entity.DepartmentStatus;
+import org.wonik.coreviaai_be.domain.department.entity.Department;
+import org.wonik.coreviaai_be.domain.department.entity.DepartmentStatus;
 
 public interface DepartmentRepository extends JpaRepository<Department, Long> {
 

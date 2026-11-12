@@ -91,6 +91,7 @@ org.wonik
 │  ├─ domain/credential              LocalCredential(local_credentials): 비밀번호 해시·실패 횟수·잠금·변경 강제
 │  └─ security                       AuthServerSecurityConfig, AuthSessionLoginResolver, AuthSessionTerminator
 ├─ coreviaai_be/                     업무 모듈
+│  ├─ domain/department              Department(departments): 부서 계층(parentId). 사용자 소속·이후 프로젝트 주관 부서의 기준
 │  ├─ domain/admin                   관리자 콘솔 (FR-ADM-02)
 │  │  ├─ controller                  AdminUserController, AdminDepartmentController, AdminExceptionHandler(동시 수정 409)
 │  │  ├─ service                     AdminUserService, AdminDepartmentService
@@ -100,7 +101,6 @@ org.wonik
 │  └─ security                       CoreviaSecurityConfig
 └─ global/                           공통. authserver·coreviaai_be를 import하지 않는다
    ├─ user                           User(users): 사람·조직 정보(소속 부서·직무·프로젝트 생성 권한 포함). authserver·업무 모듈이 함께 사용
-   ├─ department                     Department(departments): 부서 계층(parentId). 사용자 소속과 이후 프로젝트 주관 부서의 기준
    ├─ audit                          AuditLog(audit_logs), AuditLogger, AuditActor: 감사 로그. 변경과 같은 트랜잭션에서 기록
    ├─ jwt                            JwtTokenProvider, AuthCookieManager, JwtProperties, LoginUser(principal)
    ├─ security                       JwtAuthenticationFilter, LoginSessionResolver·UserSessionTerminator(인터페이스), ApiSecuritySupport

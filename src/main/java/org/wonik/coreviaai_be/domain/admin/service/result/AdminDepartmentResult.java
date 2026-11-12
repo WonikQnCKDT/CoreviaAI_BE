@@ -1,6 +1,6 @@
 package org.wonik.coreviaai_be.domain.admin.service.result;
 
-import org.wonik.global.department.entity.Department;
+import org.wonik.coreviaai_be.domain.department.entity.Department;
 
 /**
  * 관리자 부서 조회·변경 결과.

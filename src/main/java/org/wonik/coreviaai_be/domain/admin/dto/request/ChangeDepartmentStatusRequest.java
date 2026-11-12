@@ -1,6 +1,6 @@
 package org.wonik.coreviaai_be.domain.admin.dto.request;
 
-import org.wonik.global.department.entity.DepartmentStatus;
+import org.wonik.coreviaai_be.domain.department.entity.DepartmentStatus;
 
 import jakarta.validation.constraints.NotNull;
 

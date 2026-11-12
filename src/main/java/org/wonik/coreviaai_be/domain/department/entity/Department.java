@@ -1,4 +1,4 @@
-package org.wonik.global.department.entity;
+package org.wonik.coreviaai_be.domain.department.entity;
 
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
@@ -20,8 +20,9 @@ import lombok.NoArgsConstructor;
 /**
  * 부서(조직). parentId로 상위·하위 계층을 표현하며, 상위가 없으면 최상위 부서다.
  * <p>
- * 사용자(User)의 소속과 이후 프로젝트 주관 부서·부서 공개 범위의 기준이 되므로 global에 둔다.
- * 상위 부서는 JPA 연관관계 없이 ID만 가진다(계층 검증은 서비스에서 한다).
+ * 사용자 소속과 이후 프로젝트 주관 부서·부서 공개 범위의 기준이며, 쓰는 곳이 모두 업무 모듈이라 coreviaai_be에 둔다.
+ * global의 User는 이 클래스를 모르고 departmentId 값만 가진다(global이 업무 모듈을 import하지 않도록).
+ * 상위 부서도 JPA 연관관계 없이 ID만 가진다(계층 검증은 서비스에서 한다).
  */
 @Getter
 @Entity
