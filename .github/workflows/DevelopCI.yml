@@ -12,9 +12,6 @@ jobs:
   verify:
     runs-on: ubuntu-22.04
     timeout-minutes: 20
-    defaults:
-      run:
-        working-directory: AuthServerPlatform
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
@@ -29,6 +26,9 @@ jobs:
       - name: Validate Gradle wrapper
         uses: gradle/actions/wrapper-validation@v6
 
+      - name: Make gradlew executable
+        run: chmod +x ./gradlew
+
       - name: Verify formatting, static analysis, tests, and build
         run: ./gradlew clean check bootJar --no-daemon
 
@@ -36,7 +36,7 @@ jobs:
         uses: madrapps/jacoco-report@v1.7.1
         if: github.event_name == 'pull_request'
         with:
-          paths: ${{ github.workspace }}/AuthServerPlatform/build/reports/jacoco/test/jacocoTestReport.xml
+          paths: ${{ github.workspace }}/build/reports/jacoco/test/jacocoTestReport.xml
           token: ${{ secrets.GITHUB_TOKEN }}
           min-coverage-default: 60
           title: "CoreviaAI_BE Test Coverage"
@@ -49,4 +49,4 @@ jobs:
         uses: actions/checkout@v7
 
       - name: Build container image
-        run: docker build --tag webui-be:${{ github.sha }} .
+        run: docker build --tag corevia-be:${{ github.sha }} .
