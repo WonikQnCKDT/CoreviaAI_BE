@@ -40,6 +40,7 @@ import org.wonik.authserver.domain.credential.repository.LocalCredentialReposito
 import org.wonik.global.common.exception.ErrorCode;
 import org.wonik.global.user.entity.User;
 import org.wonik.global.user.repository.UserRepository;
+import org.wonik.support.DatabaseCleaner;
 import org.wonik.support.InMemoryAuthSessionStore;
 import org.wonik.support.MutableClock;
 import org.wonik.support.TestClockConfig;
@@ -81,14 +82,14 @@ class AuthApiIntegrationTest {
 	private InMemoryAuthSessionStore sessionStore;
 	@Autowired
 	private MutableClock clock;
+	@Autowired
+	private DatabaseCleaner databaseCleaner;
 
 	@BeforeEach
 	void setUp() {
 		clock.setInstant(TestClockConfig.START);
 		sessionStore.clear();
-		loginHistoryRepository.deleteAll();
-		credentialRepository.deleteAll();
-		userRepository.deleteAll();
+		databaseCleaner.clearAll();
 		saveUser(USER_ID, USER_PASSWORD, SystemRole.USER);
 		saveUser(ADMIN_ID, ADMIN_PASSWORD, SystemRole.SYSTEM_ADMIN);
 	}
@@ -130,11 +131,11 @@ class AuthApiIntegrationTest {
 	}
 
 	@Test
-	@DisplayName("로그인하면 업무 체인의 인증을 통과한다(엔드포인트가 아직 없어 404)")
+	@DisplayName("로그인하면 업무 체인의 인증을 통과한다")
 	void businessApiAcceptsLoggedInUser() throws Exception {
 		final Tokens tokens = loginOk(USER_ID, USER_PASSWORD);
 
-		mockMvc.perform(get("/api/projects").cookie(tokens.accessCookie())).andExpect(status().isNotFound());
+		mockMvc.perform(get("/api/projects").cookie(tokens.accessCookie())).andExpect(status().isOk());
 	}
 
 	@Test
