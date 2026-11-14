@@ -2,14 +2,13 @@ package org.wonik.authserver.domain.auth.controller;
 
 import org.springframework.http.CacheControl;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.wonik.authserver.domain.auth.dto.response.PasswordResetResponse;
-import org.wonik.global.jwt.LoginUser;
 import org.wonik.authserver.domain.auth.service.PasswordService;
+import org.wonik.global.audit.AuditActor;
 import org.wonik.global.common.response.ApiResponse;
 
 import jakarta.validation.constraints.Positive;
@@ -27,10 +26,10 @@ public class AdminPasswordController {
 
 	@PostMapping("/{userId}/password-reset")
 	public ResponseEntity<ApiResponse<PasswordResetResponse>> resetPassword(
-		@AuthenticationPrincipal final LoginUser admin,
+		final AuditActor actor,
 		@PathVariable @Positive final Long userId
 	) {
-		final String temporaryPassword = passwordService.resetPassword(admin.userId(), userId);
+		final String temporaryPassword = passwordService.resetPassword(actor, userId);
 		return ResponseEntity.ok()
 			.cacheControl(CacheControl.noStore())
 			.body(ApiResponse.success(new PasswordResetResponse(temporaryPassword)));
