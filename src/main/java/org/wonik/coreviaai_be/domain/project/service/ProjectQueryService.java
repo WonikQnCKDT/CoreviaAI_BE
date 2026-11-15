@@ -17,6 +17,7 @@ import org.wonik.coreviaai_be.domain.project.entity.Project;
 import org.wonik.coreviaai_be.domain.project.entity.ProjectActorAssignment;
 import org.wonik.coreviaai_be.domain.project.entity.ProjectMember;
 import org.wonik.coreviaai_be.domain.project.entity.ProjectPhase;
+import org.wonik.coreviaai_be.domain.project.entity.type.Methodology;
 import org.wonik.coreviaai_be.domain.project.entity.type.ProjectActor;
 import org.wonik.coreviaai_be.domain.project.entity.type.ProjectStatus;
 import org.wonik.coreviaai_be.domain.project.policy.ProjectVisibilityPolicy;
@@ -25,6 +26,7 @@ import org.wonik.coreviaai_be.domain.project.repository.ProjectMemberRepository;
 import org.wonik.coreviaai_be.domain.project.repository.ProjectPhaseRepository;
 import org.wonik.coreviaai_be.domain.project.repository.ProjectRepository;
 import org.wonik.coreviaai_be.domain.project.service.result.ProjectDetailResult;
+import org.wonik.coreviaai_be.domain.project.service.result.ProjectPhasesResult;
 import org.wonik.coreviaai_be.domain.project.service.result.ProjectSummaryResult;
 import org.wonik.global.common.exception.CustomException;
 import org.wonik.global.common.exception.ErrorCode;
@@ -81,12 +83,7 @@ public class ProjectQueryService {
 
 	@Transactional(readOnly = true)
 	public ProjectDetailResult getDetail(final Long viewerId, final Long projectId) {
-		final User viewer = getViewer(viewerId);
-		final Project project = projectRepository.findById(projectId)
-			.orElseThrow(() -> new CustomException(ErrorCode.PROJECT_NOT_FOUND));
-		if (!canView(viewer, project)) {
-			throw new CustomException(ErrorCode.PROJECT_NOT_FOUND);
-		}
+		final Project project = getVisibleProject(viewerId, projectId);
 
 		final List<ProjectActor> actors = actorAssignmentRepository.findAllByProjectIdOrderById(projectId).stream()
 			.map(ProjectActorAssignment::getActor)
@@ -95,22 +92,48 @@ public class ProjectQueryService {
 		final List<ProjectMember> members = memberRepository.findAllByProjectIdOrderById(projectId).stream()
 			.sorted(Comparator.comparing(ProjectMember::getActor).thenComparing(ProjectMember::getId))
 			.toList();
-		final List<ProjectPhase> phases = phaseRepository.findAllByProjectIdOrderByPhaseOrder(projectId);
 
 		final Set<Long> userIds = new HashSet<>();
 		userIds.add(project.getPmUserId());
 		userIds.add(project.getCreatedBy());
 		members.forEach(member -> userIds.add(member.getUserId()));
-		phases.stream().map(ProjectPhase::getGateApproverUserId).filter(Objects::nonNull).forEach(userIds::add);
 
 		return new ProjectDetailResult(
 			project,
 			departmentNamesOf(Set.of(project.getDepartmentId())).get(project.getDepartmentId()),
 			actors,
 			members,
-			phases,
 			userNamesOf(userIds)
 		);
+	}
+
+	/**
+	 * 폭포수 단계·게이트. 단계가 없는 운영 방식(애자일 등)이면 PHASES_NOT_AVAILABLE로 알려,
+	 * FE가 빈 목록을 "단계가 아직 없음"으로 오해하지 않게 한다.
+	 */
+	@Transactional(readOnly = true)
+	public ProjectPhasesResult getPhases(final Long viewerId, final Long projectId) {
+		final Project project = getVisibleProject(viewerId, projectId);
+		if (project.getMethodology() != Methodology.WATERFALL) {
+			throw new CustomException(ErrorCode.PHASES_NOT_AVAILABLE);
+		}
+		final List<ProjectPhase> phases = phaseRepository.findAllByProjectIdOrderByPhaseOrder(projectId);
+		final Set<Long> approverIds = phases.stream()
+			.map(ProjectPhase::getGateApproverUserId)
+			.filter(Objects::nonNull)
+			.collect(Collectors.toSet());
+		return new ProjectPhasesResult(phases, userNamesOf(approverIds));
+	}
+
+	/** 없는 프로젝트와 볼 수 없는 프로젝트를 구분하지 않는다(존재 비노출). */
+	private Project getVisibleProject(final Long viewerId, final Long projectId) {
+		final User viewer = getViewer(viewerId);
+		final Project project = projectRepository.findById(projectId)
+			.orElseThrow(() -> new CustomException(ErrorCode.PROJECT_NOT_FOUND));
+		if (!canView(viewer, project)) {
+			throw new CustomException(ErrorCode.PROJECT_NOT_FOUND);
+		}
+		return project;
 	}
 
 	/**

@@ -11,6 +11,7 @@ import org.wonik.global.user.entity.User;
 import org.wonik.support.ApiIntegrationTestSupport;
 
 import jakarta.servlet.http.Cookie;
+import tools.jackson.databind.JsonNode;
 
 /**
  * 프로젝트 API 통합 테스트 공통. 부서 트리와 역할별 사용자를 준비한다.
@@ -87,6 +88,11 @@ abstract class ProjectApiTestSupport extends ApiIntegrationTestSupport {
 
 	protected ResultActions create(final Cookie cookie, final Map<String, Object> body) throws Exception {
 		return postJson(PROJECTS, cookie, body);
+	}
+
+	/** 폭포수 단계·게이트 목록(GET /api/projects/{id}/phases)의 응답 배열. */
+	protected JsonNode phasesOf(final Cookie cookie, final long projectId) throws Exception {
+		return readResponse(getAs(cookie, PROJECTS + "/{id}/phases", projectId));
 	}
 
 	/** 생성 권한자로 프로젝트를 만들고 ID를 돌려준다. */

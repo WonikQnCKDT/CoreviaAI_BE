@@ -1,5 +1,7 @@
 package org.wonik.coreviaai_be.domain.project.controller;
 
+import java.util.List;
+
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -12,10 +14,12 @@ import org.wonik.coreviaai_be.domain.project.dto.request.CreateProjectRequest;
 import org.wonik.coreviaai_be.domain.project.dto.response.CodeAvailabilityResponse;
 import org.wonik.coreviaai_be.domain.project.dto.response.CreationOptionsResponse;
 import org.wonik.coreviaai_be.domain.project.dto.response.ProjectDetailResponse;
+import org.wonik.coreviaai_be.domain.project.dto.response.ProjectPhaseResponse;
 import org.wonik.coreviaai_be.domain.project.dto.response.ProjectSummaryResponse;
 import org.wonik.coreviaai_be.domain.project.entity.type.ProjectStatus;
 import org.wonik.coreviaai_be.domain.project.service.ProjectCreationService;
 import org.wonik.coreviaai_be.domain.project.service.ProjectQueryService;
+import org.wonik.coreviaai_be.domain.project.service.result.ProjectPhasesResult;
 import org.wonik.global.audit.AuditActor;
 import org.wonik.global.common.pagination.CursorPage;
 import org.wonik.global.common.pagination.CursorPageRequest;
@@ -64,6 +68,18 @@ public class ProjectController {
 		@PathVariable @Positive final Long projectId
 	) {
 		return ApiResponse.success(ProjectDetailResponse.from(projectQueryService.getDetail(loginUser.userId(), projectId)));
+	}
+
+	/** 폭포수 단계·게이트(단계 순서대로, 항상 5개라 페이지네이션 없음). 다른 운영 방식이면 404 PHASES_NOT_AVAILABLE. */
+	@GetMapping("/{projectId}/phases")
+	public ApiResponse<List<ProjectPhaseResponse>> getPhases(
+		@AuthenticationPrincipal final LoginUser loginUser,
+		@PathVariable @Positive final Long projectId
+	) {
+		final ProjectPhasesResult result = projectQueryService.getPhases(loginUser.userId(), projectId);
+		return ApiResponse.success(
+			result.phases().stream().map(phase -> ProjectPhaseResponse.of(phase, result.userNames())).toList()
+		);
 	}
 
 	/** 단계형 생성의 마지막에 한 번 호출한다. 응답은 생성된 프로젝트 상세다. */

@@ -161,7 +161,8 @@ org.wonik
 | GET | `/api/projects/code-availability` | 생성 권한자 | `?code=` 코드 중복 확인(대문자로 정규화한 코드와 `available`) |
 | POST | `/api/projects` | 생성 권한자 | 프로젝트 생성. 생성자 PM 자동 지정, 폭포수 5단계·게이트 생성, 감사 로그(`PROJECT_CREATED`). 응답은 상세 |
 | GET | `/api/projects` | USER·EXECUTIVE | 프로젝트 목록(커서, id 내림차순). `cursor`, `size`, `status`, `departmentId`, `pmUserId`. 공개 범위 밖은 제외 |
-| GET | `/api/projects/{projectId}` | USER·EXECUTIVE | 상세(운영 방식·지정 액터·멤버·단계). 볼 수 없으면 404 |
+| GET | `/api/projects/{projectId}` | USER·EXECUTIVE | 상세(운영 방식과 무관한 공통 정보: 기본 정보·운영 방식·지정 액터·멤버). 볼 수 없으면 404 |
+| GET | `/api/projects/{projectId}/phases` | USER·EXECUTIVE | 폭포수 단계·게이트(단계 순서, 5개). 공개 범위는 상세와 같음. 폭포수가 아니면 404 `PHASES_NOT_AVAILABLE` |
 
 ### 인증 방식 (세션 + JWT)
 
@@ -207,6 +208,7 @@ org.wonik
 - 초대 대상: 활성 일반 사용자(다른 부서 포함). 생성자 본인, 경영진(프로젝트 읽기 전용), 시스템 관리자, 비활성·없는 사용자는 거부.
 - 게이트 승인자(선택): 초대한 멤버 중 PM이 아닌 1명. 5개 단계 게이트 모두에 적용된다. 이후 지정·변경과 미지정 시 단계 전환 차단은 FR-PRJ-05 범위.
 - 공개 범위: 전사 공개는 전원, 부서 공개는 주관 부서 소속자(하위 부서 제외)와 멤버, 멤버 전용은 멤버만 본다. 경영진은 본인 부서와 모든 하위 부서가 주관하는 프로젝트를 멤버 전용까지 보고, 그 밖은 전사 공개만 본다. 상세에서 볼 수 없는 프로젝트는 404로 존재를 드러내지 않는다.
+- 상세 응답은 운영 방식과 무관한 공통 정보만 담고, 운영 방식별 구조는 별도 API로 조회한다(폭포수: `/phases`, 애자일은 FR-PRJ-10에서 별도 API 추가). 운영 방식이 늘어도 상세 계약이 바뀌지 않게 하기 위해서다. FE는 `methodology`로 어느 구조 API를 부를지 고른다(목록에도 있어 상세와 병렬 호출 가능).
 - 목록 정렬은 최신 생성순 하나만 제공한다. 종료일·이름순 정렬과 리스크 등급 필터(FR-AIR-06)는 후속.
 - 프로젝트 상태(`PLANNED`·`IN_PROGRESS`·`ON_HOLD`·`COMPLETED`·`CANCELLED`, 생성 시 `PLANNED`)는 명세에 정의가 없어 팀 확정 전 초안이다. 상태 변경 API는 없다.
 
@@ -268,7 +270,7 @@ org.wonik
 - integration(FR-ADM-02): `AdminUserApiIntegrationTest`(추가→비밀번호 발급→로그인·초기화 감사 로그, 중복 재전송, 부서 필수·비활성 부서, 비활성화 로그인 차단·세션 종료, 역할 변경·세션 종료, 본인 변경 금지, 마지막 관리자 보호, 프로젝트 생성 권한, 이력, 커서 목록·필터·잘못된 커서), `AdminDepartmentApiIntegrationTest`(계층, 이름 중복, 순환 이동, 사용 중 비활성화, 커서 목록·경계)
 - 미검증(FR-ADM-02): 낙관적 잠금 충돌(409)과 세션 저장소 장애 시 재전송 동작은 자동 테스트가 없다.
 - unit(FR-PRJ-01): `ProjectCreationPolicyTest`(기간, 비활성 액터, PM 필수, 멤버·게이트 승인자 규칙)
-- integration(FR-PRJ-01): `ProjectCreateApiIntegrationTest`(생성자 PM·5단계·승인자 적용·감사 로그, 멤버·승인자 생략, 코드 정규화·중복 재전송, 필수 항목·형식, 비활성 운영 방식·부서 유형·액터, 멤버·승인자 규칙, 생성 권한·시스템 관리자 차단, 비활성 부서, 코드 중복 확인, 선택지), `ProjectQueryApiIntegrationTest`(일반 사용자·경영진 공개 범위, 상세 404, 필터, 커서 경계)
+- integration(FR-PRJ-01): `ProjectCreateApiIntegrationTest`(생성자 PM·5단계·승인자 적용·감사 로그, 멤버·승인자 생략, 코드 정규화·중복 재전송, 필수 항목·형식, 비활성 운영 방식·부서 유형·액터, 멤버·승인자 규칙, 생성 권한·시스템 관리자 차단, 비활성 부서, 코드 중복 확인, 선택지), `ProjectQueryApiIntegrationTest`(일반 사용자·경영진 공개 범위, 상세 404, 단계 API 공개 범위·비폭포수 404, 필터, 커서 경계)
 - 미검증(FR-PRJ-01): 사전 중복 검사와 저장 사이에 같은 코드가 동시에 들어오는 경쟁은 DB 유니크 제약으로 막지만 자동 테스트는 없다.
 - 테스트 공통: `support.ApiIntegrationTestSupport`(로그인·요청·오류 검증), `support.DatabaseCleaner`(테스트 클래스 간 공유 H2를 FK 역순으로 비움. 테이블을 추가하면 여기도 추가)
 - integration: `AuthApiIntegrationTest` (MockMvc + H2 + 메모리 세션 저장소 + 시간 이동 가능한 Clock). 미인증 차단, 로그인 성공·실패 기록, 5회 잠금, 비활성 계정, 30분 무활동 만료·연장, 로그아웃, 비밀번호 변경, 관리자 초기화 흐름, 로컬 로그인 정보가 없는 사용자, 모듈별 보안 체인.

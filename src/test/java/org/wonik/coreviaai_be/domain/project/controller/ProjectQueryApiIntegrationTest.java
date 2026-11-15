@@ -4,15 +4,22 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.test.context.ActiveProfiles;
+import org.wonik.coreviaai_be.domain.project.entity.Project;
+import org.wonik.coreviaai_be.domain.project.entity.type.DepartmentType;
+import org.wonik.coreviaai_be.domain.project.entity.type.Methodology;
+import org.wonik.coreviaai_be.domain.project.entity.type.ProjectVisibility;
+import org.wonik.coreviaai_be.domain.project.repository.ProjectRepository;
 import org.wonik.global.common.exception.ErrorCode;
 import org.wonik.global.common.type.SystemRole;
 import org.wonik.global.user.entity.User;
@@ -29,6 +36,9 @@ import tools.jackson.databind.JsonNode;
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
 class ProjectQueryApiIntegrationTest extends ProjectApiTestSupport {
+
+	@Autowired
+	private ProjectRepository projectRepository;
 
 	private long companyId;
 	private long departmentOnlyId;
@@ -60,7 +70,7 @@ class ProjectQueryApiIntegrationTest extends ProjectApiTestSupport {
 	}
 
 	@Test
-	@DisplayName("상세: 볼 수 없는 프로젝트는 존재를 드러내지 않고 404, 볼 수 있으면 운영 방식과 단계를 준다")
+	@DisplayName("상세: 볼 수 없는 프로젝트는 존재를 드러내지 않고 404, 볼 수 있으면 운영 방식을 준다")
 	void detailVisibility() throws Exception {
 		expectError(getAs(loginAs(developer), PROJECTS + "/{id}", membersOnlyId), ErrorCode.PROJECT_NOT_FOUND);
 		expectError(getAs(loginAs(salesExecutive), PROJECTS + "/{id}", departmentOnlyId), ErrorCode.PROJECT_NOT_FOUND);
@@ -70,7 +80,27 @@ class ProjectQueryApiIntegrationTest extends ProjectApiTestSupport {
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.response.methodology").value("WATERFALL"))
 			.andExpect(jsonPath("$.response.visibility").value("MEMBERS_ONLY"))
-			.andExpect(jsonPath("$.response.phases.length()").value(5));
+			.andExpect(jsonPath("$.response.phases").doesNotExist());
+	}
+
+	@Test
+	@DisplayName("단계 API: 상세와 같은 공개 범위를 따르고, 단계 순서대로 5개를 준다")
+	void phasesVisibility() throws Exception {
+		assertThat(phasesOf(loginAs(itExecutive), membersOnlyId).valueStream().map(p -> p.get("phaseOrder").asInt()).toList())
+			.containsExactly(1, 2, 3, 4, 5);
+		expectError(getAs(loginAs(developer), PROJECTS + "/{id}/phases", membersOnlyId), ErrorCode.PROJECT_NOT_FOUND);
+		expectError(getAs(loginAs(developer), PROJECTS + "/{id}/phases", 999_999L), ErrorCode.PROJECT_NOT_FOUND);
+	}
+
+	@Test
+	@DisplayName("단계 API: 단계가 없는 운영 방식(애자일)의 프로젝트는 PHASES_NOT_AVAILABLE")
+	void phasesNotAvailableForNonWaterfall() throws Exception {
+		// MVP에서는 API로 애자일 프로젝트를 만들 수 없어 저장소로 직접 만든다(FR-PRJ-10 이후 대비).
+		final Project agile = projectRepository.save(Project.create(
+			"AGL-1", "애자일 프로젝트", LocalDate.of(2026, 12, 1), LocalDate.of(2027, 3, 31), devTeam.getId(),
+			ProjectVisibility.COMPANY, Methodology.AGILE, DepartmentType.SW, creator.getId()));
+
+		expectError(getAs(loginAs(developer), PROJECTS + "/{id}/phases", agile.getId()), ErrorCode.PHASES_NOT_AVAILABLE);
 	}
 
 	@Test

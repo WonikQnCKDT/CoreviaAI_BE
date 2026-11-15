@@ -40,7 +40,8 @@ class ProjectCreateApiIntegrationTest extends ProjectApiTestSupport {
 	@Test
 	@DisplayName("폭포수로 생성하면 생성자가 PM이 되고, 5단계·게이트가 만들어지며 승인자가 모든 게이트에 적용된다")
 	void createWaterfallProject() throws Exception {
-		final JsonNode project = readResponse(create(loginAs(creator), validCreateBody("PUR-2026")));
+		final Cookie cookie = loginAs(creator);
+		final JsonNode project = readResponse(create(cookie, validCreateBody("PUR-2026")));
 
 		assertThat(project.get("code").asString()).isEqualTo("PUR-2026");
 		assertThat(project.get("methodology").asString()).isEqualTo("WATERFALL");
@@ -57,7 +58,9 @@ class ProjectCreateApiIntegrationTest extends ProjectApiTestSupport {
 				developer.getId() + ":DEVELOPER"
 			);
 
-		final JsonNode phases = project.get("phases");
+		// 상세는 운영 방식과 무관한 공통 정보만 담고, 단계·게이트는 별도 API로 조회한다.
+		assertThat(project.has("phases")).isFalse();
+		final JsonNode phases = phasesOf(cookie, project.get("id").asLong());
 		assertThat(phases.valueStream().map(p -> p.get("phaseType").asString()).toList())
 			.containsExactly("ANALYSIS", "DESIGN", "DEVELOPMENT", "TEST", "TRANSITION");
 		assertThat(phases.valueStream().toList()).allSatisfy(phase -> {
@@ -82,11 +85,12 @@ class ProjectCreateApiIntegrationTest extends ProjectApiTestSupport {
 		body.put("gateApproverUserId", null);
 		body.put("actors", List.of("PM"));
 
-		final JsonNode project = readResponse(create(loginAs(creator), body));
+		final Cookie cookie = loginAs(creator);
+		final JsonNode project = readResponse(create(cookie, body));
 
 		assertThat(project.get("members")).hasSize(1);
 		assertThat(project.get("members").get(0).get("actor").asString()).isEqualTo("PM");
-		assertThat(project.get("phases").valueStream().toList())
+		assertThat(phasesOf(cookie, project.get("id").asLong()).valueStream().toList())
 			.hasSize(5)
 			.allSatisfy(phase -> assertThat(phase.get("gateApproverUserId").isNull()).isTrue());
 	}
