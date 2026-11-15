@@ -29,6 +29,8 @@ public class CoreviaSecurityConfig {
 		apiSecuritySupport.applyCommon(http, List.of());
 		http.authorizeHttpRequests(auth -> auth
 			.requestMatchers("/api/admin/**").hasRole(SystemRole.SYSTEM_ADMIN.name())
+			// 시스템 관리자는 프로젝트 데이터에 접근할 수 없다(요구사항 명세서 3.1). PM 재지정 예외는 FR-PRJ-04에서 다룬다.
+			.requestMatchers("/api/projects/**").hasAnyRole(SystemRole.USER.name(), SystemRole.EXECUTIVE.name())
 			.anyRequest().authenticated()
 		);
 		return http.build();
