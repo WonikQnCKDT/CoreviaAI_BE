@@ -80,7 +80,8 @@ class ProjectQueryApiIntegrationTest extends ProjectApiTestSupport {
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.response.methodology").value("WATERFALL"))
 			.andExpect(jsonPath("$.response.visibility").value("MEMBERS_ONLY"))
-			.andExpect(jsonPath("$.response.phases").doesNotExist());
+			.andExpect(jsonPath("$.response.phases").doesNotExist())
+			.andExpect(jsonPath("$.response.members").doesNotExist());
 	}
 
 	@Test
@@ -90,6 +91,45 @@ class ProjectQueryApiIntegrationTest extends ProjectApiTestSupport {
 			.containsExactly(1, 2, 3, 4, 5);
 		expectError(getAs(loginAs(developer), PROJECTS + "/{id}/phases", membersOnlyId), ErrorCode.PROJECT_NOT_FOUND);
 		expectError(getAs(loginAs(developer), PROJECTS + "/{id}/phases", 999_999L), ErrorCode.PROJECT_NOT_FOUND);
+	}
+
+	@Test
+	@DisplayName("멤버 API: 상세와 같은 공개 범위를 따르고, 이름·역할을 준다")
+	void membersVisibility() throws Exception {
+		assertThat(membersOf(loginAs(itExecutive), membersOnlyId).valueStream()
+			.map(m -> m.get("userId").asLong() + ":" + m.get("name").asString() + ":" + m.get("actor").asString()).toList())
+			.containsExactly(
+				creator.getId() + ":" + creator.getName() + ":PM",
+				businessOwner.getId() + ":" + businessOwner.getName() + ":BUSINESS_OWNER"
+			);
+		expectError(getAs(loginAs(developer), PROJECTS + "/{id}/members", membersOnlyId), ErrorCode.PROJECT_NOT_FOUND);
+		expectError(getAs(loginAs(salesExecutive), PROJECTS + "/{id}/members", departmentOnlyId), ErrorCode.PROJECT_NOT_FOUND);
+		expectError(getAs(loginAs(developer), PROJECTS + "/{id}/members", 999_999L), ErrorCode.PROJECT_NOT_FOUND);
+	}
+
+	@Test
+	@DisplayName("멤버 API 커서 페이지: 등록순으로 끊어 읽고, 다른 프로젝트 멤버는 섞이지 않는다")
+	void membersCursorPaging() throws Exception {
+		final long projectId = createProject(project("TEAM-1", "COMPANY", List.of(
+			member(developer.getId(), "DEVELOPER"),
+			member(businessOwner.getId(), "BUSINESS_OWNER"),
+			member(noPermission.getId(), "DEVELOPER")
+		)));
+		final Cookie cookie = loginAs(developer);
+
+		final JsonNode first = readResponse(getAs(cookie, PROJECTS + "/{id}/members?size=2", projectId));
+		assertThat(userIds(first)).containsExactly(creator.getId(), developer.getId());
+		assertThat(first.get("hasNext").asBoolean()).isTrue();
+
+		final JsonNode second = readResponse(getAs(cookie,
+			PROJECTS + "/{id}/members?size=2&cursor=" + first.get("nextCursor").asString(), projectId));
+		assertThat(userIds(second)).containsExactly(noPermission.getId(), businessOwner.getId());
+		assertThat(second.get("hasNext").asBoolean()).isFalse();
+		assertThat(second.get("nextCursor").isNull()).isTrue();
+
+		expectError(getAs(cookie, PROJECTS + "/{id}/members?cursor=broken", projectId), ErrorCode.INVALID_CURSOR);
+		getAs(cookie, PROJECTS + "/{id}/members?size=0", projectId).andExpect(status().isBadRequest());
+		getAs(cookie, PROJECTS + "/{id}/members?size=101", projectId).andExpect(status().isBadRequest());
 	}
 
 	@Test
@@ -155,5 +195,9 @@ class ProjectQueryApiIntegrationTest extends ProjectApiTestSupport {
 
 	private static List<Long> ids(final JsonNode page) {
 		return page.get("items").valueStream().map(item -> item.get("id").asLong()).toList();
+	}
+
+	private static List<Long> userIds(final JsonNode page) {
+		return page.get("items").valueStream().map(item -> item.get("userId").asLong()).toList();
 	}
 }

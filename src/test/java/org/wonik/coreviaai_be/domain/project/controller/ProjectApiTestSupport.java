@@ -95,6 +95,11 @@ abstract class ProjectApiTestSupport extends ApiIntegrationTestSupport {
 		return readResponse(getAs(cookie, PROJECTS + "/{id}/phases", projectId));
 	}
 
+	/** 멤버 목록 첫 페이지(GET /api/projects/{id}/members, 최대 크기)의 항목 배열. */
+	protected JsonNode membersOf(final Cookie cookie, final long projectId) throws Exception {
+		return readResponse(getAs(cookie, PROJECTS + "/{id}/members?size=100", projectId)).get("items");
+	}
+
 	/** 생성 권한자로 프로젝트를 만들고 ID를 돌려준다. */
 	protected long createProject(final Map<String, Object> body) throws Exception {
 		return readResponse(create(loginAs(creator), body)).get("id").asLong();

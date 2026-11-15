@@ -16,6 +16,7 @@ import org.wonik.coreviaai_be.domain.project.service.result.ProjectDetailResult;
 /**
  * 프로젝트 상세(FR-PRJ-01 인수 기준: 운영 방식을 프로젝트 정보에 표시). 운영 방식과 관계없는 공통 정보만 담는다.
  * 운영 방식별 구조는 별도 API로 조회한다(폭포수: GET /api/projects/{id}/phases). FE는 methodology로 어느 API를 부를지 고른다.
+ * 멤버는 커서 목록 API(GET /api/projects/{id}/members)로 조회한다.
  *
  * @param actors 지정한 액터. 멤버 초대·역할 지정 화면의 역할 선택지다
  */
@@ -35,7 +36,6 @@ public record ProjectDetailResponse(
 	String pmName,
 	Long createdBy,
 	List<ProjectActor> actors,
-	List<ProjectMemberResponse> members,
 	Instant createdAt,
 	Instant updatedAt
 ) {
@@ -59,7 +59,6 @@ public record ProjectDetailResponse(
 			userNames.get(project.getPmUserId()),
 			project.getCreatedBy(),
 			result.actors(),
-			result.members().stream().map(member -> ProjectMemberResponse.of(member, userNames)).toList(),
 			project.getCreatedAt(),
 			project.getUpdatedAt()
 		);
