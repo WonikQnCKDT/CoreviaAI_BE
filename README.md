@@ -2,7 +2,7 @@
 
 > 상태: Draft
 > 담당자: 미정 (팀에서 지정 필요)
-> 마지막 검토일: 2026-11-12
+> 마지막 검토일: 2026-11-15
 > 적용 범위: `CoreviaAI_BE/` 백엔드 (Spring Boot)
 
 ## 1. 프로젝트 개요
@@ -12,6 +12,7 @@
   - FR-ADM-01 로그인·계정 (Jira SCRUM-96): ID/PW 로그인·로그아웃, 토큰 재발급, 내 계정 조회, 비밀번호 변경, 관리자 비밀번호 초기화, 5회 연속 실패 잠금, 30분 무활동 세션 만료, 로그인 시도 기록
   - FR-ADM-02 사용자·조직 관리 (Jira SCRUM-97): 사용자 추가·수정·활성/비활성, 시스템 역할 변경, 프로젝트 생성 권한 부여·회수, 부서(계층) 관리, 변경 이력(감사 로그) 조회
   - FR-PRJ-01 프로젝트 생성 (Jira SCRUM-98): 단계형 생성(기본 정보 → 운영 방식 → 액터 → 멤버(선택) → 게이트 승인자(선택)), 생성자 PM 자동 지정, 폭포수 5단계·게이트 자동 생성, 공개 범위에 따른 목록(필터·커서)·상세·멤버 목록(커서) 조회. MVP는 폭포수·SW 액터만 선택 가능
+  - FR-PRJ-04 멤버·역할 관리 (Jira SCRUM-106): 멤버 초대·역할 변경·제외(PM만), 멤버 이력, PM 위임(현 PM), PM 재지정(PM 비활성 시 시스템 관리자). 담당 업무 수는 업무(FR-TSK-01) 구현 전이라 0
 - 기술 stack: Java 17, Spring Boot 4.1.2 (Web MVC, Security, Data JPA, Data Redis, Validation, Flyway), jjwt 0.13, PostgreSQL, Redis 7.4
 
 ## 2. 개발 환경
@@ -93,15 +94,16 @@ org.wonik
 │  └─ security                       AuthServerSecurityConfig, AuthSessionLoginResolver, AuthSessionTerminator
 ├─ coreviaai_be/                     업무 모듈
 │  ├─ domain/department              Department(departments): 부서 계층(parentId). 사용자 소속·이후 프로젝트 주관 부서의 기준
-│  ├─ domain/project                 프로젝트 (FR-PRJ-01)
-│  │  ├─ controller                  ProjectController
-│  │  ├─ service                     ProjectCreationService(생성), ProjectQueryService(목록·상세, 공개 범위)
-│  │  ├─ policy                      ProjectCreationPolicy(생성 규칙), ProjectVisibilityPolicy(공개 범위·경영진 소속 범위)
+│  ├─ common/web                     CoreviaExceptionHandler: 업무 모듈 전체의 동시 수정 충돌 → 409 (authserver 응답은 그대로)
+│  ├─ domain/project                 프로젝트 (FR-PRJ-01, FR-PRJ-04)
+│  │  ├─ controller                  ProjectController(생성·목록·상세·단계), ProjectMemberController(멤버·이력·PM 위임)
+│  │  ├─ service                     ProjectCreationService(생성), ProjectQueryService(목록·상세·단계), ProjectMemberService(멤버·이력), ProjectPmService(PM 위임·재지정)
+│  │  ├─ policy                      ProjectCreationPolicy(생성 규칙), ProjectMemberPolicy(멤버·역할·위임 규칙), ProjectAccessPolicy(조회 404·PM 전용 403), ProjectVisibilityPolicy(공개 범위·경영진 소속 범위)
 │  │  ├─ structure                   ProjectStructureInitializer(운영 방식별 기본 구조) + WaterfallStructureInitializer(5단계·게이트)
-│  │  ├─ entity                      Project, ProjectActorAssignment, ProjectMember, ProjectPhase, type/(enum)
+│  │  ├─ entity                      Project, ProjectActorAssignment, ProjectMember, ProjectMemberHistory, ProjectPhase, type/(enum)
 │  │  └─ dto                         request / response
 │  ├─ domain/admin                   관리자 콘솔 (FR-ADM-02)
-│  │  ├─ controller                  AdminUserController, AdminDepartmentController, AdminExceptionHandler(동시 수정 409)
+│  │  ├─ controller                  AdminUserController, AdminDepartmentController, AdminProjectController(PM 재지정)
 │  │  ├─ service                     AdminUserService, AdminDepartmentService
 │  │  │  ├─ command                  서비스 입력 (요청 DTO와 분리)
 │  │  │  └─ result                   서비스 결과 (응답 DTO는 컨트롤러에서 변환)
@@ -162,7 +164,13 @@ org.wonik
 | POST | `/api/projects` | 생성 권한자 | 프로젝트 생성. 생성자 PM 자동 지정, 폭포수 5단계·게이트 생성, 감사 로그(`PROJECT_CREATED`). 응답은 상세 |
 | GET | `/api/projects` | USER·EXECUTIVE | 프로젝트 목록(커서, id 내림차순). `cursor`, `size`, `status`, `departmentId`, `pmUserId`. 공개 범위 밖은 제외 |
 | GET | `/api/projects/{projectId}` | USER·EXECUTIVE | 상세(운영 방식과 무관한 공통 정보: 기본 정보·운영 방식·지정 액터). 볼 수 없으면 404 |
-| GET | `/api/projects/{projectId}/members` | USER·EXECUTIVE | 멤버 목록(커서, id 오름차순 = 등록순). `cursor`, `size`. 공개 범위는 상세와 같음 |
+| GET | `/api/projects/{projectId}/members` | USER·EXECUTIVE | 멤버 목록(커서, id 오름차순 = 등록순). `cursor`, `size`. 공개 범위는 상세와 같음. 항목에 `assignedTaskCount`(현재 항상 0) |
+| POST | `/api/projects/{projectId}/members` | 현재 PM | 멤버 초대(한 번에 최대 100명). 이미 멤버가 있으면 전체 거부(409 `ALREADY_PROJECT_MEMBER`) |
+| PATCH | `/api/projects/{projectId}/members/{userId}/role` | 현재 PM | 역할 변경(지정 액터 중 PM 외). 같은 역할이면 변경·이력 없음 |
+| DELETE | `/api/projects/{projectId}/members/{userId}` | 현재 PM | 멤버 제외. PM은 400, 게이트 승인자는 409 |
+| GET | `/api/projects/{projectId}/members/histories` | USER·EXECUTIVE | 멤버 이력(커서, id 내림차순). 공개 범위는 상세와 같음 |
+| POST | `/api/projects/{projectId}/pm-delegation` | 현재 PM | PM 위임. `newPmUserId`, `previousPmAction`(`CHANGE_ROLE`·`LEAVE`), `previousPmActor`(`CHANGE_ROLE`일 때만) |
+| PUT | `/api/admin/projects/pm` | SYSTEM_ADMIN | PM 재지정(현재 PM 비활성일 때만). `projectCode`, `newPmUserId`. 응답은 바뀐 PM만 |
 | GET | `/api/projects/{projectId}/phases` | USER·EXECUTIVE | 폭포수 단계·게이트(단계 순서, 5개). 공개 범위는 상세와 같음. 폭포수가 아니면 404 `PHASES_NOT_AVAILABLE` |
 
 ### 인증 방식 (세션 + JWT)
@@ -214,11 +222,22 @@ org.wonik
 - 목록 정렬은 최신 생성순 하나만 제공한다. 종료일·이름순 정렬과 리스크 등급 필터(FR-AIR-06)는 후속.
 - 프로젝트 상태(`PLANNED`·`IN_PROGRESS`·`ON_HOLD`·`COMPLETED`·`CANCELLED`, 생성 시 `PLANNED`)는 명세에 정의가 없어 팀 확정 전 초안이다. 상태 변경 API는 없다.
 
+### 멤버·역할 관리 규칙 (FR-PRJ-04)
+
+- 권한: 조회(멤버 목록·이력)는 상세를 볼 수 있는 사람 전원, 변경(초대·역할 변경·제외·위임)은 현재 PM만. 볼 수 없는 프로젝트는 404, 볼 수 있지만 PM이 아니면 403 `PROJECT_PM_ONLY`(경영진 포함).
+- PM은 프로젝트당 1명이고 위임·재지정으로만 바뀐다. 초대·역할 변경으로 PM을 주거나 PM의 역할을 바꿀 수 없고, PM은 제외할 수 없다.
+- 초대: 생성 시 초대와 같은 기준(활성 일반 사용자, 지정 액터 중 PM 외 역할). 이미 멤버·요청 안 중복·초대 불가 사용자가 하나라도 있으면 아무도 추가하지 않는다.
+- 게이트 승인자: 역할 변경은 허용, 멤버 제외는 409 `GATE_APPROVER_NOT_REMOVABLE`, PM이 될 수 없다(위임·재지정 모두 400 `PM_TARGET_IS_GATE_APPROVER`). 승인자 변경(FR-PRJ-05) 전까지는 승인자인 멤버를 제외할 수 없다.
+- PM 위임: 현 PM만, 본인이 아닌 활성 멤버에게. 기존 PM은 `CHANGE_ROLE`(지정 액터 중 PM 외 역할)이나 `LEAVE`(멤버에서 빠짐)를 고른다. 위임 후 기존 PM이 멤버에서 빠지면 멤버 전용 프로젝트를 볼 수 없으므로 응답은 상세 대신 바뀐 PM만 준다.
+- PM 재지정(요구사항 명세서 3.1 예외): 현재 PM이 비활성일 때만 시스템 관리자가 프로젝트 코드와 새 PM 사용자 ID로 배치한다(인사 발령 기준이라 관리자용 프로젝트 조회 API는 두지 않음). 새 PM이 멤버면 역할을 PM으로 바꾸고, 아니면 PM으로 추가한다. 기존 PM은 멤버에서 뺀다. 없는 코드와 PM이 활성인 프로젝트는 같은 409 `PM_REASSIGN_NOT_ALLOWED`로 응답해 프로젝트 존재를 드러내지 않는다.
+- 이력: 변경마다 `project_member_histories`(업무 이력, 프로젝트와 함께 보관)와 `audit_logs`(감사 로그, 1년 보관)를 같은 트랜잭션에 남긴다. 한 행은 사람 한 명의 역할 변화이며 위임·재지정은 두 행이다. FR-PRJ-01 생성 시 초대한 멤버는 이력 없이 시작한다(`PROJECT_CREATED` 감사 로그에 남음).
+- 동시 수정: `projects`·`project_members`의 `version` 낙관적 잠금. 같은 프로젝트의 위임·재지정이 겹치면 나중 요청이 409 `CONCURRENT_MODIFICATION`. 같은 사용자를 동시에 초대하면 `uk_project_members_project_id_user_id` 위반을 409 `ALREADY_PROJECT_MEMBER`로 바꾼다.
+
 ### 목록 페이지네이션 (커서)
 
 - 요청: `?cursor={이전 응답의 nextCursor}&size=20` (기본 20, 최대 100). 첫 페이지는 `cursor` 없이 요청한다.
 - 응답: `{"items": [...], "nextCursor": "..." | null, "hasNext": true | false}`
-- 정렬은 API마다 고정한다: 사용자 목록·변경 이력·프로젝트 목록은 id 내림차순(최신순), 부서 목록은 id 오름차순(상위 부서가 먼저 와서 트리 구성이 쉬움), 프로젝트 멤버 목록은 id 오름차순(등록순).
+- 정렬은 API마다 고정한다: 사용자 목록·변경 이력·프로젝트 목록은 id 내림차순(최신순), 부서 목록은 id 오름차순(상위 부서가 먼저 와서 트리 구성이 쉬움), 프로젝트 멤버 목록은 id 오름차순(등록순), 프로젝트 멤버 이력은 id 내림차순(최신순).
 - 커서는 불투명 문자열이며 형식이 틀리면 400 `INVALID_CURSOR`. size+1개를 읽어 다음 페이지 여부를 판단한다(count 쿼리 없음).
 
 ### 중복 요청(idempotency)
@@ -226,16 +245,18 @@ org.wonik
 - 사용자 추가: `loginId`가 자연 키다. 같은 요청을 다시 보내면 409 `DUPLICATE_LOGIN_ID`로 끝나고 계정은 하나만 생긴다. 별도 Idempotency-Key는 쓰지 않는다.
 - 부서 추가: (상위 부서, 이름)이 자연 키다. 재전송은 409 `DUPLICATE_DEPARTMENT_NAME`.
 - 프로젝트 생성: `code`가 자연 키다. 재전송은 409 `DUPLICATE_PROJECT_CODE`로 끝나고 프로젝트는 하나만 생긴다(사전 검사 + `uk_projects_code`).
+- 멤버 초대: (프로젝트, 사용자)가 자연 키다. 재전송은 409 `ALREADY_PROJECT_MEMBER`. 제외 재전송은 404 `PROJECT_MEMBER_NOT_FOUND`, 위임 재전송은 요청자가 더 이상 PM이 아니라 403.
 - 수정·상태 변경(PATCH): 현재와 같은 값이면 변경·이력 없이 현재 상태를 돌려준다. 역할 변경·비활성화는 DB 커밋 후 세션을 끊는데, 세션 저장소 장애로 실패하면 오류가 반환되고 같은 요청을 다시 보내면 세션 끊기만 다시 수행된다.
 
 ## 7. Database와 Migration
 
-- 저장소: PostgreSQL (`users`, `local_credentials`, `login_history`, `departments`, `audit_logs`, `projects`, `project_actors`, `project_members`, `project_phases`), Redis (세션). 테이블 정의는 Confluence [BE_ERD](https://jnu-team-aaptc1y6.atlassian.net/wiki/spaces/CoreviaAI/folder/12878096) 도메인 페이지 참고. ERD 원본은 `docs/erd/`(draw.io, 현재 `02-admin.drawio`).
+- 저장소: PostgreSQL (`users`, `local_credentials`, `login_history`, `departments`, `audit_logs`, `projects`, `project_actors`, `project_members`, `project_phases`, `project_member_histories`), Redis (세션). 테이블 정의는 Confluence [BE_ERD](https://jnu-team-aaptc1y6.atlassian.net/wiki/spaces/CoreviaAI/folder/12878096) 도메인 페이지 참고. ERD 원본은 `docs/erd/`(draw.io, 현재 `02-admin.drawio`).
 - 시각은 모두 UTC instant(`timestamptz`)로 저장한다. KST 표시는 응답·화면 경계에서 변환한다.
 - 동시성: 로그인 시 `users` → `local_credentials` 순서로 `SELECT … FOR UPDATE`해 같은 계정의 동시 로그인과 실패 횟수 갱신을 순서대로 처리한다. 비밀번호 변경·초기화는 `local_credentials`만 잠근다. 두 테이블 모두 `version`으로 낙관적 잠금도 건다.
 - 동시성(관리자 기능): `users`·`departments`는 `version` 낙관적 잠금으로 동시 수정을 막고 충돌 시 409 `CONCURRENT_MODIFICATION`. 마지막 관리자 보호는 활성 관리자 행을 `FOR UPDATE`로 잠근 뒤 확인한다. 아이디·부서 이름 중복은 사전 검사 + DB 유니크 제약으로 막는다(최상위 부서 이름은 NULL 특성상 사전 검사만).
 - V2(`V2__create_departments_and_audit_logs.sql`): `departments`, `audit_logs` 생성, `users`에 NULL 허용·기본값 컬럼만 추가해 기존 행과 V1 기준 코드에 영향 없음(expand). 되돌릴 때는 추가 컬럼·테이블을 지우는 새 버전을 추가한다.
 - V3(`V3__create_projects.sql`): `projects`, `project_actors`, `project_members`, `project_phases` 테이블만 새로 만든다(기존 테이블 변경 없음). 프로젝트 기간은 달력 날짜라 `DATE`로 저장한다(UTC 시각 아님). enum 컬럼은 `audit_logs.action`과 같이 CHECK 제약 없이 이름을 저장한다. 되돌릴 때는 네 테이블을 지우는 새 버전을 추가한다.
+- V4(`V4__create_project_member_histories.sql`): `project_member_histories`만 새로 만든다(기존 테이블 변경 없음). `change_type`은 닫힌 값이라 CHECK 제약을 두고, `before_actor`·`after_actor`는 `project_members.actor`와 같이 CHECK 없이 저장한다. 되돌릴 때는 이 테이블을 지우는 새 버전을 추가한다.
 - Migration: `src/main/resources/db/migration/V{n}__설명.sql`, 기동 시 Flyway 자동 적용. 이미 적용된 파일은 수정하지 않고 새 버전을 추가한다(roll-forward).
 - backup·보존: DB 백업은 NFR-13(일 1회) 기준으로 회사 DB 측 운영. `login_history`·`audit_logs` 1년 보관(NFR-07) 정리 작업은 FR-ADM-04에서 구현 예정. `audit_logs`는 추가만 하고 수정·삭제 API가 없다.
 
@@ -270,9 +291,12 @@ org.wonik
 - unit: `PasswordPolicyTest`, `LocalCredentialTest`(잠금·초기화), `JwtTokenProviderTest`(만료·위조·용도), `TemporaryPasswordGeneratorTest`, `InitialAdminInitializerTest`
 - unit(FR-ADM-02): `UserTest`(역할 변경 시 권한 회수 등), `CursorCodecTest`, `CursorPageTest`, `AuditChangesTest`
 - integration(FR-ADM-02): `AdminUserApiIntegrationTest`(추가→비밀번호 발급→로그인·초기화 감사 로그, 중복 재전송, 부서 필수·비활성 부서, 비활성화 로그인 차단·세션 종료, 역할 변경·세션 종료, 본인 변경 금지, 마지막 관리자 보호, 프로젝트 생성 권한, 이력, 커서 목록·필터·잘못된 커서), `AdminDepartmentApiIntegrationTest`(계층, 이름 중복, 순환 이동, 사용 중 비활성화, 커서 목록·경계)
-- 미검증(FR-ADM-02): 낙관적 잠금 충돌(409)과 세션 저장소 장애 시 재전송 동작은 자동 테스트가 없다.
+- 미검증(FR-ADM-02): 실제 두 요청이 겹치는 낙관적 잠금 충돌은 자동 테스트가 없다(409 응답 변환은 `CoreviaExceptionHandlerTest`가 검증). 세션 저장소 장애 시 재전송은 `AdminSessionTerminationFailureTest`.
 - unit(FR-PRJ-01): `ProjectCreationPolicyTest`(기간, 비활성 액터, PM 필수, 멤버·게이트 승인자 규칙)
 - integration(FR-PRJ-01): `ProjectCreateApiIntegrationTest`(생성자 PM·5단계·승인자 적용·감사 로그, 멤버·승인자 생략, 코드 정규화·중복 재전송, 필수 항목·형식, 비활성 운영 방식·부서 유형·액터, 멤버·승인자 규칙, 생성 권한·시스템 관리자 차단, 비활성 부서, 코드 중복 확인, 선택지), `ProjectQueryApiIntegrationTest`(일반 사용자·경영진 공개 범위, 상세 404, 멤버 API 공개 범위·등록순 커서 경계, 단계 API 공개 범위·비폭포수 404, 필터, 커서 경계)
+- unit(FR-PRJ-04): `ProjectMemberPolicyTest`(초대·역할 변경·제외·위임 대상·기존 PM 처리 규칙)
+- integration(FR-PRJ-04): `ProjectMemberApiIntegrationTest`(초대·등록순·담당 업무 수 0·이력·감사 로그, 초대 규칙과 전체 거부, PM 전용 403·비공개 404, 역할 변경·승인자 역할 변경·같은 역할, 역할 규칙, 제외 후 멤버 전용 비노출, 제외 규칙, 이력 커서), `ProjectPmDelegationApiIntegrationTest`(역할 변경·제외 위임, 권한 이전, 대상·기존 PM 처리 규칙, 거부 시 무변경, PM 전용), `AdminProjectPmApiIntegrationTest`(기존 멤버·비멤버 재지정, 코드 대소문자, 존재 비노출 409, 새 PM 규칙, 관리자 전용), `common.web.CoreviaExceptionHandlerTest`(프로젝트·관리자 API 동시 수정 409)
+- 미검증(FR-PRJ-04): 실제 두 요청이 겹치는 낙관적 잠금 충돌은 예외를 주입해 응답만 검증한다. 같은 사용자 동시 초대의 유니크 제약 경쟁은 자동 테스트가 없다.
 - 미검증(FR-PRJ-01): 사전 중복 검사와 저장 사이에 같은 코드가 동시에 들어오는 경쟁은 DB 유니크 제약으로 막지만 자동 테스트는 없다.
 - 테스트 공통: `support.ApiIntegrationTestSupport`(로그인·요청·오류 검증), `support.DatabaseCleaner`(테스트 클래스 간 공유 H2를 FK 역순으로 비움. 테이블을 추가하면 여기도 추가)
 - integration: `AuthApiIntegrationTest` (MockMvc + H2 + 메모리 세션 저장소 + 시간 이동 가능한 Clock). 미인증 차단, 로그인 성공·실패 기록, 5회 잠금, 비활성 계정, 30분 무활동 만료·연장, 로그아웃, 비밀번호 변경, 관리자 초기화 흐름, 로컬 로그인 정보가 없는 사용자, 모듈별 보안 체인.

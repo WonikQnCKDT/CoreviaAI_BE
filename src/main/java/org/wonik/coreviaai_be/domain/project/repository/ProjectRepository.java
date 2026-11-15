@@ -2,6 +2,7 @@ package org.wonik.coreviaai_be.domain.project.repository;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -13,6 +14,9 @@ import org.wonik.coreviaai_be.domain.project.entity.type.ProjectStatus;
 public interface ProjectRepository extends JpaRepository<Project, Long> {
 
 	boolean existsByCode(String code);
+
+	/** 관리자 PM 재지정(FR-PRJ-04)은 프로젝트 코드로 대상을 찾는다. code는 대문자로 정규화된 값이어야 한다. */
+	Optional<Project> findByCode(String code);
 
 	/**
 	 * 일반 사용자의 프로젝트 목록(커서 방식, id 내림차순 = 최신 생성순). null인 필터는 적용하지 않는다.

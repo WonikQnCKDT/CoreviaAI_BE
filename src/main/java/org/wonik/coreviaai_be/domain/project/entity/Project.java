@@ -124,4 +124,12 @@ public class Project extends BaseTimeEntity {
 	) {
 		return new Project(code, name, startDate, endDate, departmentId, visibility, methodology, departmentType, creatorUserId);
 	}
+
+	/**
+	 * PM 위임·재지정(FR-PRJ-04). 프로젝트 행의 version이 올라가므로 같은 프로젝트의 위임·재지정이 겹치면
+	 * 나중 요청이 낙관적 잠금 충돌(409)로 끝난다.
+	 */
+	public void changePm(final Long newPmUserId) {
+		this.pmUserId = newPmUserId;
+	}
 }

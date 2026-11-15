@@ -8,4 +8,7 @@ import org.wonik.coreviaai_be.domain.project.entity.ProjectPhase;
 public interface ProjectPhaseRepository extends JpaRepository<ProjectPhase, Long> {
 
 	List<ProjectPhase> findAllByProjectIdOrderByPhaseOrder(Long projectId);
+
+	/** 이 사용자가 한 단계 이상의 게이트 승인자인지(FR-PRJ-04: 승인자는 멤버 제외·PM 지정 불가). */
+	boolean existsByProjectIdAndGateApproverUserId(Long projectId, Long gateApproverUserId);
 }

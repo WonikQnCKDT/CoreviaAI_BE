@@ -62,12 +62,7 @@ public class ProjectCreationPolicy {
 			if (Objects.equals(member.userId(), creatorUserId)) {
 				throw new CustomException(ErrorCode.CREATOR_ALREADY_PM);
 			}
-			if (member.actor() == ProjectActor.PM) {
-				throw new CustomException(ErrorCode.PM_ROLE_NOT_INVITABLE);
-			}
-			if (!command.actors().contains(member.actor())) {
-				throw new CustomException(ErrorCode.MEMBER_ACTOR_NOT_ASSIGNED);
-			}
+			ProjectMemberPolicy.requireInvitableRole(command.actors(), member.actor());
 			if (!userIds.add(member.userId())) {
 				throw new CustomException(ErrorCode.DUPLICATE_PROJECT_MEMBER);
 			}

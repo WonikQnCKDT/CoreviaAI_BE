@@ -100,6 +100,30 @@ abstract class ProjectApiTestSupport extends ApiIntegrationTestSupport {
 		return readResponse(getAs(cookie, PROJECTS + "/{id}/members?size=100", projectId)).get("items");
 	}
 
+	/** 멤버 목록을 "userId:역할" 문자열로(등록순). 순서·역할을 한 번에 비교하기 위한 형태다. */
+	protected List<String> memberRoles(final Cookie cookie, final long projectId) throws Exception {
+		return membersOf(cookie, projectId).valueStream()
+			.map(member -> member.get("userId").asLong() + ":" + member.get("actor").asString())
+			.toList();
+	}
+
+	/** 멤버 이력 첫 페이지(최신순, 최대 크기)의 항목 배열. */
+	protected JsonNode historiesOf(final Cookie cookie, final long projectId) throws Exception {
+		return readResponse(getAs(cookie, PROJECTS + "/{id}/members/histories?size=100", projectId)).get("items");
+	}
+
+	/** JSON 문자열 값. null이면 "null"로 바꿔 전·후 비교 문자열에 넣는다. */
+	protected static String text(final JsonNode node) {
+		return node == null || node.isNull() ? "null" : node.asString();
+	}
+
+	/** 사용자를 비활성화한다(퇴사 등). 관리자 API 대신 저장소로 바꿔 프로젝트 테스트의 준비를 짧게 한다. */
+	protected void deactivate(final User user) {
+		final User saved = findUser(user.getId());
+		saved.deactivate();
+		userRepository.save(saved);
+	}
+
 	/** 생성 권한자로 프로젝트를 만들고 ID를 돌려준다. */
 	protected long createProject(final Map<String, Object> body) throws Exception {
 		return readResponse(create(loginAs(creator), body)).get("id").asLong();
