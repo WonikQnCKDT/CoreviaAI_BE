@@ -51,11 +51,14 @@ class ProjectCreateApiIntegrationTest extends ProjectApiTestSupport {
 		assertThat(project.get("departmentName").asString()).isEqualTo("개발팀");
 		assertThat(project.get("actors").valueStream().map(JsonNode::asString).toList())
 			.containsExactly("PM", "BUSINESS_OWNER", "DEVELOPER");
-		assertThat(project.get("members").valueStream().map(m -> m.get("userId").asLong() + ":" + m.get("actor").asString()).toList())
+		// 멤버는 별도 커서 목록으로 조회한다. 등록순(id 오름차순)이라 생성자 PM이 먼저, 초대 멤버는 userId 순으로 저장된다.
+		assertThat(project.has("members")).isFalse();
+		assertThat(membersOf(cookie, project.get("id").asLong()).valueStream()
+			.map(m -> m.get("userId").asLong() + ":" + m.get("actor").asString()).toList())
 			.containsExactly(
 				creator.getId() + ":PM",
-				businessOwner.getId() + ":BUSINESS_OWNER",
-				developer.getId() + ":DEVELOPER"
+				developer.getId() + ":DEVELOPER",
+				businessOwner.getId() + ":BUSINESS_OWNER"
 			);
 
 		// 상세는 운영 방식과 무관한 공통 정보만 담고, 단계·게이트는 별도 API로 조회한다.
@@ -88,8 +91,9 @@ class ProjectCreateApiIntegrationTest extends ProjectApiTestSupport {
 		final Cookie cookie = loginAs(creator);
 		final JsonNode project = readResponse(create(cookie, body));
 
-		assertThat(project.get("members")).hasSize(1);
-		assertThat(project.get("members").get(0).get("actor").asString()).isEqualTo("PM");
+		final JsonNode members = membersOf(cookie, project.get("id").asLong());
+		assertThat(members).hasSize(1);
+		assertThat(members.get(0).get("actor").asString()).isEqualTo("PM");
 		assertThat(phasesOf(cookie, project.get("id").asLong()).valueStream().toList())
 			.hasSize(5)
 			.allSatisfy(phase -> assertThat(phase.get("gateApproverUserId").isNull()).isTrue());

@@ -14,6 +14,7 @@ import org.wonik.coreviaai_be.domain.project.dto.request.CreateProjectRequest;
 import org.wonik.coreviaai_be.domain.project.dto.response.CodeAvailabilityResponse;
 import org.wonik.coreviaai_be.domain.project.dto.response.CreationOptionsResponse;
 import org.wonik.coreviaai_be.domain.project.dto.response.ProjectDetailResponse;
+import org.wonik.coreviaai_be.domain.project.dto.response.ProjectMemberResponse;
 import org.wonik.coreviaai_be.domain.project.dto.response.ProjectPhaseResponse;
 import org.wonik.coreviaai_be.domain.project.dto.response.ProjectSummaryResponse;
 import org.wonik.coreviaai_be.domain.project.entity.type.ProjectStatus;
@@ -34,7 +35,7 @@ import jakarta.validation.constraints.Positive;
 import lombok.RequiredArgsConstructor;
 
 /**
- * 프로젝트 생성·목록·상세 API(FR-PRJ-01). 일반 사용자·경영진만 접근한다(CoreviaSecurityConfig, 시스템 관리자 차단).
+ * 프로젝트 생성·목록·상세·멤버 목록 API(FR-PRJ-01). 일반 사용자·경영진만 접근한다(CoreviaSecurityConfig, 시스템 관리자 차단).
  * 생성 권한(프로젝트 생성 권한 보유)과 공개 범위 판정은 서비스가 한다.
  */
 @RestController
@@ -68,6 +69,21 @@ public class ProjectController {
 		@PathVariable @Positive final Long projectId
 	) {
 		return ApiResponse.success(ProjectDetailResponse.from(projectQueryService.getDetail(loginUser.userId(), projectId)));
+	}
+
+	/** 멤버 목록(커서, id 오름차순 = 등록순). 공개 범위는 상세와 같고, 볼 수 없으면 404 PROJECT_NOT_FOUND. */
+	@GetMapping("/{projectId}/members")
+	public ApiResponse<CursorPage<ProjectMemberResponse>> findMembers(
+		@AuthenticationPrincipal final LoginUser loginUser,
+		@PathVariable @Positive final Long projectId,
+		@RequestParam(required = false) final String cursor,
+		@RequestParam(defaultValue = "" + CursorPageRequest.DEFAULT_SIZE)
+		@Min(1) @Max(CursorPageRequest.MAX_SIZE) final int size
+	) {
+		final CursorPageRequest page = CursorPageRequest.of(cursor, size);
+		return ApiResponse.success(
+			projectQueryService.findMembers(loginUser.userId(), projectId, page).map(ProjectMemberResponse::from)
+		);
 	}
 
 	/** 폭포수 단계·게이트(단계 순서대로, 항상 5개라 페이지네이션 없음). 다른 운영 방식이면 404 PHASES_NOT_AVAILABLE. */

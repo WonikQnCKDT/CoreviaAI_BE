@@ -1,8 +1,6 @@
 package org.wonik.coreviaai_be.domain.project.service;
 
 import java.util.Collection;
-import java.util.Comparator;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -26,6 +24,7 @@ import org.wonik.coreviaai_be.domain.project.repository.ProjectMemberRepository;
 import org.wonik.coreviaai_be.domain.project.repository.ProjectPhaseRepository;
 import org.wonik.coreviaai_be.domain.project.repository.ProjectRepository;
 import org.wonik.coreviaai_be.domain.project.service.result.ProjectDetailResult;
+import org.wonik.coreviaai_be.domain.project.service.result.ProjectMemberResult;
 import org.wonik.coreviaai_be.domain.project.service.result.ProjectPhasesResult;
 import org.wonik.coreviaai_be.domain.project.service.result.ProjectSummaryResult;
 import org.wonik.global.common.exception.CustomException;
@@ -89,22 +88,30 @@ public class ProjectQueryService {
 			.map(ProjectActorAssignment::getActor)
 			.sorted()
 			.toList();
-		final List<ProjectMember> members = memberRepository.findAllByProjectIdOrderById(projectId).stream()
-			.sorted(Comparator.comparing(ProjectMember::getActor).thenComparing(ProjectMember::getId))
-			.toList();
-
-		final Set<Long> userIds = new HashSet<>();
-		userIds.add(project.getPmUserId());
-		userIds.add(project.getCreatedBy());
-		members.forEach(member -> userIds.add(member.getUserId()));
-
 		return new ProjectDetailResult(
 			project,
 			departmentNamesOf(Set.of(project.getDepartmentId())).get(project.getDepartmentId()),
 			actors,
-			members,
-			userNamesOf(userIds)
+			userNamesOf(Set.of(project.getPmUserId()))
 		);
+	}
+
+	/** 멤버 목록(커서, id 오름차순 = 등록순). 공개 범위는 상세와 같다. */
+	@Transactional(readOnly = true)
+	public CursorPage<ProjectMemberResult> findMembers(
+		final Long viewerId,
+		final Long projectId,
+		final CursorPageRequest page
+	) {
+		getVisibleProject(viewerId, projectId);
+		final CursorPage<ProjectMember> members = CursorPage.of(
+			memberRepository.findPageByProjectId(projectId, page.cursorId(), page.fetchPageable()),
+			page.size(),
+			ProjectMember::getId
+		);
+		final Map<Long, String> userNames = userNamesOf(
+			members.items().stream().map(ProjectMember::getUserId).collect(Collectors.toSet()));
+		return members.map(member -> new ProjectMemberResult(member, userNames.get(member.getUserId())));
 	}
 
 	/**
