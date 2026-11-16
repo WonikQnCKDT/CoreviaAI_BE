@@ -7,7 +7,7 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 
 /**
- * 생성 화면 ④에서 초대하는 멤버 한 명. actor는 ③에서 지정한 액터 중 하나여야 한다(서비스에서 검증).
+ * 초대하는 멤버 한 명(생성 화면 ④, FR-PRJ-04 멤버 초대 공용). actor는 지정한 액터 중 하나여야 한다(서비스에서 검증).
  */
 public record InitialMemberRequest(
 	@NotNull(message = "초대할 사용자를 선택해 주세요")

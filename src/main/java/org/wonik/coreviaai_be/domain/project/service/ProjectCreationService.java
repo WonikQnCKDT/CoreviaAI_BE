@@ -3,8 +3,6 @@ package org.wonik.coreviaai_be.domain.project.service;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Set;
-import java.util.stream.Collectors;
 
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
@@ -40,7 +38,7 @@ import lombok.RequiredArgsConstructor;
  * 프로젝트 생성(FR-PRJ-01). 단계형 화면(①~⑤)의 입력을 마지막에 한 번에 받아 한 트랜잭션으로 만든다.
  * 그래서 운영 방식·액터 지정이 끝나기 전의 반쯤 만든 프로젝트가 DB에 남지 않는다.
  * <p>
- * 생성자는 PM으로 자동 등록된다(요구사항 명세서 3.1). PM 위임·재지정은 FR-PRJ-04,
+ * 생성자는 PM으로 자동 등록된다(요구사항 명세서 3.1). PM 위임·재지정은 ProjectPmService(FR-PRJ-04),
  * 게이트 승인자 변경은 FR-PRJ-05 범위다.
  */
 @Service
@@ -53,6 +51,7 @@ public class ProjectCreationService {
 	private final UserRepository userRepository;
 	private final DepartmentRepository departmentRepository;
 	private final ProjectCreationPolicy creationPolicy;
+	private final ProjectMemberService memberService;
 	private final List<ProjectStructureInitializer> structureInitializers;
 	private final AuditLogger auditLogger;
 
@@ -66,7 +65,7 @@ public class ProjectCreationService {
 		final User creator = requireProjectCreator(actor.userId());
 		creationPolicy.validate(command, creator.getId());
 		requireAssignableDepartment(command.departmentId());
-		requireInvitableUsers(command.members());
+		memberService.requireInvitableUsers(command.members().stream().map(InitialMember::userId).toList());
 		if (projectRepository.existsByCode(command.code())) {
 			throw new CustomException(ErrorCode.DUPLICATE_PROJECT_CODE);
 		}
@@ -124,23 +123,6 @@ public class ProjectCreationService {
 			.orElse(false);
 		if (!assignable) {
 			throw new CustomException(ErrorCode.INVALID_PROJECT_DEPARTMENT);
-		}
-	}
-
-	/**
-	 * 초대 대상은 활성 일반 사용자만이다. 경영진은 프로젝트에서 읽기 전용이라(3.1) 역할을 줄 수 없고,
-	 * 시스템 관리자는 프로젝트 데이터에 접근할 수 없다. 다른 부서 사용자는 초대할 수 있다(현업 담당자 등).
-	 */
-	private void requireInvitableUsers(final List<InitialMember> members) {
-		if (members.isEmpty()) {
-			return;
-		}
-		final Set<Long> userIds = members.stream().map(InitialMember::userId).collect(Collectors.toSet());
-		final List<User> users = userRepository.findAllById(userIds);
-		final boolean allInvitable = users.size() == userIds.size()
-			&& users.stream().allMatch(user -> user.isActive() && user.getSystemRole() == SystemRole.USER);
-		if (!allInvitable) {
-			throw new CustomException(ErrorCode.INVALID_PROJECT_MEMBER);
 		}
 	}
 

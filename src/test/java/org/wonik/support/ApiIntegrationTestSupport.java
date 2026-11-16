@@ -1,8 +1,10 @@
 package org.wonik.support;
 
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -133,6 +135,21 @@ public abstract class ApiIntegrationTestSupport {
 		return mockMvc.perform(withCookie(patch(url, uriVariables), cookie)
 			.contentType(MediaType.APPLICATION_JSON)
 			.content(jsonMapper.writeValueAsString(body)));
+	}
+
+	protected ResultActions putJson(
+		final Cookie cookie,
+		final Map<String, Object> body,
+		final String url,
+		final Object... uriVariables
+	) throws Exception {
+		return mockMvc.perform(withCookie(put(url, uriVariables), cookie)
+			.contentType(MediaType.APPLICATION_JSON)
+			.content(jsonMapper.writeValueAsString(body)));
+	}
+
+	protected ResultActions deleteAs(final Cookie cookie, final String url, final Object... uriVariables) throws Exception {
+		return mockMvc.perform(withCookie(delete(url, uriVariables), cookie));
 	}
 
 	/** null 값을 넣을 수 있는 요청 본문(Map.of는 null을 허용하지 않는다). 키·값을 번갈아 넘긴다. */

@@ -27,6 +27,11 @@ public enum ErrorCode {
 	INVALID_PROJECT_DEPARTMENT(400, "주관 부서로 지정할 수 없는 부서입니다"),
 	GATE_APPROVER_NOT_MEMBER(400, "게이트 승인자는 초대한 멤버 중에서만 지정할 수 있습니다"),
 	GATE_APPROVER_CANNOT_BE_PM(400, "PM은 게이트 승인자로 지정할 수 없습니다"),
+	PM_ROLE_NOT_CHANGEABLE(400, "PM 역할은 PM 위임으로만 바꿀 수 있습니다"),
+	CANNOT_REMOVE_PM(400, "PM은 멤버에서 제외할 수 없습니다. 먼저 PM을 위임해 주세요"),
+	INVALID_PM_DELEGATION_TARGET(400, "PM은 본인이 아닌 활성 멤버에게만 위임할 수 있습니다"),
+	INVALID_PREVIOUS_PM_ACTION(400, "기존 PM의 처리 방식을 확인해 주세요. 역할 변경은 새 역할이 필요하고, 멤버 제외는 역할을 받지 않습니다"),
+	PM_TARGET_IS_GATE_APPROVER(400, "게이트 승인자는 PM이 될 수 없습니다. 승인자 지정을 먼저 해제해 주세요"),
 
 	EXPIRED_TOKEN(401, "인증 토큰이 만료되었습니다"),
 	INVALID_TOKEN(401, "유효하지 않은 토큰입니다"),
@@ -38,12 +43,14 @@ public enum ErrorCode {
 	ACCOUNT_DISABLED(403, "비활성화된 계정입니다. 시스템 관리자에게 문의해 주세요"),
 	PASSWORD_CHANGE_REQUIRED(403, "비밀번호를 변경한 뒤 이용할 수 있습니다"),
 	PROJECT_CREATION_FORBIDDEN(403, "프로젝트 생성 권한이 없습니다. 시스템 관리자에게 권한을 요청해 주세요"),
+	PROJECT_PM_ONLY(403, "프로젝트 PM만 할 수 있는 작업입니다"),
 
 	USER_NOT_FOUND(404, "사용자를 찾을 수 없습니다"),
 	NOT_FOUND(404, "페이지를 찾을 수 없습니다"),
 	DEPARTMENT_NOT_FOUND(404, "부서를 찾을 수 없습니다"),
 	PROJECT_NOT_FOUND(404, "프로젝트를 찾을 수 없습니다"),
 	PHASES_NOT_AVAILABLE(404, "이 운영 방식의 프로젝트에는 단계가 없습니다"),
+	PROJECT_MEMBER_NOT_FOUND(404, "프로젝트 멤버를 찾을 수 없습니다"),
 
 	DUPLICATE_LOGIN_ID(409, "이미 사용 중인 아이디입니다"),
 	DUPLICATE_PROJECT_CODE(409, "이미 사용 중인 프로젝트 코드입니다"),
@@ -51,6 +58,9 @@ public enum ErrorCode {
 	DEPARTMENT_IN_USE(409, "소속 사용자나 활성 하위 부서가 있어 비활성화할 수 없습니다"),
 	LAST_SYSTEM_ADMIN(409, "마지막 시스템 관리자의 역할·상태는 변경할 수 없습니다"),
 	CONCURRENT_MODIFICATION(409, "다른 사용자가 먼저 수정했습니다. 새로고침한 뒤 다시 시도해 주세요"),
+	ALREADY_PROJECT_MEMBER(409, "이미 프로젝트 멤버인 사용자입니다"),
+	GATE_APPROVER_NOT_REMOVABLE(409, "게이트 승인자는 멤버에서 제외할 수 없습니다. 승인자를 먼저 변경해 주세요"),
+	PM_REASSIGN_NOT_ALLOWED(409, "PM을 재지정할 수 없는 프로젝트입니다. 프로젝트 코드와 현재 PM의 비활성 여부를 확인해 주세요"),
 
 	ACCOUNT_LOCKED(423, "로그인에 5회 연속 실패해 계정이 잠겼습니다. 시스템 관리자에게 비밀번호 초기화를 요청해 주세요"),
 

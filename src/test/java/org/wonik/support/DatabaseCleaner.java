@@ -17,6 +17,7 @@ public class DatabaseCleaner {
 	private final JdbcTemplate jdbcTemplate;
 
 	public void clearAll() {
+		jdbcTemplate.update("DELETE FROM project_member_histories");
 		jdbcTemplate.update("DELETE FROM project_phases");
 		jdbcTemplate.update("DELETE FROM project_members");
 		jdbcTemplate.update("DELETE FROM project_actors");
