@@ -3,8 +3,8 @@ package org.wonik.coreviaai_be.domain.wbs.drafttoken;
 import java.util.Optional;
 
 /**
- * AI 초안 반영 토큰 저장소(FR-PRJ-07 반영 API의 멱등성). 초안 내용은 저장하지 않고 토큰과 발급 대상만 둔다
- * (NFR-08: 승인 전 데이터 저장 없음). 운영은 Redis({@link RedisWbsDraftTokenStore}), 테스트는 메모리 구현을 쓴다.
+ * AI 초안 반영 토큰 저장소(FR-PRJ-07 반영 API의 멱등성). 토큰과 발급 대상, 초안 기록 ID(ai_drafts)만 둔다.
+ * 초안 내용은 ai_drafts에 있다. 운영은 Redis({@link RedisWbsDraftTokenStore}), 테스트는 메모리 구현을 쓴다.
  * <ul>
  *   <li>발급(issue): 초안 생성 성공 시. 설정한 TTL이 지나면 사라진다</li>
  *   <li>소비(consume): 반영 직전 원자적으로 지운다. 동시에 두 번 반영되지 않게 한다</li>

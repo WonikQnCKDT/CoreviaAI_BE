@@ -35,6 +35,10 @@ import org.wonik.coreviaai_be.domain.wbs.entity.WbsDependency;
 import org.wonik.coreviaai_be.domain.wbs.entity.WbsTask;
 import org.wonik.coreviaai_be.domain.wbs.entity.type.WbsItemSource;
 import org.wonik.coreviaai_be.domain.wbs.entity.type.WbsTaskStatus;
+import org.wonik.coreviaai_be.domain.aidraft.entity.AiDraft;
+import org.wonik.coreviaai_be.domain.aidraft.entity.type.AiDraftFeature;
+import org.wonik.coreviaai_be.domain.aidraft.entity.type.AiDraftStatus;
+import org.wonik.coreviaai_be.domain.aidraft.repository.AiDraftRepository;
 import org.wonik.coreviaai_be.domain.wbs.repository.MilestoneRepository;
 import org.wonik.coreviaai_be.domain.wbs.repository.MilestoneTaskRepository;
 import org.wonik.coreviaai_be.domain.wbs.repository.WbsDependencyRepository;
@@ -79,6 +83,8 @@ class WbsAiDraftApiIntegrationTest extends ProjectApiTestSupport {
 	private MilestoneRepository milestoneRepository;
 	@Autowired
 	private MilestoneTaskRepository milestoneTaskRepository;
+	@Autowired
+	private AiDraftRepository aiDraftRepository;
 
 	private long projectId;
 	private Cookie pm;
@@ -93,7 +99,7 @@ class WbsAiDraftApiIntegrationTest extends ProjectApiTestSupport {
 	// ---- 생성 ----
 
 	@Test
-	@DisplayName("생성: PM이 요청하면 저장 없이 'AI 초안'과 반영 토큰을 돌려주고, AI 요청을 감사 로그에 남긴다")
+	@DisplayName("생성: PM이 요청하면 WBS는 바꾸지 않고 'AI 초안'과 반영 토큰을 돌려주며, AI 결과를 ai_drafts에 DRAFT로 남긴다")
 	void generate() throws Exception {
 		final JsonNode draft = readResponse(generate(pm, body("projectPurpose", "구매 발주를 전산화한다",
 			"requirementsText", "발주 등록, 승인, 조회", "constraints", List.of("12월 오픈"))));
@@ -106,6 +112,14 @@ class WbsAiDraftApiIntegrationTest extends ProjectApiTestSupport {
 		assertThat(draft.get("milestones").get(0).get("tempId").asString()).isEqualTo("M-001");
 		assertThat(draft.get("feasibility").get("status").asString()).isEqualTo("AT_RISK");
 		assertThat(taskRepository.count()).isZero();
+
+		final AiDraft aiDraft = singleAiDraft();
+		assertThat(aiDraft.getFeature()).isEqualTo(AiDraftFeature.WBS_DRAFT);
+		assertThat(aiDraft.getStatus()).isEqualTo(AiDraftStatus.DRAFT);
+		assertThat(aiDraft.getProjectId()).isEqualTo(projectId);
+		assertThat(aiDraft.getRequestedBy()).isEqualTo(creator.getId());
+		assertThat(aiDraft.getOutput()).contains("\"T-001\"", "\"M-001\"").doesNotContain("발주 등록, 승인, 조회");
+		assertThat(aiDraft.getDecidedBy()).isNull();
 
 		final ArgumentCaptor<WbsDraftContext> context = ArgumentCaptor.forClass(WbsDraftContext.class);
 		verify(aiClient).generate(context.capture());
@@ -120,7 +134,7 @@ class WbsAiDraftApiIntegrationTest extends ProjectApiTestSupport {
 		final List<AuditLog> logs = auditLogs(AuditAction.AI_WBS_DRAFT_REQUESTED);
 		assertThat(logs).hasSize(1);
 		assertThat(logs.get(0).getDetails())
-			.contains("\"outcome\":\"SUCCESS\"", "\"proposedTaskCount\":2", "\"proposedMilestoneCount\":1")
+			.contains("\"aiDraftId\":" + aiDraft.getId(), "\"outcome\":\"SUCCESS\"", "\"proposedTaskCount\":2", "\"proposedMilestoneCount\":1")
 			.doesNotContain("구매 발주를 전산화한다");
 	}
 
@@ -142,7 +156,7 @@ class WbsAiDraftApiIntegrationTest extends ProjectApiTestSupport {
 	}
 
 	@Test
-	@DisplayName("생성: AI 사용 불가는 503으로 알리고, 실패한 요청도 감사 로그에 남긴다")
+	@DisplayName("생성: AI 사용 불가는 503으로 알리고, 실패한 요청도 ai_drafts(FAILED)와 감사 로그에 남긴다")
 	void generateWhenAiUnavailable() throws Exception {
 		when(aiClient.generate(any())).thenThrow(new CustomException(ErrorCode.AI_NOT_READY));
 
@@ -150,6 +164,9 @@ class WbsAiDraftApiIntegrationTest extends ProjectApiTestSupport {
 
 		assertThat(auditLogs(AuditAction.AI_WBS_DRAFT_REQUESTED)).singleElement()
 			.extracting(AuditLog::getDetails).asString().contains("\"outcome\":\"AI_NOT_READY\"");
+		final AiDraft aiDraft = singleAiDraft();
+		assertThat(aiDraft.getStatus()).isEqualTo(AiDraftStatus.FAILED);
+		assertThat(aiDraft.getOutput()).isNull();
 	}
 
 	// ---- 반영 ----
@@ -192,6 +209,12 @@ class WbsAiDraftApiIntegrationTest extends ProjectApiTestSupport {
 		assertThat(auditLogs(AuditAction.AI_WBS_DRAFT_APPLIED)).singleElement()
 			.extracting(AuditLog::getDetails).asString()
 			.contains("\"taskCount\":2", "\"subtaskCount\":1", "\"milestoneCount\":1", "\"rejectedCount\":1");
+
+		// 제외한 항목이 있어 일부 수락으로 남는다.
+		final AiDraft aiDraft = singleAiDraft();
+		assertThat(aiDraft.getStatus()).isEqualTo(AiDraftStatus.PARTIALLY_ACCEPTED);
+		assertThat(aiDraft.getDecidedBy()).isEqualTo(creator.getId());
+		assertThat(aiDraft.getDecidedAt()).isNotNull();
 	}
 
 	@Test
@@ -218,6 +241,7 @@ class WbsAiDraftApiIntegrationTest extends ProjectApiTestSupport {
 
 		expectError(apply(pm, invalid), ErrorCode.INVALID_WBS_DRAFT_SCHEDULE);
 		assertThat(taskRepository.count()).isZero();
+		assertThat(singleAiDraft().getStatus()).isEqualTo(AiDraftStatus.DRAFT);
 
 		apply(pm, validApplyBody(token)).andExpect(status().isOk());
 		assertThat(taskRepository.count()).isEqualTo(3);
@@ -301,6 +325,8 @@ class WbsAiDraftApiIntegrationTest extends ProjectApiTestSupport {
 		);
 		apply(pm, farFuture).andExpect(status().isOk());
 		assertThat(taskRepository.count()).isEqualTo(1);
+		// 제외 항목 없이 반영하면 전부 수락으로 남는다.
+		assertThat(singleAiDraft().getStatus()).isEqualTo(AiDraftStatus.ACCEPTED);
 	}
 
 	@Test
@@ -409,5 +435,11 @@ class WbsAiDraftApiIntegrationTest extends ProjectApiTestSupport {
 			List.of(),
 			List.of()
 		);
+	}
+
+	private AiDraft singleAiDraft() {
+		final List<AiDraft> drafts = aiDraftRepository.findAll();
+		assertThat(drafts).hasSize(1);
+		return drafts.get(0);
 	}
 }

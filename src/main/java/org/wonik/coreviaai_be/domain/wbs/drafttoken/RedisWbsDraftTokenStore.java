@@ -11,7 +11,7 @@ import lombok.RequiredArgsConstructor;
 /**
  * Redis 초안 토큰 저장소.
  * <ul>
- *   <li>{@code wbs:ai-draft:{token}} (string): "{projectId}:{userId}". TTL = token-ttl</li>
+ *   <li>{@code wbs:ai-draft:{token}} (string): "{projectId}:{userId}:{aiDraftId}". TTL = token-ttl</li>
  *   <li>{@code wbs:ai-draft-applied:{token}} (string): 반영 완료 표시. TTL = token-ttl</li>
  * </ul>
  * Redis 장애 시 예외를 그대로 올리고 자동 재시도하지 않는다(세션 저장소와 같은 방식). 연결·명령 timeout은
@@ -55,7 +55,7 @@ public class RedisWbsDraftTokenStore implements WbsDraftTokenStore {
 	}
 
 	private static String encode(final DraftTokenOwner owner) {
-		return owner.projectId() + SEPARATOR + owner.userId();
+		return owner.projectId() + SEPARATOR + owner.userId() + SEPARATOR + owner.aiDraftId();
 	}
 
 	private static Optional<DraftTokenOwner> decode(final String value) {
@@ -63,6 +63,9 @@ public class RedisWbsDraftTokenStore implements WbsDraftTokenStore {
 			return Optional.empty();
 		}
 		final String[] parts = value.split(SEPARATOR);
-		return Optional.of(new DraftTokenOwner(Long.valueOf(parts[0]), Long.valueOf(parts[1])));
+		if (parts.length != 3) {
+			return Optional.empty();
+		}
+		return Optional.of(new DraftTokenOwner(Long.valueOf(parts[0]), Long.valueOf(parts[1]), Long.valueOf(parts[2])));
 	}
 }
