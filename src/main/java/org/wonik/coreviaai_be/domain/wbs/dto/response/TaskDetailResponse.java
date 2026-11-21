@@ -12,7 +12,9 @@ import org.wonik.coreviaai_be.domain.wbs.service.result.TaskDetail;
  *
  * @param assignee        담당자. 없으면 null
  * @param scheduleDerived true면 기간이 하위작업 기간으로 산출된 값이라 직접 바꿀 수 없다
- * @param completedAt     완료 처리 시각(UTC). 완료 전이면 null(FR-TSK-02가 기록)
+ * @param completedAt     완료 처리 시각(UTC). 완료 상태가 아니면 null(칸반 카드 이동 FR-TSK-02가 기록)
+ * @param boardColumnId   칸반 컬럼. null이면 같은 상태의 첫 컬럼에 놓인다
+ * @param statusChangedAt 마지막 상태 변경 시각(UTC). 등록 이후 바뀐 적 없으면 null
  * @param version         상세 필드 수정·WBS 기본 필드 수정 요청에 그대로 보내는 값(낙관적 잠금)
  */
 public record TaskDetailResponse(
@@ -33,6 +35,8 @@ public record TaskDetailResponse(
 	String status,
 	String source,
 	Instant completedAt,
+	Long boardColumnId,
+	Instant statusChangedAt,
 	UserSummary createdBy,
 	Instant createdAt,
 	Instant updatedAt,
@@ -48,6 +52,7 @@ public record TaskDetailResponse(
 			task.getDescription(), task.getTaskType().name(), task.getPriority().name(), task.getCompletionCriteria(),
 			assignee, task.getStartDate(), task.getEndDate(), detail.scheduleDerived(), task.getEstimatedEffort(),
 			task.getProgress(), task.getStatus().name(), task.getSource().name(), task.getCompletedAt(),
+			task.getBoardColumnId(), task.getStatusChangedAt(),
 			new UserSummary(task.getCreatedBy(), detail.createdByName()), task.getCreatedAt(), task.getUpdatedAt(),
 			task.getVersion());
 	}

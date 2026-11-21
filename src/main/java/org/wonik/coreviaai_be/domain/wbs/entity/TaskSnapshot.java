@@ -25,13 +25,15 @@ public record TaskSnapshot(
 	TaskPriority priority,
 	String completionCriteria,
 	WbsTaskStatus status,
-	WbsItemSource source
+	WbsItemSource source,
+	Long boardColumnId,
+	int progress
 ) {
 
 	public static TaskSnapshot of(final WbsTask task) {
 		return new TaskSnapshot(task.getId(), task.getParentTaskId(), task.getSortOrder(), task.getName(),
 			task.getDescription(), task.getAssigneeUserId(), task.getStartDate(), task.getEndDate(),
 			task.getEstimatedEffort(), task.getTaskType(), task.getPriority(), task.getCompletionCriteria(),
-			task.getStatus(), task.getSource());
+			task.getStatus(), task.getSource(), task.getBoardColumnId(), task.getProgress());
 	}
 }

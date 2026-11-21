@@ -10,6 +10,7 @@ import java.util.List;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.test.util.ReflectionTestUtils;
 import org.wonik.coreviaai_be.domain.wbs.entity.type.TaskPriority;
 import org.wonik.coreviaai_be.domain.wbs.entity.type.TaskType;
 import org.wonik.coreviaai_be.domain.wbs.entity.type.WbsItemSource;
@@ -134,12 +135,63 @@ class WbsTaskTest {
 	}
 
 	@Test
+	@DisplayName("칸반 이동: 다른 상태 컬럼으로 옮기면 상태·컬럼·상태 변경 시각이 바뀌고, 완료 전이면 완료 시각은 비어 있다")
+	void moveToInProgressColumn() {
+		final WbsTask task = task("2026-12-01", "2026-12-05", null);
+		final Instant now = Instant.parse("2026-12-02T01:00:00Z");
+
+		task.moveToColumn(column(21L, WbsTaskStatus.IN_PROGRESS), now);
+
+		assertThat(task.getStatus()).isEqualTo(WbsTaskStatus.IN_PROGRESS);
+		assertThat(task.getBoardColumnId()).isEqualTo(21L);
+		assertThat(task.getStatusChangedAt()).isEqualTo(now);
+		assertThat(task.getCompletedAt()).isNull();
+		assertThat(task.getProgress()).isZero();
+	}
+
+	@Test
+	@DisplayName("칸반 이동: 완료 컬럼으로 옮기면 완료 시각과 진척률 100을 남기고, 완료에서 벗어나면 완료 시각만 지운다(진척률 유지)")
+	void moveToDoneAndBack() {
+		final WbsTask task = task("2026-12-01", "2026-12-05", null);
+		final Instant done = Instant.parse("2026-12-05T01:00:00Z");
+
+		task.moveToColumn(column(24L, WbsTaskStatus.DONE), done);
+		assertThat(task.getStatus()).isEqualTo(WbsTaskStatus.DONE);
+		assertThat(task.getCompletedAt()).isEqualTo(done);
+		assertThat(task.getProgress()).isEqualTo(WbsTask.COMPLETED_PROGRESS);
+
+		// 같은 상태의 다른 완료 컬럼: 컬럼만 바뀌고 시각은 그대로
+		task.moveToColumn(column(25L, WbsTaskStatus.DONE), Instant.parse("2026-12-06T01:00:00Z"));
+		assertThat(task.getBoardColumnId()).isEqualTo(25L);
+		assertThat(task.getStatusChangedAt()).isEqualTo(done);
+		assertThat(task.getCompletedAt()).isEqualTo(done);
+
+		final Instant reopened = Instant.parse("2026-12-07T01:00:00Z");
+		task.moveToColumn(column(23L, WbsTaskStatus.REVIEW), reopened);
+		assertThat(task.getStatus()).isEqualTo(WbsTaskStatus.REVIEW);
+		assertThat(task.getStatusChangedAt()).isEqualTo(reopened);
+		assertThat(task.getCompletedAt()).isNull();
+		assertThat(task.getProgress()).isEqualTo(WbsTask.COMPLETED_PROGRESS);
+
+		// 다시 완료하면 새 완료 시각
+		final Instant doneAgain = Instant.parse("2026-12-08T01:00:00Z");
+		task.moveToColumn(column(24L, WbsTaskStatus.DONE), doneAgain);
+		assertThat(task.getCompletedAt()).isEqualTo(doneAgain);
+	}
+
+	@Test
 	@DisplayName("업무 상세 값: 유형·우선순위는 비울 수 없다")
 	void attributesRequireTypeAndPriority() {
 		assertThatThrownBy(() -> new TaskAttributes(null, TaskPriority.LOW, null))
 			.isInstanceOf(IllegalArgumentException.class);
 		assertThatThrownBy(() -> new TaskAttributes(TaskType.TASK, null, null))
 			.isInstanceOf(IllegalArgumentException.class);
+	}
+
+	private static BoardColumn column(final long id, final WbsTaskStatus status) {
+		final BoardColumn column = BoardColumn.of(PROJECT_ID, null, status, 1, null);
+		ReflectionTestUtils.setField(column, "id", id);
+		return column;
 	}
 
 	private static WbsTask task(final String start, final String end, final Long assigneeUserId) {

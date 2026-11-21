@@ -44,6 +44,7 @@ public enum ErrorCode {
 	INVALID_WBS_POSITION(400, "옮길 위치가 올바르지 않습니다. 새로고침한 뒤 다시 시도해 주세요"),
 	INVALID_MILESTONE_TARGET_DATE(400, "마일스톤 목표일을 확인해 주세요. 프로젝트 기간이 있으면 그 안이어야 합니다"),
 	INVALID_MILESTONE_TASK(400, "마일스톤에는 같은 프로젝트의 WBS 작업만 연결할 수 있습니다"),
+	INVALID_BOARD_COLUMN_ORDER(400, "컬럼 순서에는 보드의 모든 컬럼을 한 번씩 넣어야 합니다. 새로고침한 뒤 다시 시도해 주세요"),
 
 	EXPIRED_TOKEN(401, "인증 토큰이 만료되었습니다"),
 	INVALID_TOKEN(401, "유효하지 않은 토큰입니다"),
@@ -72,6 +73,7 @@ public enum ErrorCode {
 	ERROR_LOG_NOT_FOUND(404, "에러 로그를 찾을 수 없습니다"),
 	WBS_TASK_NOT_FOUND(404, "WBS 작업을 찾을 수 없습니다"),
 	MILESTONE_NOT_FOUND(404, "마일스톤을 찾을 수 없습니다"),
+	BOARD_COLUMN_NOT_FOUND(404, "보드 컬럼을 찾을 수 없습니다"),
 
 	DUPLICATE_LOGIN_ID(409, "이미 사용 중인 아이디입니다"),
 	DUPLICATE_PROJECT_CODE(409, "이미 사용 중인 프로젝트 코드입니다"),
@@ -88,6 +90,9 @@ public enum ErrorCode {
 	WBS_TASK_IN_USE(409, "하위작업·선후행 관계·마일스톤 연결이 있는 작업은 삭제할 수 없습니다. 연결을 먼저 정리해 주세요"),
 	WBS_TASK_LIMIT_EXCEEDED(409, "프로젝트 WBS 항목은 최대 2,000개까지 등록할 수 있습니다"),
 	MILESTONE_LIMIT_EXCEEDED(409, "프로젝트 마일스톤은 최대 200개까지 등록할 수 있습니다"),
+	BOARD_COLUMN_LIMIT_EXCEEDED(409, "보드 컬럼은 최대 20개까지 만들 수 있습니다"),
+	BOARD_COLUMN_NOT_EMPTY(409, "카드가 있는 컬럼은 삭제할 수 없습니다. 카드를 다른 컬럼으로 옮긴 뒤 다시 시도해 주세요"),
+	BOARD_COLUMN_LAST_OF_STATUS(409, "상태마다 컬럼이 하나 이상 있어야 합니다. 같은 상태의 컬럼을 먼저 추가해 주세요"),
 
 	ACCOUNT_LOCKED(423, "로그인에 5회 연속 실패해 계정이 잠겼습니다. 시스템 관리자에게 비밀번호 초기화를 요청해 주세요"),
 

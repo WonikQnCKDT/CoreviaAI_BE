@@ -37,7 +37,9 @@ import tools.jackson.databind.json.JsonMapper;
  *   <li>DATE_CHANGED: startDate, endDate</li>
  *   <li>DETAILS_CHANGED: 바뀐 필드만(name, description, estimatedEffort, taskType, priority, completionCriteria)</li>
  *   <li>MOVED: parentTaskId, sortOrder</li>
- *   <li>STATUS_CHANGED: status</li>
+ *   <li>STATUS_CHANGED: status, boardColumnId (칸반 카드 이동으로 상태가 바뀜)</li>
+ *   <li>BOARD_COLUMN_CHANGED: boardColumnId (같은 상태의 다른 컬럼으로 이동)</li>
+ *   <li>PROGRESS_CHANGED: progress (완료 전환 시 100 자동 반영 등)</li>
  *   <li>DELETED: before = CREATED와 같은 필드 + description, completionCriteria, status</li>
  * </ul>
  */
@@ -99,8 +101,16 @@ public class TaskHistoryRecorder {
 			histories.add(history(taskId, TaskActivityType.MOVED, position(before), position(after), actorUserId, now));
 		}
 		if (before.status() != after.status()) {
-			histories.add(history(taskId, TaskActivityType.STATUS_CHANGED, values("status", before.status().name()),
-				values("status", after.status().name()), actorUserId, now));
+			histories.add(history(taskId, TaskActivityType.STATUS_CHANGED, boardValues(before), boardValues(after),
+				actorUserId, now));
+		} else if (!Objects.equals(before.boardColumnId(), after.boardColumnId())) {
+			histories.add(history(taskId, TaskActivityType.BOARD_COLUMN_CHANGED,
+				values("boardColumnId", before.boardColumnId()), values("boardColumnId", after.boardColumnId()),
+				actorUserId, now));
+		}
+		if (before.progress() != after.progress()) {
+			histories.add(history(taskId, TaskActivityType.PROGRESS_CHANGED, values("progress", before.progress()),
+				values("progress", after.progress()), actorUserId, now));
 		}
 		if (!histories.isEmpty()) {
 			historyRepository.saveAll(histories);
@@ -153,6 +163,13 @@ public class TaskHistoryRecorder {
 		final Map<String, Object> values = new LinkedHashMap<>();
 		values.put("parentTaskId", task.parentTaskId());
 		values.put("sortOrder", task.sortOrder());
+		return values;
+	}
+
+	private static Map<String, Object> boardValues(final TaskSnapshot task) {
+		final Map<String, Object> values = new LinkedHashMap<>();
+		values.put("status", task.status().name());
+		values.put("boardColumnId", task.boardColumnId());
 		return values;
 	}
 

@@ -199,6 +199,11 @@ class WbsAiDraftApiIntegrationTest extends ProjectApiTestSupport {
 		assertThat(analysis.getStatus()).isEqualTo(WbsTaskStatus.TODO);
 		assertThat(analysis.getSortOrder()).isEqualTo(1);
 		assertThat(taskRepository.findById(designTaskId).orElseThrow().getSortOrder()).isEqualTo(2);
+		// 칸반(FR-TSK-02): 반영한 작업·하위작업은 모두 대기(TODO) 첫 컬럼에 놓인다
+		final Long todoColumnId = jdbcTemplate.queryForObject("SELECT id FROM board_columns WHERE project_id = ?"
+			+ " AND status_category = 'TODO' ORDER BY sort_order, id LIMIT 1", Long.class, projectId);
+		assertThat(analysis.getBoardColumnId()).isEqualTo(todoColumnId);
+		assertThat(taskRepository.findById(subtaskId).orElseThrow().getBoardColumnId()).isEqualTo(todoColumnId);
 
 		final WbsTask subtask = taskRepository.findById(subtaskId).orElseThrow();
 		assertThat(subtask.getParentTaskId()).isEqualTo(analysisTaskId);

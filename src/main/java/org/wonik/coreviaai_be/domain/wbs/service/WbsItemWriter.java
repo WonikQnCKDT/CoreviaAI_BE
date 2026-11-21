@@ -15,6 +15,7 @@ import org.wonik.coreviaai_be.domain.wbs.entity.TaskDetails;
 import org.wonik.coreviaai_be.domain.wbs.entity.WbsDependency;
 import org.wonik.coreviaai_be.domain.wbs.entity.WbsTask;
 import org.wonik.coreviaai_be.domain.wbs.entity.type.WbsItemSource;
+import org.wonik.coreviaai_be.domain.wbs.repository.BoardColumnRepository;
 import org.wonik.coreviaai_be.domain.wbs.repository.MilestoneRepository;
 import org.wonik.coreviaai_be.domain.wbs.repository.MilestoneTaskRepository;
 import org.wonik.coreviaai_be.domain.wbs.repository.WbsDependencyRepository;
@@ -33,7 +34,7 @@ import lombok.RequiredArgsConstructor;
  * <p>
  * 새 작업은 프로젝트의 기존 작업 뒤에 요청 순서대로 붙이고, 하위작업은 상위 작업 안에서 1부터 매긴다.
  * 하위작업이 있는 작업의 기간은 하위작업 기간(최소 시작일~최대 종료일)으로 맞춘다(FR-WBS-01 상위 기간 자동 산출).
- * 등록한 작업·하위작업마다 CREATED 이력을 남긴다(FR-TSK-01, 상위 기간 산출이 끝난 값으로). 유형·우선순위는 기본값.
+ * 새 항목은 칸반 보드의 대기 상태 첫 컬럼에 놓는다(FR-TSK-02). 등록한 작업·하위작업마다 CREATED 이력을 남긴다(FR-TSK-01, 상위 기간 산출이 끝난 값으로). 유형·우선순위는 기본값.
  */
 @Component
 @RequiredArgsConstructor
@@ -44,6 +45,7 @@ public class WbsItemWriter {
 	private final MilestoneRepository milestoneRepository;
 	private final MilestoneTaskRepository milestoneTaskRepository;
 	private final TaskHistoryRecorder historyRecorder;
+	private final BoardColumnRepository boardColumnRepository;
 
 	@Transactional(propagation = Propagation.MANDATORY)
 	public AppliedWbsDraft writeAiDraft(
@@ -51,10 +53,11 @@ public class WbsItemWriter {
 		final Long userId,
 		final ApplyWbsDraftCommand command
 	) {
-		final Map<String, WbsTask> tasks = saveTasks(projectId, userId, command.tasks());
+		final Long initialColumnId = boardColumnRepository.findInitialColumnId(projectId);
+		final Map<String, WbsTask> tasks = saveTasks(projectId, userId, initialColumnId, command.tasks());
 		final Map<String, Long> taskIds = new LinkedHashMap<>();
 		tasks.forEach((tempId, task) -> taskIds.put(tempId, task.getId()));
-		final List<WbsTask> subtasks = saveSubtasks(userId, tasks, command.tasks(), taskIds);
+		final List<WbsTask> subtasks = saveSubtasks(userId, initialColumnId, tasks, command.tasks(), taskIds);
 		final List<WbsTask> created = new ArrayList<>(tasks.values());
 		created.addAll(subtasks);
 		historyRecorder.created(userId, created);
@@ -66,6 +69,7 @@ public class WbsItemWriter {
 	private Map<String, WbsTask> saveTasks(
 		final Long projectId,
 		final Long userId,
+		final Long initialColumnId,
 		final List<DraftTaskCommand> commands
 	) {
 		int sortOrder = taskRepository.findLastTopLevelSortOrder(projectId);
@@ -74,8 +78,9 @@ public class WbsItemWriter {
 		for (final DraftTaskCommand command : commands) {
 			final TaskDetails details = new TaskDetails(command.name(), command.description(), command.assigneeUserId(),
 				command.startDate(), command.endDate(), command.estimatedPersonDays());
-			tasks.put(command.tempId(),
-				WbsTask.task(projectId, ++sortOrder, details, WbsItemSource.AI_DRAFT, userId));
+			final WbsTask task = WbsTask.task(projectId, ++sortOrder, details, WbsItemSource.AI_DRAFT, userId);
+			task.placeOnBoard(initialColumnId);
+			tasks.put(command.tempId(), task);
 		}
 		taskRepository.saveAll(tasks.values());
 		return tasks;
@@ -84,6 +89,7 @@ public class WbsItemWriter {
 	/** 하위작업을 저장하고 tempId → ID를 taskIds에 더한다. 저장한 하위작업을 돌려준다. */
 	private List<WbsTask> saveSubtasks(
 		final Long userId,
+		final Long initialColumnId,
 		final Map<String, WbsTask> tasks,
 		final List<DraftTaskCommand> commands,
 		final Map<String, Long> taskIds
@@ -98,6 +104,7 @@ public class WbsItemWriter {
 					subtask.startDateOr(command.startDate()), subtask.endDateOr(command.endDate()),
 					subtask.estimatedPersonDays());
 				final WbsTask child = WbsTask.subtask(parent, ++sortOrder, details, WbsItemSource.AI_DRAFT, userId);
+				child.placeOnBoard(initialColumnId);
 				subtasks.put(subtask.tempId(), child);
 				children.add(child);
 			}

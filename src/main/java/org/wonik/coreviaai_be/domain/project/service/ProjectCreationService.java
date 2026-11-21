@@ -27,6 +27,7 @@ import org.wonik.coreviaai_be.domain.project.repository.ProjectMemberRepository;
 import org.wonik.coreviaai_be.domain.project.repository.ProjectRepository;
 import org.wonik.coreviaai_be.domain.project.service.command.CreateProjectCommand;
 import org.wonik.coreviaai_be.domain.project.service.command.InitialMember;
+import org.wonik.coreviaai_be.domain.project.structure.ProjectDefaultDataInitializer;
 import org.wonik.coreviaai_be.domain.project.structure.ProjectStructureInitializer;
 import org.wonik.global.audit.AuditAction;
 import org.wonik.global.audit.AuditActor;
@@ -63,6 +64,7 @@ public class ProjectCreationService {
 	private final ProjectCreationPolicy creationPolicy;
 	private final ProjectMemberService memberService;
 	private final List<ProjectStructureInitializer> structureInitializers;
+	private final List<ProjectDefaultDataInitializer> defaultDataInitializers;
 	private final AuditLogger auditLogger;
 
 	/**
@@ -105,6 +107,7 @@ public class ProjectCreationService {
 		);
 		memberRepository.saveAll(membersOf(project, creator, command.members()));
 		initializerFor(command.methodology()).initialize(project, command.gateApproverUserId());
+		defaultDataInitializers.forEach(initializer -> initializer.initialize(project));
 
 		auditLogger.record(actor, AuditAction.PROJECT_CREATED, AuditTargetType.PROJECT, project.getId(), AuditChanges.create()
 			.value("code", project.getCode())
