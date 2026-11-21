@@ -4,6 +4,9 @@
 > 기준: FR-PSN-01, 요구사항 명세서 3.3 PSN-01·02, ERD 06
 > Confluence 정식 게시 전 검토용. 승인 요청 연동·삭제 정책·마감 임박 기본값은 사용자 결정 대기다.
 
+- 관련: [SCRUM-111](https://jnu-team-aaptc1y6.atlassian.net/browse/SCRUM-111), [전사관리 요구사항](https://jnu-team-aaptc1y6.atlassian.net/wiki/spaces/CoreviaAI/pages/8126909), [06. 개인 업무 ERD](https://jnu-team-aaptc1y6.atlassian.net/wiki/spaces/CoreviaAI/pages/20414469).
+- 공식 API 명세서 템플릿과 [00. 공통 규약 (API)](https://jnu-team-aaptc1y6.atlassian.net/wiki/spaces/CoreviaAI/pages/12877846)을 따른다.
+
 ## 요약
 
 | Method | Path | 설명 | 권한 | 상태 |
@@ -24,6 +27,14 @@
 - 커서는 사용자·done·임박 일수·정렬 날짜·마지막 복합 키를 포함한 불투명 Base64URL 값이다. 형식·다른 사용자·필터가 맞지 않으면 400 `INVALID_CURSOR`. 커서를 이어가는 동안 정렬 날짜와 `overdue` 판정 날짜를 고정해 KST 자정 경계의 중복·누락을 줄인다. 매 행의 현재 상태·권한은 실시간이다. 새 날 정렬을 보려면 커서를 버리고 첫 페이지부터 조회한다. 항목 수정·배정 변경 중 전체 스냅샷 일관성은 보장하지 않는다.
 - 개인 수정은 행 잠금으로 순차 처리한다. 마지막 수정 요청이 이기며, 같은 값 재전송은 수정 시각도 바꾸지 않는다. 완료 재전송은 최초 `doneAt`을 유지하고 완료 해제는 null로 만든다.
 - 이 초안에 새 외부 연동·캐시·자동 재시도·추가 라이브러리는 없다. 별도 TODO rate limit은 없고 기존 인증·세션 정책을 따른다.
+
+## enum 값
+
+| 이름 | 값 |
+| --- | --- |
+| `source` (응답 항목 구분) | `PERSONAL`, `TASK` |
+| `taskStatus` (`WbsTaskStatus`, TASK만) | `TODO`, `IN_PROGRESS`, `REVIEW`, `DONE`. 완료 업무는 통합 목록에서 제외 |
+| `urgency` (정렬 그룹) | `0` 오늘, `1` 임박, `2` 지연, `3` 이후, `4` 마감 없음 |
 
 ## GET /api/me/todos — 통합 목록
 

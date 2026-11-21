@@ -110,6 +110,7 @@ gradle.projectsEvaluated {
 ## 7. 문서·배포·인계
 
 - API 초안: `docs/api/06-personal-todos-draft.md`.
+- Confluence API 초안: [06. 개인 업무 (API)](https://jnu-team-aaptc1y6.atlassian.net/wiki/spaces/CoreviaAI/pages/21561547). 공식 API 템플릿의 요약·공통 사항·enum·endpoint·미결·변경 이력 구조로 초안 저장했으며 정식 게시하지 않았다. 미결 세 항목 확정 후 최종 계약을 게시해야 한다.
 - ERD 초안: `docs/erd/06-personal-todos-draft.md`, 보완 원본 `06-personal-todos.drawio`. 기존 전체 도메인 그림을 대체하지 않는다. 원본 첨부 다운로드·PNG export·Confluence 이미지 동기화 미완료.
 - 시퀀스 초안: `docs/sequence/06-personal-todos-draft.md`. 단순 CRUD 설명 대신 생성 멱등 키 처리·잠금(users → personal_todos)·통합 조회 인가 순서를 남겼다. 승인 원천 연동의 참여자·보안 판정 흐름은 범위 결정 후 작성 대상이다.
 - V13은 현재 V1~V7 테스트 기준에서 실행 가능하나 운영에는 예약 V8~V12 통합·승인 후 순서 적용해야 한다. V13 단독 운영 선배포 금지, outOfOrder 임의 활성화 금지.
