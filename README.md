@@ -15,6 +15,7 @@
   - FR-PRJ-06·09 기능 구성·템플릿(일부): 생성 시 기능 모듈 선택(Git 연동 비활성), 빈/IT 프로젝트 템플릿 기본값 제공. 관리자 템플릿 관리 화면과 설정 변경(FR-PRJ-14)은 후속
   - FR-ADM-07 공통 코드 관리 (Jira SCRUM-168): 코드 그룹(위험 수준·업무 진행 상태·요청 처리 결과·프로젝트 상태)과 코드 테이블, 관리자 정렬 순서 변경(코드 값은 고정: 추가·수정·삭제와 사용 여부 변경은 마이그레이션으로만, 감사 로그), 화면용 그룹별 코드 조회
   - FR-ADM-06 다국어 라벨 관리 (Jira SCRUM-169): 한국어·영어·번체 중국어 라벨 테이블(`i18n_labels`, 라벨 키 + 언어별 컬럼), 화면용 언어별 라벨 묶음 조회(로그인 전 공개, 번역 누락은 한국어), 관리자 라벨 등록·문구 수정(낙관적 잠금)·키/문구 검색·번역 누락 필터, 문구 변경 이력(감사 로그). 표시 언어는 `lang` 파라미터 → `Accept-Language` → 한국어(사용자별 언어 저장 없음)
+  - FR-ADM-09 에러 로그 관리 (Jira SCRUM-170) + NFR-06 패턴 마스킹 일부 (Jira SCRUM-114): 전역 예외 처리기에 도달한 미처리 예외(500)를 `error_logs`에 별도 트랜잭션으로 기록(발생 시각·메서드·경로·사용자 ID·예외 클래스·마스킹한 메시지·원인 포함 스택), 사용자에게는 공통 500만 응답, 시스템 관리자 조회(기간·유형·경로 필터, 커서, 상세). 1년 보관 정리는 미구현
   - FR-PRJ-04 멤버·역할 관리 (Jira SCRUM-106): 멤버 초대·역할 변경·제외(PM만), 복수 PM(역할 변경으로 추가·해제, 최소 1명), 멤버 이력, PM 재지정(활성 PM이 없을 때 시스템 관리자). 담당 업무 수는 업무(FR-TSK-01) 구현 전이라 0
 - 기술 stack: Java 17, Spring Boot 4.1.2 (Web MVC, Security, Data JPA, Data Redis, Validation, Flyway), jjwt 0.13, PostgreSQL, Redis 7.4
 
@@ -122,9 +123,9 @@ org.wonik
 │  │  ├─ drafttoken                  WbsDraftTokenStore(인터페이스) + RedisWbsDraftTokenStore: 1회용 draftToken
 │  │  ├─ entity                      WbsTask, WbsDependency, Milestone, MilestoneTask, TaskDetails, type/(enum)
 │  │  └─ dto                         request / response (service/command·result는 서비스 입출력)
-│  ├─ domain/admin                   관리자 콘솔 (FR-ADM-02, FR-ADM-06, FR-ADM-07)
-│  │  ├─ controller                  AdminUserController, AdminDepartmentController, AdminProjectController(PM 재지정), AdminCodeController(공통 코드), AdminLabelController(다국어 라벨)
-│  │  ├─ service                     AdminUserService, AdminDepartmentService, AdminCodeService, AdminLabelService
+│  ├─ domain/admin                   관리자 콘솔 (FR-ADM-02, FR-ADM-06, FR-ADM-07, FR-ADM-09)
+│  │  ├─ controller                  AdminUserController, AdminDepartmentController, AdminProjectController(PM 재지정), AdminCodeController(공통 코드), AdminLabelController(다국어 라벨), AdminErrorLogController(에러 로그 조회)
+│  │  ├─ service                     AdminUserService, AdminDepartmentService, AdminCodeService, AdminLabelService, AdminErrorLogService
 │  │  │  ├─ command                  서비스 입력 (요청 DTO와 분리)
 │  │  │  └─ result                   서비스 결과 (응답 DTO는 컨트롤러에서 변환)
 │  │  └─ dto                         request / response
@@ -132,11 +133,13 @@ org.wonik
 └─ global/                           공통. authserver·coreviaai_be를 import하지 않는다
    ├─ user                           User(users): 사람·조직 정보(소속 부서·직무 포함). authserver·업무 모듈이 함께 사용
    ├─ audit                          AuditLog(audit_logs), AuditLogger, AuditActor: 감사 로그. 변경과 같은 트랜잭션에서 기록
+   ├─ errorlog                       ErrorLog(error_logs), ErrorLogRecorder(REQUIRES_NEW 기록), StackTraceFormatter: 미처리 예외 에러 로그
    ├─ jwt                            JwtTokenProvider, AuthCookieManager, JwtProperties, LoginUser(principal)
    ├─ security                       JwtAuthenticationFilter, LoginSessionResolver·UserSessionTerminator(인터페이스), ApiSecuritySupport
    ├─ common/type                    SystemRole
    ├─ common/entity                  BaseTimeEntity (createdAt·updatedAt, UTC Instant)
-   ├─ common/exception               ErrorCode, CustomException, GlobalExceptionHandler
+   ├─ common/exception               ErrorCode, CustomException, GlobalExceptionHandler(최종 Exception 처리 → 공통 500 + 에러 로그)
+   ├─ common/masking                 SensitiveValueMasker: 비밀 키 값·JWT·Bearer·DB 상세 값·이메일·전화·주민번호 패턴 마스킹(NFR-06)
    ├─ common/response                ApiResponse
    ├─ common/pagination              CursorCodec, CursorPageRequest, CursorPage (커서 목록)
    └─ config                         Clock, JPA auditing, PasswordEncoder, 401/403 JSON 응답, AuditActor 인자 주입(web)
@@ -185,6 +188,8 @@ org.wonik
 | GET | `/api/admin/i18n/labels` | SYSTEM_ADMIN | 다국어 라벨 목록(커서, id 오름차순). `cursor`, `size`, `keyword`(라벨 키·한국어 문구 부분 일치), `missing`(`en`·`zh-TW` 번역 누락만) |
 | POST | `/api/admin/i18n/labels` | SYSTEM_ADMIN | 라벨 등록(`labelKey`, `textKo` 필수, `textEn`·`textZhTw` 선택). 같은 키 409. 감사 로그 `I18N_LABEL_CREATED` |
 | PATCH | `/api/admin/i18n/labels/{labelId}` | SYSTEM_ADMIN | 문구 수정(세 언어 덮어쓰기 + `version`, 다르면 409). 라벨 키 변경·삭제 API 없음. 바뀐 언어마다 감사 로그 `I18N_LABEL_CHANGED` |
+| GET | `/api/admin/error-logs` | SYSTEM_ADMIN | 에러 로그 목록(커서, 최신순, 스택 제외). `cursor`, `size`, `from`(포함)·`to`(제외) ISO-8601 UTC, `errorType`(예외 클래스 정확히 일치), `apiPath`(경로 앞부분 일치). from ≥ to면 400 `INVALID_PERIOD` |
+| GET | `/api/admin/error-logs/{errorLogId}` | SYSTEM_ADMIN | 에러 로그 상세(마스킹된 스택 트레이스 포함). 없으면 404 `ERROR_LOG_NOT_FOUND`. 수정·삭제 API 없음 |
 | GET | `/api/i18n/labels` | 불필요(공개) | 화면용 라벨 묶음 `{lang, labels: {키: 문구}}`. 언어 `lang` → `Accept-Language` → ko, 번역 누락은 한국어. 비밀번호 변경 강제 세션도 허용 |
 | GET | `/api/projects/creation-options` | USER·EXECUTIVE | 생성 화면 ②·③·④ 선택지(템플릿 기본값, 운영 방식, 부서 유형별 액터, 기능 모듈. `enabled`·`required`) |
 | GET | `/api/projects/code-availability` | 활성 USER | `?code=` 코드 중복 확인(대문자로 정규화한 코드와 `available`) |
@@ -291,7 +296,7 @@ org.wonik
 
 ## 7. Database와 Migration
 
-- 저장소: PostgreSQL (`users`, `local_credentials`, `login_history`, `departments`, `audit_logs`, `projects`, `project_departments`, `project_actors`, `project_features`, `project_members`, `project_phases`, `project_member_histories`, `wbs_tasks`, `wbs_dependencies`, `milestones`, `milestone_tasks`, `ai_drafts`, `code_groups`, `codes`, `i18n_labels`), Redis (세션, AI 초안 토큰). 테이블 정의는 Confluence [BE_ERD](https://jnu-team-aaptc1y6.atlassian.net/wiki/spaces/CoreviaAI/folder/12878096) 도메인 페이지 참고. ERD 원본은 `docs/erd/`(draw.io, 현재 `02-admin.drawio`).
+- 저장소: PostgreSQL (`users`, `local_credentials`, `login_history`, `departments`, `audit_logs`, `projects`, `project_departments`, `project_actors`, `project_features`, `project_members`, `project_phases`, `project_member_histories`, `wbs_tasks`, `wbs_dependencies`, `milestones`, `milestone_tasks`, `ai_drafts`, `code_groups`, `codes`, `i18n_labels`, `error_logs`), Redis (세션, AI 초안 토큰). 테이블 정의는 Confluence [BE_ERD](https://jnu-team-aaptc1y6.atlassian.net/wiki/spaces/CoreviaAI/folder/12878096) 도메인 페이지 참고. ERD 원본은 `docs/erd/`(draw.io, 현재 `02-admin.drawio`).
 - 시각은 모두 UTC instant(`timestamptz`)로 저장한다. KST 표시는 응답·화면 경계에서 변환한다.
 - 동시성: 로그인 시 `users` → `local_credentials` 순서로 `SELECT … FOR UPDATE`해 같은 계정의 동시 로그인과 실패 횟수 갱신을 순서대로 처리한다. 비밀번호 변경·초기화는 `local_credentials`만 잠근다. 두 테이블 모두 `version`으로 낙관적 잠금도 건다.
 - 동시성(관리자 기능): `users`·`departments`는 `version` 낙관적 잠금으로 동시 수정을 막고 충돌 시 409 `CONCURRENT_MODIFICATION`. 마지막 관리자 보호는 활성 관리자 행을 `FOR UPDATE`로 잠근 뒤 확인한다. 아이디·부서 이름 중복은 사전 검사 + DB 유니크 제약으로 막는다(최상위 부서 이름은 NULL 특성상 사전 검사만).
@@ -304,6 +309,7 @@ org.wonik
 - V8(`V8__create_code_groups_and_codes.sql`): `code_groups`, `codes`만 새로 만들고 4개 그룹(RISK_LEVEL·TASK_STATUS·REQUEST_RESULT·PROJECT_STATUS)과 코드를 시드한다(기존 테이블 변경 없음). 되돌릴 때는 두 테이블을 지우는 새 버전을 추가한다.
 - 공통 코드 규칙(FR-ADM-07, NFR-20): 화면은 상태값을 하드코딩하지 않고 `GET /api/codes/{groupCode}`의 코드·`labelKey`로 표시한다. 코드 값·라벨 키는 고정이고 관리자는 정렬 순서만 바꾼다(재배포 없음). 코드 추가·삭제와 사용 여부(`active`) 변경은 마이그레이션으로만 한다(FR-ADM-07 인수 기준: 코드 값 수정·삭제 불가). 표시 텍스트는 라벨 키로 다국어 라벨(FR-ADM-06)에서 바꾼다. 라벨 키 규칙: 그룹 `codeGroup.<GROUP>`, 코드 `code.<GROUP>.<CODE>`(서버가 만듦, `CommonCode.groupLabelKey`·`codeLabelKey`). 코드 그룹·코드 추가와 enum과 짝인 그룹(TASK_STATUS = `WbsTaskStatus`, PROJECT_STATUS = `ProjectStatus`)의 값 변경은 기능 수정이라 새 마이그레이션 + enum 변경을 함께 한다(`CodeSeedConsistencyTest`가 어긋나면 실패).
 - V9(`V9__create_i18n_labels.sql`): `i18n_labels`만 새로 만들고 V8 공통 코드의 라벨 키 18개(그룹 4 + 코드 14)를 한국어·영어·번체 중국어로 시드한다(기존 테이블 변경 없음). 되돌릴 때는 테이블을 지우는 새 버전을 추가한다.
+- V10(`V10__create_error_logs.sql`): `error_logs`와 인덱스 `idx_error_logs_occurred_at`, `idx_error_logs_error_type_occurred_at`만 새로 만든다(기존 테이블 변경 없음). 되돌릴 때는 테이블을 지우는 새 버전을 추가한다.
 - 다국어 라벨 규칙(FR-ADM-06, NFR-19·20): 화면 코드는 문구를 하드코딩하지 않고 라벨 키만 쓴다. 문구는 `GET /api/i18n/labels`로 언어별로 받아 표시하고(번역 누락은 한국어), 관리자가 `/api/admin/i18n/labels`에서 바꾸면 다음 조회부터 반영된다(서버 캐시 없음, 재배포 불필요). 라벨 키 형식은 영문자로 시작하고 점으로 구분한 영문·숫자·밑줄·하이픈 100자 이하(예: `menu.project.list`), 문구는 500자 이하·제어 문자(줄바꿈 등) 불가. 빈 번역은 NULL(누락)로 저장한다. 새 화면 문구의 라벨은 관리자 API로 등록하거나 마이그레이션으로 시드한다. 공통 코드는 마이그레이션으로만 추가하므로(FR-ADM-07) 코드 그룹·코드를 추가할 때는 라벨 시드도 함께 넣는다(`LabelSeedConsistencyTest`가 1:1을 검증). 라벨은 화면에 텍스트로만 출력한다(HTML로 해석하지 않음).
 - Migration: `src/main/resources/db/migration/V{n}__설명.sql`, 기동 시 Flyway 자동 적용. 이미 적용된 파일은 수정하지 않고 새 버전을 추가한다(roll-forward).
 - backup·보존: DB 백업은 NFR-13(일 1회) 기준으로 회사 DB 측 운영. `login_history`·`audit_logs` 1년 보관(NFR-07) 정리 작업은 FR-ADM-04에서 구현 예정. `audit_logs`는 추가만 하고 수정·삭제 API가 없다.
@@ -322,13 +328,16 @@ org.wonik
 ## 9. 오류 처리와 관측성
 
 - 오류 응답은 `ErrorCode` + `ApiResponse.error`. stack trace·내부 정보는 응답에 넣지 않는다.
+- 에러 로그(FR-ADM-09): `GlobalExceptionHandler`의 최종 `Exception` 처리기가 미처리 예외를 공통 500(`INTERNAL_SERVER_ERROR`)으로 응답하고 `ErrorLogRecorder`로 `error_logs`에 남긴다. 기록은 별도 트랜잭션(REQUIRES_NEW)이라 원래 작업이 롤백돼도 남고, 기록이 실패해도 응답은 같다(실패는 애플리케이션 로그로만). 업무 예외(`CustomException`)·입력 오류·인증/권한 거부·매핑 없는 경로(공통 404 본문)·스프링 표준 4xx(처리기가 다시 던져 기본 처리)는 기록하지 않는다. 요청 본문·헤더(Authorization, Cookie)·쿼리 문자열은 저장하지 않고 사용자는 ID만 남긴다.
+- 마스킹(NFR-06 일부): 에러 로그의 메시지·스택(원인 `Caused by` 메시지 포함)·경로는 `SensitiveValueMasker`로 가린 뒤 자른다(메시지 2000자, 스택 50,000자, 원인 8단계·원인별 프레임 30개). 대상: 비밀 키 이름(password·secret·token·authorization·cookie·apiKey·credential·sessionId 등)의 값, JWT, Bearer/Basic 값, PostgreSQL `Key (..)=(값)`·`Failing row contains (..)`, 이메일, 주민등록번호·휴대폰·전화번호 형태. 고객사명·공정 정보는 대상이 아니다. 애플리케이션 로그(`log.error`)는 아직 마스킹하지 않는다(미정).
+- 미구현: 에러 로그 1년 보관 정리(NFR-07). 삭제 정책·스케줄러는 감사 로그 정리(FR-ADM-04)와 함께 정한다.
 - 비밀번호·토큰은 로그에 남기지 않는다(요청 DTO `toString` 마스킹, 임시 비밀번호 비로깅).
 - 미정: correlation ID, metric·trace, SLO·alert, health check(actuator 미도입), 로그 보존 기간·접근 권한, incident runbook. 운영 배포 전 결정 필요.
 
 ## 9-1. 문서와 보안 운영 메타데이터
 
 - 문서 담당자·검증일: 상단 참고 (담당자 미정).
-- 민감 정보: 비밀번호(해시만 저장), JWT 서명 키, 로그인 IP·감사 로그 IP(개인정보). 감사 로그 details에는 비밀값을 넣지 않는다. 분류 기준·로그 접근 권한: 미정.
+- 민감 정보: 비밀번호(해시만 저장), JWT 서명 키, 로그인 IP·감사 로그 IP(개인정보). 감사 로그 details에는 비밀값을 넣지 않는다. 에러 로그는 저장 전 패턴 마스킹하고 시스템 관리자만 조회한다. 분류 기준·로그 접근 권한: 미정.
 - secret rotation·incident 대응 절차: 미정.
 
 ## 10. 테스트
@@ -355,6 +364,8 @@ org.wonik
 - integration(FR-ADM-07): `AdminCodeApiIntegrationTest`(관리자 전용 404·401, 그룹·코드 목록, 코드 추가·수정·삭제 404, 정렬 순서 변경과 감사 로그 전·후, 본문의 코드 값·라벨 키·사용 여부 무시, 경계값 0/9999, 범위·누락 400, 없는 그룹·코드 404, 같은 값 재전송 무변경), `CodeApiIntegrationTest`(로그인 사용자 조회, 사용 중 코드만·정렬, 관리자 정렬 변경 즉시 반영, 빈 그룹·없는 그룹·형식 오류·비로그인), `code.CodeSeedConsistencyTest`(TASK_STATUS·PROJECT_STATUS 시드 = enum 값·순서, 라벨 키 규칙)
 - unit(FR-ADM-06): `LabelLanguageTest`(태그 해석·간체 거부·길이 경계, lang → Accept-Language → ko 순서, 가중치·q=0·형식 오류·과도한 길이), `I18nLabelTest`(정규화·누락 한국어 대체·변경 감지·라벨 키/문구 형식과 길이 경계), `AdminLabelServiceLikePatternTest`(LIKE 이스케이프)
 - integration(FR-ADM-06): `AdminLabelApiIntegrationTest`(관리자 전용 404·401, 등록·정규화·감사 로그, 중복 409·형식 400·경계값 100/500자, 수정·언어별 이력, 같은 값 재전송, 옛 version 409, 키 변경·삭제 불가, 커서·키/문구 검색·와일드카드 이스케이프, 누락 필터·잘못된 필터), `LabelApiIntegrationTest`(로그인 없이 조회, 언어 결정 순서, 누락 한국어 대체, 수정 즉시 반영, 비밀번호 변경 강제 세션 허용, 위조 쿠키, Vary 헤더), `LabelSeedConsistencyTest`(코드 라벨 키 1:1·시드 번역)
+- unit(FR-ADM-09·NFR-06): `SensitiveValueMaskerTest`(패턴별 마스킹·키 이름 유지, 가릴 것 없는 문장·스택 프레임·고객사·공정 문구 무변경, 숫자 경계, 여러 Caused by, 20만 자 악의적 입력 5초 제한), `ErrorLogTest`(요청 정보·원인 스택, null 값, 가린 뒤 자르기·2000자 경계, 원인 단계·프레임 제한·순환), `AdminErrorLogServicePrefixPatternTest`
+- integration(FR-ADM-09): `AdminErrorLogApiIntegrationTest`(관리자 전용 404·401, 미처리 예외 500 공통 응답·내부 정보 미노출·요청 정보·마스킹·쿼리/헤더 미저장, checked 예외, 업무 롤백과 기록 분리, 업무 예외·입력 오류·권한·매핑 없는 경로·415 미기록, 최신순 커서·목록 스택 제외·상세·404, 기간·유형·경로 필터와 경계·400), `ErrorLogRecordFailureTest`(기록 실패 시 같은 500). 예외는 테스트 전용 `support.ErrorTriggerTestController`(/api/test-errors)로 일으킨다
 - 미검증: 같은 사용자 동시 초대·같은 코드 동시 생성의 유니크 제약 경쟁은 DB 제약으로 막지만 자동 테스트는 없다. H2로 검증하므로 PostgreSQL 고유 동작(잠금 대기 시간 등)은 운영 DB에서 확인이 필요하다.
 - 테스트 공통(`src/test/integration`): `support.ApiIntegrationTestSupport`(로그인·요청·오류 검증), `support.DatabaseCleaner`(테스트 클래스 간 공유 H2를 FK 역순으로 비움. 테이블을 추가하면 여기도 추가)
 - 미검증: `RedisAuthSessionStore`·`RedisWbsDraftTokenStore`는 실제 Redis가 필요해 자동 테스트가 없다(Testcontainers 도입 시 추가). aiserver의 실제 WBS 생성은 FastAPI 이식 후 테스트한다.
