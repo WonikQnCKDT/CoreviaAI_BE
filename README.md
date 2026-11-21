@@ -7,6 +7,8 @@
 
 ## 1. 프로젝트 개요
 
+- 개발 규칙: [공통 코드·다국어·테마 적용과 PR 완료 기준](docs/development/code-i18n-theme-rules.md) · [Confluence 규칙](https://jnu-team-aaptc1y6.atlassian.net/wiki/spaces/CoreviaAI/pages/21397670). Codex·Claude·Cursor 지침과 PR 체크리스트에 같은 기준을 적용한다(SCRUM-171 / NFR-20).
+
 - 목적: CoreviaAI(원익큐앤씨 전사 AI 협업관리 웹앱)의 백엔드 API. 요구사항 기준은 Confluence [요구사항명세 최종안 : 전사관리](https://jnu-team-aaptc1y6.atlassian.net/wiki/spaces/CoreviaAI/pages/8126909)다.
 - 구현된 기능
   - FR-ADM-01 로그인·계정 (Jira SCRUM-96): ID/PW 로그인·로그아웃, 토큰 재발급, 내 계정 조회, 비밀번호 변경, 관리자 비밀번호 초기화, 5회 연속 실패 잠금, 30분 무활동 세션 만료, 로그인 시도 기록
