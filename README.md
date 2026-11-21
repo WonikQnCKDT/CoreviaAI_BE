@@ -32,8 +32,8 @@
 Windows는 `gradlew.bat`을 쓴다.
 
 ```
-./gradlew test             # 단위 테스트(src/test). 성공 기준: BUILD SUCCESSFUL, 실패 0건
-./gradlew integrationTest  # 통합 테스트(src/integrationTest). 성공 기준 같음
+./gradlew test             # 단위 테스트(src/test/unit). 성공 기준: BUILD SUCCESSFUL, 실패 0건
+./gradlew integrationTest  # 통합 테스트(src/test/integration). 성공 기준 같음
 ./gradlew check            # 단위 + 통합 + 커버리지 리포트(CI와 같은 기준)
 ./gradlew bootJar    # 성공 기준: build/libs/CoreviaAI_BE-0.0.1-SNAPSHOT.jar 생성
 ```
@@ -69,7 +69,7 @@ docker compose up -d redis
 | `INITIAL_ADMIN_LOGIN_ID` / `_PASSWORD` / `_NAME` | 최초 1회 | 시스템 관리자가 없을 때 첫 관리자 생성. 생성 후 비워 둔다 | 비밀번호는 영문·숫자·특수문자 포함 8자 이상 |
 
 - 로컬은 `.env`(커밋 금지, `.gitignore` 등록)로 주입한다. 저장소에는 값이 없는 `.env.example`만 둔다.
-- 테스트 설정은 `src/integrationTest/resources/application-test.properties` (테스트 전용 키, 운영 비밀값 아님).
+- 테스트 설정은 `src/test/integration/resources/application-test.properties` (테스트 전용 키, 운영 비밀값 아님).
 - 운영 secret 관리·rotation 책임: 미정. 배포 가이드(NFR-16) 수령 후 결정 필요. `JWT_SECRET`을 바꾸면 발급된 모든 토큰이 무효가 되어 전원 재로그인한다.
 
 ### 최초 관리자 계정
@@ -271,7 +271,7 @@ org.wonik
 | PostgreSQL | HikariCP 기본값 | 없음 | 500 |
 
 - timeout 값 근거: 세션 조회는 모든 요청 경로에 있어 NFR-01(2초 응답)을 넘기지 않도록 2초로 정했다. overall deadline은 아직 따로 두지 않았다(미정).
-- test 대체: `InMemoryAuthSessionStore`(integrationTest 소스), H2.
+- test 대체: `InMemoryAuthSessionStore`(src/test/integration), H2.
 
 ## 9. 오류 처리와 관측성
 
@@ -287,12 +287,12 @@ org.wonik
 
 ## 10. 테스트
 
-테스트는 폴더로 나눈다(`build.gradle`의 `integrationTest` source set).
+테스트는 `src/test` 아래 두 폴더로 나눈다(`build.gradle`의 `test`·`integrationTest` source set).
 
 | 폴더 | 종류 | 실행 | 기준 |
 |---|---|---|---|
-| `src/test/java` | 단위 테스트 | `./gradlew test` | Spring 컨텍스트·DB 없이 도는 domain 규칙·policy·util. 빠르고 결정적 |
-| `src/integrationTest/java` | 통합 테스트 | `./gradlew integrationTest` | `@SpringBootTest` + MockMvc + H2(PostgreSQL 모드) + 메모리 세션 저장소로 API·DB·보안 경계 검증 |
+| `src/test/unit/java` | 단위 테스트 | `./gradlew test` | Spring 컨텍스트·DB 없이 도는 domain 규칙·policy·util. 빠르고 결정적 |
+| `src/test/integration/java` | 통합 테스트 | `./gradlew integrationTest` | `@SpringBootTest` + MockMvc + H2(PostgreSQL 모드) + 메모리 세션 저장소로 API·DB·보안 경계 검증 |
 
 `./gradlew check`가 둘 다 돌리고 커버리지 리포트(`build/reports/jacoco/test`)를 합쳐 만든다. 통합 테스트는 단위 테스트 보조 클래스(`support.MutableClock`)를 그대로 쓴다.
 
@@ -304,7 +304,7 @@ org.wonik
 - integration(FR-PRJ-01): `ProjectCreateApiIntegrationTest`(생성자 PM·5단계·승인자·기능·감사 로그, 기간·주관 부서 생략, 복수 주관 부서, 단계 없음 생성, 단계 없음 규칙·Git 비활성, 코드 정규화·중복, 필수 항목, 생성 권한 개방·경영진 403·관리자 404, 비활성 부서, 선택지), `ProjectQueryApiIntegrationTest`(공개 범위, 복수·무 주관 부서 공개 범위, 상세 404, 멤버·단계 API, 필터, 커서 경계)
 - integration(FR-PRJ-04): `ProjectMemberApiIntegrationTest`(초대·역할 변경·제외·이력), `ProjectMultiPmApiIntegrationTest`(PM 추가·동일 권한·해제·최소 1명·PM 제외·추가 규칙·위임 API 폐지·동시 해제 경쟁), `AdminProjectPmApiIntegrationTest`(재지정, 비활성 PM 전원 제외, 활성 PM 있으면 409, 새 PM 규칙, 관리자 전용), `common.web.CoreviaExceptionHandlerTest`(동시 수정 409)
 - 미검증: 같은 사용자 동시 초대·같은 코드 동시 생성의 유니크 제약 경쟁은 DB 제약으로 막지만 자동 테스트는 없다. H2로 검증하므로 PostgreSQL 고유 동작(잠금 대기 시간 등)은 운영 DB에서 확인이 필요하다.
-- 테스트 공통(`src/integrationTest`): `support.ApiIntegrationTestSupport`(로그인·요청·오류 검증), `support.DatabaseCleaner`(테스트 클래스 간 공유 H2를 FK 역순으로 비움. 테이블을 추가하면 여기도 추가)
+- 테스트 공통(`src/test/integration`): `support.ApiIntegrationTestSupport`(로그인·요청·오류 검증), `support.DatabaseCleaner`(테스트 클래스 간 공유 H2를 FK 역순으로 비움. 테이블을 추가하면 여기도 추가)
 - 미검증: `RedisAuthSessionStore`는 실제 Redis가 필요해 자동 테스트가 없다(Testcontainers 도입 시 추가).
 - CI gate: `.github/workflows/DevelopCI.yml`이 PR마다 `./gradlew clean check bootJar`(단위 + 통합 테스트)를 실행한다.
 
