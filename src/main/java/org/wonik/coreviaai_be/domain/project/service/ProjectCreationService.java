@@ -2,7 +2,9 @@ package org.wonik.coreviaai_be.domain.project.service;
 
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
@@ -11,11 +13,16 @@ import org.wonik.coreviaai_be.domain.department.entity.Department;
 import org.wonik.coreviaai_be.domain.department.repository.DepartmentRepository;
 import org.wonik.coreviaai_be.domain.project.entity.Project;
 import org.wonik.coreviaai_be.domain.project.entity.ProjectActorAssignment;
+import org.wonik.coreviaai_be.domain.project.entity.ProjectDepartment;
+import org.wonik.coreviaai_be.domain.project.entity.ProjectFeatureAssignment;
 import org.wonik.coreviaai_be.domain.project.entity.ProjectMember;
 import org.wonik.coreviaai_be.domain.project.entity.type.Methodology;
 import org.wonik.coreviaai_be.domain.project.entity.type.ProjectActor;
+import org.wonik.coreviaai_be.domain.project.entity.type.ProjectFeature;
 import org.wonik.coreviaai_be.domain.project.policy.ProjectCreationPolicy;
 import org.wonik.coreviaai_be.domain.project.repository.ProjectActorAssignmentRepository;
+import org.wonik.coreviaai_be.domain.project.repository.ProjectDepartmentRepository;
+import org.wonik.coreviaai_be.domain.project.repository.ProjectFeatureAssignmentRepository;
 import org.wonik.coreviaai_be.domain.project.repository.ProjectMemberRepository;
 import org.wonik.coreviaai_be.domain.project.repository.ProjectRepository;
 import org.wonik.coreviaai_be.domain.project.service.command.CreateProjectCommand;
@@ -35,11 +42,12 @@ import org.wonik.global.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 
 /**
- * 프로젝트 생성(FR-PRJ-01). 단계형 화면(①~⑤)의 입력을 마지막에 한 번에 받아 한 트랜잭션으로 만든다.
- * 그래서 운영 방식·액터 지정이 끝나기 전의 반쯤 만든 프로젝트가 DB에 남지 않는다.
+ * 프로젝트 생성(FR-PRJ-01). 단계형 화면(①~⑥)의 입력을 마지막에 한 번에 받아 한 트랜잭션으로 만든다.
+ * 그래서 템플릿·운영 방식·액터 지정이 끝나기 전의 반쯤 만든 프로젝트가 DB에 남지 않는다.
  * <p>
- * 생성자는 PM으로 자동 등록된다(요구사항 명세서 3.1). PM 위임·재지정은 ProjectPmService(FR-PRJ-04),
- * 게이트 승인자 변경은 FR-PRJ-05 범위다.
+ * 생성 권한 제한은 없다(요구사항 명세서 3.1): 활성 일반 사용자는 누구나 만들 수 있고 생성자는 첫 PM으로 등록된다.
+ * 경영진은 프로젝트에서 읽기 전용, 시스템 관리자는 프로젝트 데이터에 접근하지 않으므로 생성할 수 없다(3.3 PRJ-01).
+ * PM 추가·해제는 ProjectMemberService, 관리자 PM 재지정은 ProjectPmService(FR-PRJ-04), 게이트 승인자 변경은 FR-PRJ-05 범위다.
  */
 @Service
 @RequiredArgsConstructor
@@ -47,6 +55,8 @@ public class ProjectCreationService {
 
 	private final ProjectRepository projectRepository;
 	private final ProjectActorAssignmentRepository actorAssignmentRepository;
+	private final ProjectDepartmentRepository projectDepartmentRepository;
+	private final ProjectFeatureAssignmentRepository featureAssignmentRepository;
 	private final ProjectMemberRepository memberRepository;
 	private final UserRepository userRepository;
 	private final DepartmentRepository departmentRepository;
@@ -64,7 +74,7 @@ public class ProjectCreationService {
 	public Long create(final AuditActor actor, final CreateProjectCommand command) {
 		final User creator = requireProjectCreator(actor.userId());
 		creationPolicy.validate(command, creator.getId());
-		requireAssignableDepartment(command.departmentId());
+		requireAssignableDepartments(command.departmentIds());
 		memberService.requireInvitableUsers(command.members().stream().map(InitialMember::userId).toList());
 		if (projectRepository.existsByCode(command.code())) {
 			throw new CustomException(ErrorCode.DUPLICATE_PROJECT_CODE);
@@ -75,8 +85,8 @@ public class ProjectCreationService {
 			command.name().strip(),
 			command.startDate(),
 			command.endDate(),
-			command.departmentId(),
 			command.visibility(),
+			command.template(),
 			command.methodology(),
 			command.departmentType(),
 			creator.getId()
@@ -85,16 +95,27 @@ public class ProjectCreationService {
 		actorAssignmentRepository.saveAll(
 			actors.stream().map(projectActor -> ProjectActorAssignment.of(project.getId(), projectActor)).toList()
 		);
+		final List<Long> departmentIds = command.departmentIds().stream().sorted().toList();
+		projectDepartmentRepository.saveAll(
+			departmentIds.stream().map(departmentId -> ProjectDepartment.of(project.getId(), departmentId)).toList()
+		);
+		final List<ProjectFeature> features = command.features().stream().sorted().toList();
+		featureAssignmentRepository.saveAll(
+			features.stream().map(feature -> ProjectFeatureAssignment.of(project.getId(), feature)).toList()
+		);
 		memberRepository.saveAll(membersOf(project, creator, command.members()));
 		initializerFor(command.methodology()).initialize(project, command.gateApproverUserId());
 
 		auditLogger.record(actor, AuditAction.PROJECT_CREATED, AuditTargetType.PROJECT, project.getId(), AuditChanges.create()
 			.value("code", project.getCode())
 			.value("name", project.getName())
+			.value("template", project.getTemplate())
 			.value("methodology", project.getMethodology())
 			.value("departmentType", project.getDepartmentType())
 			.value("actors", actors)
-			.value("pmUserId", project.getPmUserId())
+			.value("features", features)
+			.value("departmentIds", departmentIds)
+			.value("pmUserIds", List.of(creator.getId()))
 			.value("memberUserIds", command.members().stream().map(InitialMember::userId).sorted().toList())
 			.value("gateApproverUserId", command.gateApproverUserId()));
 		return project.getId();
@@ -107,20 +128,25 @@ public class ProjectCreationService {
 		return !projectRepository.existsByCode(code);
 	}
 
-	/** 프로젝트 생성 권한은 일반 사용자에게만 부여된다(FR-ADM-02). 역할이 바뀌면 권한도 함께 회수된다. */
+	/** 별도 생성 권한 없이 활성 일반 사용자는 누구나 만들 수 있다(요구사항 명세서 3.1, FR-PRJ-01 인수 기준). */
 	private User requireProjectCreator(final Long userId) {
 		final User user = userRepository.findById(userId)
 			.orElseThrow(() -> new CustomException(ErrorCode.PROJECT_CREATION_FORBIDDEN));
-		if (!user.isActive() || user.getSystemRole() != SystemRole.USER || !user.isCanCreateProject()) {
+		if (!user.isActive() || user.getSystemRole() != SystemRole.USER) {
 			throw new CustomException(ErrorCode.PROJECT_CREATION_FORBIDDEN);
 		}
 		return user;
 	}
 
-	private void requireAssignableDepartment(final Long departmentId) {
-		final boolean assignable = departmentRepository.findById(departmentId)
-			.map(Department::isActive)
-			.orElse(false);
+	/** 주관 부서는 모두 존재하는 활성 부서여야 한다. 지정하지 않으면(빈 목록) 검사하지 않는다. */
+	private void requireAssignableDepartments(final List<Long> departmentIds) {
+		if (departmentIds.isEmpty()) {
+			return;
+		}
+		final Set<Long> distinctIds = new HashSet<>(departmentIds);
+		final List<Department> departments = departmentRepository.findAllById(distinctIds);
+		final boolean assignable = departments.size() == distinctIds.size()
+			&& departments.stream().allMatch(Department::isActive);
 		if (!assignable) {
 			throw new CustomException(ErrorCode.INVALID_PROJECT_DEPARTMENT);
 		}

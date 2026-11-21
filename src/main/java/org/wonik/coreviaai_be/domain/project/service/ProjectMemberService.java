@@ -45,11 +45,12 @@ import org.wonik.global.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 
 /**
- * 프로젝트 멤버·역할 관리(FR-PRJ-04): 목록·초대·역할 변경·제외·이력. 변경은 현재 PM만 할 수 있다(3.3 권한 매트릭스).
+ * 프로젝트 멤버·역할 관리(FR-PRJ-04): 목록·초대·역할 변경(PM 추가·해제 포함)·제외·이력.
+ * 변경은 PM만 할 수 있고 PM은 여러 명일 수 있다(3.3 권한 매트릭스, 복수 PM).
  * <p>
  * 변경마다 업무 이력(project_member_histories)과 감사 로그(audit_logs)를 같은 트랜잭션에 남긴다.
  * 이력은 프로젝트 화면에서 보는 업무 기록이고, 감사 로그는 1년 보관하는 관리자용 기록이라 둘 다 필요하다.
- * PM 위임·재지정은 ProjectPmService가 맡는다.
+ * 관리자 PM 재지정은 ProjectPmService가 맡는다.
  */
 @Service
 @RequiredArgsConstructor
@@ -149,7 +150,10 @@ public class ProjectMemberService {
 			.toList();
 	}
 
-	/** 같은 역할로 바꾸면 이력·감사 로그 없이 그대로 돌려준다. */
+	/**
+	 * 역할 변경. 다른 역할 → PM은 PM 추가, PM → 다른 역할은 PM 해제다(복수 PM, 최소 1명 유지).
+	 * PM 구성이 바뀔 수 있어 프로젝트 행을 잠그고 판정한다. 같은 역할로 바꾸면 이력·감사 로그 없이 그대로 돌려준다.
+	 */
 	@Transactional
 	public ProjectMemberResult changeRole(
 		final AuditActor actor,
@@ -157,35 +161,68 @@ public class ProjectMemberService {
 		final Long userId,
 		final ProjectActor newRole
 	) {
-		final Project project = accessPolicy.getManagedProject(actor.userId(), projectId);
+		final Project project = accessPolicy.getManagedProjectForUpdate(actor.userId(), projectId);
 		final ProjectMember member = getMember(projectId, userId);
-		memberPolicy.validateRoleChange(assignedActorsOf(projectId), member, newRole);
 		final ProjectActor before = member.getActor();
-		if (before != newRole) {
-			member.changeActor(newRole);
-			historyRepository.save(history(project, userId, MemberChangeType.ROLE_CHANGED, before, newRole, actor));
-			auditLogger.record(actor, AuditAction.PROJECT_MEMBER_ROLE_CHANGED, AuditTargetType.PROJECT, projectId,
-				AuditChanges.create().value("userId", userId).change("actor", before, newRole));
+		if (before == newRole) {
+			return new ProjectMemberResult(member, userNamesOf(Set.of(userId)).get(userId), NO_ASSIGNED_TASKS);
 		}
+		final boolean becomesPm = newRole == ProjectActor.PM;
+		memberPolicy.validateRoleChange(
+			assignedActorsOf(projectId),
+			member,
+			newRole,
+			memberRepository.countByProjectIdAndActor(projectId, ProjectActor.PM),
+			becomesPm && userRepository.findById(userId).map(User::isActive).orElse(false),
+			becomesPm && phaseRepository.existsByProjectIdAndGateApproverUserId(projectId, userId)
+		);
+
+		member.changeActor(newRole);
+		final MemberChangeType changeType = changeTypeOf(before, newRole);
+		historyRepository.save(history(project, userId, changeType, before, newRole, actor));
+		auditLogger.record(actor, auditActionOf(changeType), AuditTargetType.PROJECT, projectId,
+			AuditChanges.create().value("userId", userId).change("actor", before, newRole));
 		return new ProjectMemberResult(member, userNamesOf(Set.of(userId)).get(userId), NO_ASSIGNED_TASKS);
 	}
 
-	/** PM과 게이트 승인자는 제외할 수 없다(먼저 위임·승인자 변경). */
+	/** 게이트 승인자는 제외할 수 없고(먼저 승인자 변경), PM은 다른 PM이 남아 있을 때만 제외할 수 있다. */
 	@Transactional
 	public void remove(final AuditActor actor, final Long projectId, final Long userId) {
-		final Project project = accessPolicy.getManagedProject(actor.userId(), projectId);
+		final Project project = accessPolicy.getManagedProjectForUpdate(actor.userId(), projectId);
 		final ProjectMember member = getMember(projectId, userId);
-		memberPolicy.validateRemoval(member, phaseRepository.existsByProjectIdAndGateApproverUserId(projectId, userId));
+		memberPolicy.validateRemoval(
+			member,
+			phaseRepository.existsByProjectIdAndGateApproverUserId(projectId, userId),
+			memberRepository.countByProjectIdAndActor(projectId, ProjectActor.PM)
+		);
 		memberRepository.delete(member);
 		historyRepository.save(history(project, userId, MemberChangeType.REMOVED, member.getActor(), null, actor));
 		auditLogger.record(actor, AuditAction.PROJECT_MEMBER_REMOVED, AuditTargetType.PROJECT, projectId,
 			AuditChanges.create().value("userId", userId).value("actor", member.getActor()));
 	}
 
+	private static MemberChangeType changeTypeOf(final ProjectActor before, final ProjectActor after) {
+		if (after == ProjectActor.PM) {
+			return MemberChangeType.PM_ADDED;
+		}
+		if (before == ProjectActor.PM) {
+			return MemberChangeType.PM_RELEASED;
+		}
+		return MemberChangeType.ROLE_CHANGED;
+	}
+
+	private static AuditAction auditActionOf(final MemberChangeType changeType) {
+		return switch (changeType) {
+			case PM_ADDED -> AuditAction.PROJECT_PM_ADDED;
+			case PM_RELEASED -> AuditAction.PROJECT_PM_RELEASED;
+			default -> AuditAction.PROJECT_MEMBER_ROLE_CHANGED;
+		};
+	}
+
 	/**
 	 * 멤버로 둘 수 있는 사용자인지: 활성 일반 사용자만. 경영진은 프로젝트에서 읽기 전용이라(3.1) 역할을 줄 수 없고,
 	 * 시스템 관리자는 프로젝트 데이터에 접근할 수 없다. 다른 부서 사용자는 허용한다(현업 담당자 등).
-	 * 생성 시 초대(FR-PRJ-01 ④)와 PM 재지정도 같은 기준을 쓴다.
+	 * 생성 시 초대(FR-PRJ-01 ⑤)와 PM 재지정도 같은 기준을 쓴다.
 	 */
 	void requireInvitableUsers(final Collection<Long> userIds) {
 		if (userIds.isEmpty()) {

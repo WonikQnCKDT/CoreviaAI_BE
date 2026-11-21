@@ -2,6 +2,8 @@ package org.wonik.coreviaai_be.domain.project.policy;
 
 import org.springframework.stereotype.Component;
 import org.wonik.coreviaai_be.domain.project.entity.Project;
+import org.wonik.coreviaai_be.domain.project.entity.type.ProjectActor;
+import org.wonik.coreviaai_be.domain.project.repository.ProjectMemberRepository;
 import org.wonik.coreviaai_be.domain.project.repository.ProjectRepository;
 import org.wonik.global.common.exception.CustomException;
 import org.wonik.global.common.exception.ErrorCode;
@@ -15,7 +17,8 @@ import lombok.RequiredArgsConstructor;
  * 프로젝트 자원 단위 접근 판정. 조회 API와 변경 API가 같은 기준을 쓰도록 한 곳에 둔다.
  * <ul>
  *   <li>볼 수 없는 프로젝트는 없는 프로젝트와 구분하지 않고 404(존재 비노출, 요구사항 명세서 3.2 공개 범위)</li>
- *   <li>볼 수는 있지만 PM이 아니면 403(3.3 권한 매트릭스: 멤버·역할 변경은 PM만, 경영진은 읽기 전용)</li>
+ *   <li>볼 수는 있지만 PM이 아니면 403(3.3 권한 매트릭스: 멤버·역할 변경은 PM만, 경영진은 읽기 전용).
+ *       PM은 복수일 수 있어 PM 역할 멤버인지로 판정한다(FR-PRJ-04).</li>
  * </ul>
  * 시스템 관리자는 보안 설정에서 /api/projects/**가 이미 차단되므로 여기서 다루지 않는다.
  */
@@ -24,6 +27,7 @@ import lombok.RequiredArgsConstructor;
 public class ProjectAccessPolicy {
 
 	private final ProjectRepository projectRepository;
+	private final ProjectMemberRepository memberRepository;
 	private final UserRepository userRepository;
 	private final ProjectVisibilityPolicy visibilityPolicy;
 
@@ -34,19 +38,39 @@ public class ProjectAccessPolicy {
 	}
 
 	public Project getVisibleProject(final Long viewerId, final Long projectId) {
-		final User viewer = getViewer(viewerId);
 		final Project project = projectRepository.findById(projectId)
 			.orElseThrow(() -> new CustomException(ErrorCode.PROJECT_NOT_FOUND));
-		if (!canView(viewer, project)) {
+		return requireVisible(viewerId, project);
+	}
+
+	/** PM 중 한 명만 다룰 수 있는 프로젝트(멤버 초대·역할 변경·제외). */
+	public Project getManagedProject(final Long userId, final Long projectId) {
+		return requirePm(userId, getVisibleProject(userId, projectId));
+	}
+
+	/**
+	 * getManagedProject와 같지만 프로젝트 행을 잠근다. PM 구성(추가·해제·PM 제외)이 바뀔 수 있는 변경에 쓴다.
+	 * 같은 프로젝트의 PM 변경을 차례로 처리해 PM이 0명이 되는 경쟁 상태를 막는다.
+	 */
+	public Project getManagedProjectForUpdate(final Long userId, final Long projectId) {
+		final Project project = projectRepository.findByIdForUpdate(projectId)
+			.orElseThrow(() -> new CustomException(ErrorCode.PROJECT_NOT_FOUND));
+		return requirePm(userId, requireVisible(userId, project));
+	}
+
+	public boolean isPm(final Long userId, final Long projectId) {
+		return memberRepository.existsByProjectIdAndUserIdAndActor(projectId, userId, ProjectActor.PM);
+	}
+
+	private Project requireVisible(final Long viewerId, final Project project) {
+		if (!canView(getViewer(viewerId), project)) {
 			throw new CustomException(ErrorCode.PROJECT_NOT_FOUND);
 		}
 		return project;
 	}
 
-	/** 현재 PM만 다룰 수 있는 프로젝트(멤버 초대·역할 변경·제외·PM 위임). */
-	public Project getManagedProject(final Long userId, final Long projectId) {
-		final Project project = getVisibleProject(userId, projectId);
-		if (!project.getPmUserId().equals(userId)) {
+	private Project requirePm(final Long userId, final Project project) {
+		if (!isPm(userId, project.getId())) {
 			throw new CustomException(ErrorCode.PROJECT_PM_ONLY);
 		}
 		return project;

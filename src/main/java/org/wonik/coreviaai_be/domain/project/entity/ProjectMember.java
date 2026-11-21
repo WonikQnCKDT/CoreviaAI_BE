@@ -20,7 +20,7 @@ import lombok.NoArgsConstructor;
 
 /**
  * 프로젝트 멤버와 역할(FR-PRJ-01 ④, FR-PRJ-04). 한 사람은 한 프로젝트에서 역할 하나만 갖는다(UNIQUE(project_id, user_id)).
- * 멤버 전용 공개 범위 판정과 PM 자동 등록에 필요해 생성 기능과 함께 만든다. 역할 변경 이력은 ProjectMemberHistory에 남긴다.
+ * PM도 actor = PM인 멤버 행이며 프로젝트당 1명 이상이다(복수 PM). 역할 변경 이력은 ProjectMemberHistory에 남긴다.
  */
 @Getter
 @Entity
@@ -57,7 +57,7 @@ public class ProjectMember extends BaseTimeEntity {
 		return new ProjectMember(projectId, userId, actor);
 	}
 
-	/** 역할 변경(FR-PRJ-04). 지정 액터 여부·PM 규칙은 ProjectMemberPolicy가 먼저 판정한다. */
+	/** 역할 변경(FR-PRJ-04, PM 추가·해제 포함). 지정 액터 여부·PM 최소 인원 규칙은 ProjectMemberPolicy가 먼저 판정한다. */
 	public void changeActor(final ProjectActor actor) {
 		this.actor = actor;
 	}

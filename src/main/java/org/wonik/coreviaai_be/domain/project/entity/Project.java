@@ -7,6 +7,7 @@ import org.hibernate.type.SqlTypes;
 import org.wonik.coreviaai_be.domain.project.entity.type.DepartmentType;
 import org.wonik.coreviaai_be.domain.project.entity.type.Methodology;
 import org.wonik.coreviaai_be.domain.project.entity.type.ProjectStatus;
+import org.wonik.coreviaai_be.domain.project.entity.type.ProjectTemplate;
 import org.wonik.coreviaai_be.domain.project.entity.type.ProjectVisibility;
 import org.wonik.global.common.entity.BaseTimeEntity;
 
@@ -24,12 +25,12 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 /**
- * 프로젝트(FR-PRJ-01). 운영 방식·부서 유형은 생성 시 확정하고 바꾸지 않는다.
+ * 프로젝트(FR-PRJ-01). 템플릿·운영 방식·부서 유형은 생성 시 정하고, 생성 후 변경(FR-PRJ-14)은 후속 이슈에서 다룬다.
  * <p>
- * pmUserId는 현재 PM(권한 판정 기준)이고 createdBy는 최초 생성자다. 생성 시에는 같지만
- * PM 위임(FR-PRJ-04)으로 pmUserId만 바뀌므로 처음부터 분리해 둔다.
- * 사용자·부서는 다른 모듈 소유라 JPA 연관관계 없이 ID만 가진다(User·Department와 같은 방식).
- * 기간은 특정 날짜의 달력 의미를 갖는 값이라 LocalDate로 모델링한다(시각 아님).
+ * PM은 복수로 지정할 수 있어(FR-PRJ-04) 프로젝트 행이 아니라 PM 역할 멤버(project_members.actor = PM)로 관리한다.
+ * createdBy는 최초 생성자 기록일 뿐 권한 판정에 쓰지 않는다. 주관 부서(0~N개)는 ProjectDepartment,
+ * 기능 구성은 ProjectFeatureAssignment가 맡는다. 사용자·부서는 다른 모듈 소유라 JPA 연관관계 없이 ID만 가진다.
+ * 기간은 달력 의미를 갖는 날짜라 LocalDate로 모델링하고, 생성 후 입력할 수 있어 비어 있을 수 있다.
  */
 @Getter
 @Entity
@@ -47,19 +48,21 @@ public class Project extends BaseTimeEntity {
 	@Column(name = "name", nullable = false, length = 100)
 	private String name;
 
-	@Column(name = "start_date", nullable = false)
+	@Column(name = "start_date")
 	private LocalDate startDate;
 
-	@Column(name = "end_date", nullable = false)
+	@Column(name = "end_date")
 	private LocalDate endDate;
-
-	@Column(name = "department_id", nullable = false)
-	private Long departmentId;
 
 	@Enumerated(EnumType.STRING)
 	@JdbcTypeCode(SqlTypes.VARCHAR)
 	@Column(name = "visibility", nullable = false, length = 20)
 	private ProjectVisibility visibility;
+
+	@Enumerated(EnumType.STRING)
+	@JdbcTypeCode(SqlTypes.VARCHAR)
+	@Column(name = "template", nullable = false, length = 20)
+	private ProjectTemplate template;
 
 	@Enumerated(EnumType.STRING)
 	@JdbcTypeCode(SqlTypes.VARCHAR)
@@ -76,9 +79,6 @@ public class Project extends BaseTimeEntity {
 	@Column(name = "status", nullable = false, length = 20)
 	private ProjectStatus status;
 
-	@Column(name = "pm_user_id", nullable = false)
-	private Long pmUserId;
-
 	@Column(name = "created_by", nullable = false)
 	private Long createdBy;
 
@@ -91,8 +91,8 @@ public class Project extends BaseTimeEntity {
 		final String name,
 		final LocalDate startDate,
 		final LocalDate endDate,
-		final Long departmentId,
 		final ProjectVisibility visibility,
+		final ProjectTemplate template,
 		final Methodology methodology,
 		final DepartmentType departmentType,
 		final Long creatorUserId
@@ -101,35 +101,27 @@ public class Project extends BaseTimeEntity {
 		this.name = name;
 		this.startDate = startDate;
 		this.endDate = endDate;
-		this.departmentId = departmentId;
 		this.visibility = visibility;
+		this.template = template;
 		this.methodology = methodology;
 		this.departmentType = departmentType;
 		this.status = ProjectStatus.PLANNED;
-		this.pmUserId = creatorUserId;
 		this.createdBy = creatorUserId;
 	}
 
-	/** 생성자가 PM으로 자동 지정된다(요구사항 명세서 3.1). */
+	/** 생성자를 PM 역할 멤버로 등록하는 일은 생성 서비스가 같은 트랜잭션에서 한다(요구사항 명세서 3.1). */
 	public static Project create(
 		final String code,
 		final String name,
 		final LocalDate startDate,
 		final LocalDate endDate,
-		final Long departmentId,
 		final ProjectVisibility visibility,
+		final ProjectTemplate template,
 		final Methodology methodology,
 		final DepartmentType departmentType,
 		final Long creatorUserId
 	) {
-		return new Project(code, name, startDate, endDate, departmentId, visibility, methodology, departmentType, creatorUserId);
-	}
-
-	/**
-	 * PM 위임·재지정(FR-PRJ-04). 프로젝트 행의 version이 올라가므로 같은 프로젝트의 위임·재지정이 겹치면
-	 * 나중 요청이 낙관적 잠금 충돌(409)로 끝난다.
-	 */
-	public void changePm(final Long newPmUserId) {
-		this.pmUserId = newPmUserId;
+		return new Project(code, name, startDate, endDate, visibility, template, methodology, departmentType,
+			creatorUserId);
 	}
 }
