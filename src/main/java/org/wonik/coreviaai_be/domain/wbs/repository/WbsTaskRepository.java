@@ -1,5 +1,6 @@
 package org.wonik.coreviaai_be.domain.wbs.repository;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -34,6 +35,9 @@ public interface WbsTaskRepository extends JpaRepository<WbsTask, Long> {
 
 	/** 프로젝트당 WBS 항목 수 상한 판정용. */
 	long countByProjectId(Long projectId);
+
+	/** 주어진 ID 중 그 프로젝트의 항목 수. 마일스톤 연결 작업이 모두 같은 프로젝트에 있는지 확인한다. */
+	long countByProjectIdAndIdIn(Long projectId, Collection<Long> ids);
 
 	/**
 	 * 표시 순서만 바꾼다. 순서는 프로젝트 행 잠금으로 보호하는 구조 정보라 version을 올리지 않는다

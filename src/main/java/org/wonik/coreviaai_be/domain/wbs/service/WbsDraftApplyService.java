@@ -17,6 +17,7 @@ import org.wonik.coreviaai_be.domain.wbs.drafttoken.DraftTokenOwner;
 import org.wonik.coreviaai_be.domain.wbs.drafttoken.WbsDraftTokenStore;
 import org.wonik.coreviaai_be.domain.wbs.policy.WbsDraftAccessPolicy;
 import org.wonik.coreviaai_be.domain.wbs.policy.WbsDraftValidator;
+import org.wonik.coreviaai_be.domain.wbs.repository.MilestoneRepository;
 import org.wonik.coreviaai_be.domain.wbs.repository.WbsTaskRepository;
 import org.wonik.coreviaai_be.domain.wbs.service.command.ApplyWbsDraftCommand;
 import org.wonik.coreviaai_be.domain.wbs.service.result.AppliedWbsDraft;
@@ -53,6 +54,7 @@ public class WbsDraftApplyService {
 	private final ProjectMemberRepository memberRepository;
 	private final ProjectRepository projectRepository;
 	private final WbsTaskRepository taskRepository;
+	private final MilestoneRepository milestoneRepository;
 	private final WbsDraftValidator validator;
 	private final WbsItemWriter itemWriter;
 	private final AiDraftRecorder aiDraftRecorder;
@@ -116,6 +118,11 @@ public class WbsDraftApplyService {
 			+ command.tasks().stream().mapToLong(task -> task.subtasks().size()).sum();
 		if (taskRepository.countByProjectId(projectId) + newItemCount > WbsTaskService.MAX_ITEMS_PER_PROJECT) {
 			throw new CustomException(ErrorCode.WBS_TASK_LIMIT_EXCEEDED);
+		}
+		// 마일스톤 목록도 페이지 없이 돌려주므로 직접 등록(MilestoneService)과 같은 상한을 지킨다.
+		if (milestoneRepository.countByProjectId(projectId) + command.milestones().size()
+			> MilestoneService.MAX_MILESTONES_PER_PROJECT) {
+			throw new CustomException(ErrorCode.MILESTONE_LIMIT_EXCEEDED);
 		}
 		final Set<Long> memberUserIds = memberRepository.findAllByProjectIdOrderById(projectId).stream()
 			.map(ProjectMember::getUserId)
