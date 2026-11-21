@@ -12,7 +12,6 @@ public record CreateUserCommand(
 	String name,
 	SystemRole systemRole,
 	Long departmentId,
-	String jobTitle,
-	boolean canCreateProject
+	String jobTitle
 ) {
 }

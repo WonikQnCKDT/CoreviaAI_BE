@@ -14,8 +14,8 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
 /**
- * 시스템 관리자의 PM 재지정(FR-PRJ-04, 요구사항 명세서 3.1 예외). 관리자는 프로젝트 데이터를 볼 수 없으므로
- * 조회 API 없이 코드·새 PM ID만 받고, 응답도 바뀐 PM만 돌려준다. 접근 제어는 CoreviaSecurityConfig의 /api/admin/** 규칙이 맡는다.
+ * 시스템 관리자의 PM 재지정(FR-PRJ-04, 요구사항 명세서 3.1 예외: 활성 PM이 남지 않은 경우만). 관리자는 프로젝트 데이터를 볼 수 없으므로
+ * 조회 API 없이 코드·새 PM ID만 받고, 응답도 재지정 후 PM 목록만 돌려준다. 접근 제어는 CoreviaSecurityConfig의 /api/admin/** 규칙이 맡는다.
  */
 @RestController
 @RequestMapping("/api/admin/projects")

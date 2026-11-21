@@ -21,7 +21,6 @@ public record AdminUserResponse(
 	Long departmentId,
 	String departmentName,
 	String jobTitle,
-	boolean canCreateProject,
 	Instant lastLoginAt,
 	Instant createdAt,
 	Instant updatedAt
@@ -38,7 +37,6 @@ public record AdminUserResponse(
 			user.getDepartmentId(),
 			result.departmentName(),
 			user.getJobTitle(),
-			user.isCanCreateProject(),
 			user.getLastLoginAt(),
 			user.getCreatedAt(),
 			user.getUpdatedAt()

@@ -1,23 +1,23 @@
 package org.wonik.coreviaai_be.domain.project.service;
 
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.wonik.coreviaai_be.domain.project.entity.Project;
 import org.wonik.coreviaai_be.domain.project.entity.ProjectMember;
 import org.wonik.coreviaai_be.domain.project.entity.type.MemberChangeType;
-import org.wonik.coreviaai_be.domain.project.entity.type.PreviousPmAction;
 import org.wonik.coreviaai_be.domain.project.entity.type.ProjectActor;
-import org.wonik.coreviaai_be.domain.project.policy.ProjectAccessPolicy;
-import org.wonik.coreviaai_be.domain.project.policy.ProjectMemberPolicy;
 import org.wonik.coreviaai_be.domain.project.repository.ProjectMemberHistoryRepository;
 import org.wonik.coreviaai_be.domain.project.repository.ProjectMemberRepository;
 import org.wonik.coreviaai_be.domain.project.repository.ProjectPhaseRepository;
 import org.wonik.coreviaai_be.domain.project.repository.ProjectRepository;
-import org.wonik.coreviaai_be.domain.project.service.command.DelegatePmCommand;
 import org.wonik.coreviaai_be.domain.project.service.command.ReassignPmCommand;
+import org.wonik.coreviaai_be.domain.project.service.result.NamedRef;
 import org.wonik.coreviaai_be.domain.project.service.result.ProjectPmResult;
 import org.wonik.global.audit.AuditAction;
 import org.wonik.global.audit.AuditActor;
@@ -32,21 +32,16 @@ import org.wonik.global.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 
 /**
- * PM 교체(FR-PRJ-04). 프로젝트당 PM은 1명이고, 아래 두 경로로만 바뀐다.
- * <ul>
- *   <li>위임: 현 PM만 다른 활성 멤버에게 넘긴다. 기존 PM은 다른 지정 액터로 바뀌거나 멤버에서 빠진다.</li>
- *   <li>재지정: PM이 비활성(퇴사 등)이라 위임할 수 없을 때 시스템 관리자가 인사 발령으로 정해진 새 PM을 배치한다
- *       (요구사항 명세서 3.1 예외). 새 PM이 멤버가 아니면 PM으로 추가하고, 기존 PM은 멤버에서 뺀다.</li>
- * </ul>
- * 두 경로 모두 게이트 승인자는 PM이 될 수 없다(승인자 지정을 먼저 해제). 프로젝트 행의 version이 올라가므로
- * 같은 프로젝트에서 위임·재지정이 겹치면 나중 요청은 409로 끝난다.
+ * 시스템 관리자의 PM 재지정(FR-PRJ-04, 요구사항 명세서 3.1 예외). PM 추가·해제는 PM이 역할 변경으로 직접 하므로
+ * (ProjectMemberService), 관리자는 활성 PM이 하나도 남지 않은 프로젝트(퇴사·비활성화 등)에만 새 PM을 배치할 수 있다.
+ * <p>
+ * 새 PM이 멤버가 아니면 PM으로 추가하고, 남아 있던 비활성 PM은 멤버에서 뺀다. 게이트 승인자는 PM이 될 수 없다.
+ * 프로젝트 행을 잠그고 처리해 같은 프로젝트의 재지정·PM 변경이 겹치지 않게 한다.
  */
 @Service
 @RequiredArgsConstructor
 public class ProjectPmService {
 
-	private final ProjectAccessPolicy accessPolicy;
-	private final ProjectMemberPolicy memberPolicy;
 	private final ProjectMemberService memberService;
 	private final ProjectRepository projectRepository;
 	private final ProjectMemberRepository memberRepository;
@@ -55,52 +50,22 @@ public class ProjectPmService {
 	private final UserRepository userRepository;
 	private final AuditLogger auditLogger;
 
-	@Transactional
-	public ProjectPmResult delegate(final AuditActor actor, final Long projectId, final DelegatePmCommand command) {
-		final Project project = accessPolicy.getManagedProject(actor.userId(), projectId);
-		final Long previousPmUserId = project.getPmUserId();
-		final ProjectMember target = memberRepository.findByProjectIdAndUserId(projectId, command.newPmUserId())
-			.orElse(null);
-		final boolean targetActive = userRepository.findById(command.newPmUserId()).map(User::isActive).orElse(false);
-		final boolean targetIsApprover = phaseRepository.existsByProjectIdAndGateApproverUserId(projectId, command.newPmUserId());
-		final Set<ProjectActor> assignedActors = memberService.assignedActorsOf(projectId);
-		memberPolicy.validateDelegation(assignedActors, previousPmUserId, command, target, targetActive, targetIsApprover);
-
-		final ProjectActor targetBefore = target.getActor();
-		target.changeActor(ProjectActor.PM);
-		final ProjectMember previousPm = getPmMember(projectId, previousPmUserId);
-		final ProjectActor previousPmAfter;
-		if (command.previousPmAction() == PreviousPmAction.CHANGE_ROLE) {
-			previousPm.changeActor(command.previousPmActor());
-			previousPmAfter = command.previousPmActor();
-		} else {
-			memberRepository.delete(previousPm);
-			previousPmAfter = null;
-		}
-		project.changePm(command.newPmUserId());
-
-		historyRepository.save(memberService.history(
-			project, command.newPmUserId(), MemberChangeType.PM_DELEGATED, targetBefore, ProjectActor.PM, actor));
-		historyRepository.save(memberService.history(
-			project, previousPmUserId, MemberChangeType.PM_DELEGATED, ProjectActor.PM, previousPmAfter, actor));
-		auditLogger.record(actor, AuditAction.PROJECT_PM_DELEGATED, AuditTargetType.PROJECT, projectId, AuditChanges.create()
-			.change("pmUserId", previousPmUserId, command.newPmUserId())
-			.value("previousPmAction", command.previousPmAction())
-			.value("previousPmActor", previousPmAfter));
-		return resultOf(project);
-	}
-
 	/**
-	 * 없는 코드와 PM이 활성인 프로젝트를 같은 오류(PM_REASSIGN_NOT_ALLOWED)로 알린다.
+	 * 없는 코드와 활성 PM이 있는 프로젝트를 같은 오류(PM_REASSIGN_NOT_ALLOWED)로 알린다.
 	 * 관리자는 프로젝트 데이터를 볼 수 없으므로(3.1), 코드를 바꿔 가며 프로젝트 존재 여부를 알아낼 수 없게 하기 위해서다.
 	 */
 	@Transactional
 	public ProjectPmResult reassign(final AuditActor actor, final ReassignPmCommand command) {
-		final Project project = projectRepository.findByCode(command.projectCode())
+		final Project project = projectRepository.findByCodeForUpdate(command.projectCode())
 			.orElseThrow(() -> new CustomException(ErrorCode.PM_REASSIGN_NOT_ALLOWED));
-		final Long previousPmUserId = project.getPmUserId();
-		final boolean currentPmActive = userRepository.findById(previousPmUserId).map(User::isActive).orElse(false);
-		if (currentPmActive) {
+		final List<ProjectMember> previousPms = memberRepository.findAllByProjectIdAndActorOrderById(
+			project.getId(), ProjectActor.PM);
+		final Map<Long, Boolean> activeByUserId = userRepository.findAllById(
+				previousPms.stream().map(ProjectMember::getUserId).toList()).stream()
+			.collect(Collectors.toMap(User::getId, User::isActive));
+		final boolean anyActivePm = previousPms.stream()
+			.anyMatch(pm -> activeByUserId.getOrDefault(pm.getUserId(), false));
+		if (anyActivePm) {
 			throw new CustomException(ErrorCode.PM_REASSIGN_NOT_ALLOWED);
 		}
 		memberService.requireInvitableUsers(Set.of(command.newPmUserId()));
@@ -115,29 +80,35 @@ public class ProjectPmService {
 			member -> member.changeActor(ProjectActor.PM),
 			() -> memberRepository.save(ProjectMember.of(project.getId(), command.newPmUserId(), ProjectActor.PM))
 		);
-		memberRepository.findByProjectIdAndUserId(project.getId(), previousPmUserId).ifPresent(memberRepository::delete);
-		project.changePm(command.newPmUserId());
+		final List<Long> removedPmUserIds = previousPms.stream()
+			.map(ProjectMember::getUserId)
+			.filter(userId -> !userId.equals(command.newPmUserId()))
+			.sorted()
+			.toList();
+		memberRepository.deleteAll(previousPms.stream()
+			.filter(pm -> removedPmUserIds.contains(pm.getUserId()))
+			.toList());
 
 		historyRepository.save(memberService.history(
 			project, command.newPmUserId(), MemberChangeType.PM_REASSIGNED, newPmBefore, ProjectActor.PM, actor));
-		historyRepository.save(memberService.history(
-			project, previousPmUserId, MemberChangeType.PM_REASSIGNED, ProjectActor.PM, null, actor));
+		historyRepository.saveAll(removedPmUserIds.stream()
+			.map(userId -> memberService.history(
+				project, userId, MemberChangeType.PM_REASSIGNED, ProjectActor.PM, null, actor))
+			.toList());
 		auditLogger.record(actor, AuditAction.PROJECT_PM_REASSIGNED, AuditTargetType.PROJECT, project.getId(),
 			AuditChanges.create()
-				.change("pmUserId", previousPmUserId, command.newPmUserId())
+				.value("newPmUserId", command.newPmUserId())
+				.value("removedPmUserIds", removedPmUserIds)
 				.value("addedAsMember", existing.isEmpty()));
-		return resultOf(project);
+		return new ProjectPmResult(project, pmsOf(project.getId()));
 	}
 
-	/** 현 PM은 항상 PM 역할 멤버다(생성·위임·재지정이 함께 맞춘다). 없으면 데이터 불일치라 진행하지 않는다. */
-	private ProjectMember getPmMember(final Long projectId, final Long pmUserId) {
-		return memberRepository.findByProjectIdAndUserId(projectId, pmUserId)
-			.filter(member -> member.getActor() == ProjectActor.PM)
-			.orElseThrow(() -> new IllegalStateException("현재 PM이 PM 역할 멤버가 아닙니다: project=" + projectId));
-	}
-
-	private ProjectPmResult resultOf(final Project project) {
-		final Long pmUserId = project.getPmUserId();
-		return new ProjectPmResult(project, memberService.userNamesOf(Set.of(pmUserId)).get(pmUserId));
+	private List<NamedRef> pmsOf(final Long projectId) {
+		final List<Long> pmUserIds = memberRepository.findAllByProjectIdAndActorOrderById(projectId, ProjectActor.PM)
+			.stream()
+			.map(ProjectMember::getUserId)
+			.toList();
+		final Map<Long, String> names = memberService.userNamesOf(pmUserIds);
+		return pmUserIds.stream().map(userId -> new NamedRef(userId, names.get(userId))).toList();
 	}
 }

@@ -3,13 +3,14 @@ package org.wonik.coreviaai_be.domain.project.dto.response;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
-import java.util.Map;
 
 import org.wonik.coreviaai_be.domain.project.entity.Project;
 import org.wonik.coreviaai_be.domain.project.entity.type.DepartmentType;
 import org.wonik.coreviaai_be.domain.project.entity.type.Methodology;
 import org.wonik.coreviaai_be.domain.project.entity.type.ProjectActor;
+import org.wonik.coreviaai_be.domain.project.entity.type.ProjectFeature;
 import org.wonik.coreviaai_be.domain.project.entity.type.ProjectStatus;
+import org.wonik.coreviaai_be.domain.project.entity.type.ProjectTemplate;
 import org.wonik.coreviaai_be.domain.project.entity.type.ProjectVisibility;
 import org.wonik.coreviaai_be.domain.project.service.result.ProjectDetailResult;
 
@@ -18,7 +19,10 @@ import org.wonik.coreviaai_be.domain.project.service.result.ProjectDetailResult;
  * 운영 방식별 구조는 별도 API로 조회한다(폭포수: GET /api/projects/{id}/phases). FE는 methodology로 어느 API를 부를지 고른다.
  * 멤버는 커서 목록 API(GET /api/projects/{id}/members)로 조회한다.
  *
- * @param actors 지정한 액터. 멤버 초대·역할 지정 화면의 역할 선택지다
+ * @param departments 주관 부서(0~N개)
+ * @param pms         PM(1명 이상, 등록순)
+ * @param actors      지정한 액터. 멤버 초대·역할 지정 화면의 역할 선택지다
+ * @param features    사용하는 기능 모듈(FR-PRJ-06). 없는 모듈은 프로젝트 메뉴에 표시하지 않는다
  */
 public record ProjectDetailResponse(
 	Long id,
@@ -27,22 +31,21 @@ public record ProjectDetailResponse(
 	ProjectStatus status,
 	LocalDate startDate,
 	LocalDate endDate,
-	Long departmentId,
-	String departmentName,
+	List<NamedRefResponse> departments,
 	ProjectVisibility visibility,
+	ProjectTemplate template,
 	Methodology methodology,
 	DepartmentType departmentType,
-	Long pmUserId,
-	String pmName,
+	List<NamedRefResponse> pms,
 	Long createdBy,
 	List<ProjectActor> actors,
+	List<ProjectFeature> features,
 	Instant createdAt,
 	Instant updatedAt
 ) {
 
 	public static ProjectDetailResponse from(final ProjectDetailResult result) {
 		final Project project = result.project();
-		final Map<Long, String> userNames = result.userNames();
 		return new ProjectDetailResponse(
 			project.getId(),
 			project.getCode(),
@@ -50,15 +53,15 @@ public record ProjectDetailResponse(
 			project.getStatus(),
 			project.getStartDate(),
 			project.getEndDate(),
-			project.getDepartmentId(),
-			result.departmentName(),
+			NamedRefResponse.listOf(result.departments()),
 			project.getVisibility(),
+			project.getTemplate(),
 			project.getMethodology(),
 			project.getDepartmentType(),
-			project.getPmUserId(),
-			userNames.get(project.getPmUserId()),
+			NamedRefResponse.listOf(result.pms()),
 			project.getCreatedBy(),
 			result.actors(),
+			result.features(),
 			project.getCreatedAt(),
 			project.getUpdatedAt()
 		);

@@ -9,17 +9,16 @@ import java.util.Set;
 
 import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.wonik.coreviaai_be.domain.project.entity.ProjectMember;
-import org.wonik.coreviaai_be.domain.project.entity.type.PreviousPmAction;
 import org.wonik.coreviaai_be.domain.project.entity.type.ProjectActor;
-import org.wonik.coreviaai_be.domain.project.service.command.DelegatePmCommand;
 import org.wonik.coreviaai_be.domain.project.service.command.InitialMember;
 import org.wonik.global.common.exception.CustomException;
 import org.wonik.global.common.exception.ErrorCode;
 
 /**
- * FR-PRJ-04 멤버·역할·위임 규칙 중 DB 없이 판정하는 것들. HTTP 흐름은 ProjectMemberApiIntegrationTest 등이 다룬다.
+ * FR-PRJ-04 멤버·역할·복수 PM 규칙 중 DB 없이 판정하는 것들(단위 테스트). HTTP·DB 흐름은 ProjectMemberApiIntegrationTest가 다룬다.
  * 프로젝트 지정 액터는 PM·현업 담당자·개발자(QA 미지정)로 둔다.
  */
 class ProjectMemberPolicyTest {
@@ -53,61 +52,66 @@ class ProjectMemberPolicyTest {
 			ErrorCode.ALREADY_PROJECT_MEMBER);
 	}
 
-	@Test
-	@DisplayName("역할 변경: PM의 역할을 바꾸거나 PM으로 바꿀 수 없고, 지정하지 않은 액터는 고를 수 없다")
-	void roleChange() {
-		assertThatCode(() -> policy.validateRoleChange(ASSIGNED, developerMember, ProjectActor.BUSINESS_OWNER))
-			.doesNotThrowAnyException();
+	@Nested
+	@DisplayName("역할 변경")
+	class RoleChange {
 
-		assertError(() -> policy.validateRoleChange(ASSIGNED, pmMember, ProjectActor.DEVELOPER), ErrorCode.PM_ROLE_NOT_CHANGEABLE);
-		assertError(() -> policy.validateRoleChange(ASSIGNED, developerMember, ProjectActor.PM), ErrorCode.PM_ROLE_NOT_CHANGEABLE);
-		assertError(() -> policy.validateRoleChange(ASSIGNED, developerMember, ProjectActor.QA), ErrorCode.MEMBER_ACTOR_NOT_ASSIGNED);
+		@Test
+		@DisplayName("일반 역할끼리는 지정 액터 안에서 바꿀 수 있고, 지정하지 않은 액터는 고를 수 없다")
+		void ordinary() {
+			assertThatCode(() -> policy.validateRoleChange(ASSIGNED, developerMember, ProjectActor.BUSINESS_OWNER, 1, true, false))
+				.doesNotThrowAnyException();
+			assertError(() -> policy.validateRoleChange(ASSIGNED, developerMember, ProjectActor.QA, 1, true, false),
+				ErrorCode.MEMBER_ACTOR_NOT_ASSIGNED);
+		}
+
+		@Test
+		@DisplayName("PM 추가: 활성 멤버만, 게이트 승인자는 PM이 될 수 없다")
+		void addPm() {
+			assertThatCode(() -> policy.validateRoleChange(ASSIGNED, developerMember, ProjectActor.PM, 1, true, false))
+				.doesNotThrowAnyException();
+			assertError(() -> policy.validateRoleChange(ASSIGNED, developerMember, ProjectActor.PM, 1, false, false),
+				ErrorCode.INVALID_PM_TARGET);
+			assertError(() -> policy.validateRoleChange(ASSIGNED, developerMember, ProjectActor.PM, 1, true, true),
+				ErrorCode.PM_TARGET_IS_GATE_APPROVER);
+		}
+
+		@Test
+		@DisplayName("PM 해제: PM이 2명 이상이면 허용하고, 마지막 1명이면 LAST_PM_REQUIRED")
+		void releasePm() {
+			assertThatCode(() -> policy.validateRoleChange(ASSIGNED, pmMember, ProjectActor.DEVELOPER, 2, true, false))
+				.doesNotThrowAnyException();
+			assertError(() -> policy.validateRoleChange(ASSIGNED, pmMember, ProjectActor.DEVELOPER, 1, true, false),
+				ErrorCode.LAST_PM_REQUIRED);
+			assertError(() -> policy.validateRoleChange(ASSIGNED, pmMember, ProjectActor.DEVELOPER, 0, true, false),
+				ErrorCode.LAST_PM_REQUIRED);
+		}
+
+		@Test
+		@DisplayName("PM 해제 시에는 대상 활성 여부·승인자 여부를 보지 않는다(비활성 PM도 해제 가능)")
+		void releaseIgnoresTargetState() {
+			assertThatCode(() -> policy.validateRoleChange(ASSIGNED, pmMember, ProjectActor.BUSINESS_OWNER, 2, false, true))
+				.doesNotThrowAnyException();
+		}
 	}
 
-	@Test
-	@DisplayName("제외: PM과 게이트 승인자는 제외할 수 없다")
-	void removal() {
-		assertThatCode(() -> policy.validateRemoval(developerMember, false)).doesNotThrowAnyException();
+	@Nested
+	@DisplayName("제외")
+	class Removal {
 
-		assertError(() -> policy.validateRemoval(pmMember, false), ErrorCode.CANNOT_REMOVE_PM);
-		assertError(() -> policy.validateRemoval(developerMember, true), ErrorCode.GATE_APPROVER_NOT_REMOVABLE);
-	}
+		@Test
+		@DisplayName("일반 멤버는 제외할 수 있고, 게이트 승인자는 제외할 수 없다")
+		void ordinary() {
+			assertThatCode(() -> policy.validateRemoval(developerMember, false, 1)).doesNotThrowAnyException();
+			assertError(() -> policy.validateRemoval(developerMember, true, 1), ErrorCode.GATE_APPROVER_NOT_REMOVABLE);
+		}
 
-	@Test
-	@DisplayName("위임 대상: 본인이 아닌 활성 멤버여야 하고, 게이트 승인자는 PM이 될 수 없다")
-	void delegationTarget() {
-		final DelegatePmCommand leave = delegate(DEVELOPER, PreviousPmAction.LEAVE, null);
-		assertThatCode(() -> policy.validateDelegation(ASSIGNED, PM, leave, developerMember, true, false))
-			.doesNotThrowAnyException();
-
-		assertError(() -> policy.validateDelegation(ASSIGNED, PM, leave, null, true, false),
-			ErrorCode.INVALID_PM_DELEGATION_TARGET);
-		assertError(() -> policy.validateDelegation(ASSIGNED, PM, delegate(PM, PreviousPmAction.LEAVE, null), pmMember, true, false),
-			ErrorCode.INVALID_PM_DELEGATION_TARGET);
-		assertError(() -> policy.validateDelegation(ASSIGNED, PM, leave, developerMember, false, false),
-			ErrorCode.INVALID_PM_DELEGATION_TARGET);
-		assertError(() -> policy.validateDelegation(ASSIGNED, PM, leave, developerMember, true, true),
-			ErrorCode.PM_TARGET_IS_GATE_APPROVER);
-	}
-
-	@Test
-	@DisplayName("기존 PM 처리: 역할 변경은 PM이 아닌 지정 액터가 필요하고, 멤버 제외는 역할을 받지 않는다")
-	void previousPmAction() {
-		assertThatCode(() -> validateDelegation(PreviousPmAction.CHANGE_ROLE, ProjectActor.BUSINESS_OWNER))
-			.doesNotThrowAnyException();
-
-		assertError(() -> validateDelegation(PreviousPmAction.CHANGE_ROLE, null), ErrorCode.INVALID_PREVIOUS_PM_ACTION);
-		assertError(() -> validateDelegation(PreviousPmAction.CHANGE_ROLE, ProjectActor.PM), ErrorCode.INVALID_PREVIOUS_PM_ACTION);
-		assertError(() -> validateDelegation(PreviousPmAction.CHANGE_ROLE, ProjectActor.QA), ErrorCode.MEMBER_ACTOR_NOT_ASSIGNED);
-		assertError(() -> validateDelegation(PreviousPmAction.LEAVE, ProjectActor.DEVELOPER), ErrorCode.INVALID_PREVIOUS_PM_ACTION);
-	}
-
-	private void validateDelegation(final PreviousPmAction action, final ProjectActor previousPmActor) {
-		policy.validateDelegation(ASSIGNED, PM, delegate(DEVELOPER, action, previousPmActor), developerMember, true, false);
-	}
-
-	private static DelegatePmCommand delegate(final long target, final PreviousPmAction action, final ProjectActor actor) {
-		return new DelegatePmCommand(target, action, actor);
+		@Test
+		@DisplayName("PM은 다른 PM이 남을 때만 제외할 수 있다")
+		void pm() {
+			assertThatCode(() -> policy.validateRemoval(pmMember, false, 2)).doesNotThrowAnyException();
+			assertError(() -> policy.validateRemoval(pmMember, false, 1), ErrorCode.LAST_PM_REQUIRED);
+		}
 	}
 
 	private static InitialMember member(final long userId, final ProjectActor actor) {

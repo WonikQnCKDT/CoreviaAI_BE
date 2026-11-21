@@ -21,6 +21,8 @@ public class DatabaseCleaner {
 		jdbcTemplate.update("DELETE FROM project_phases");
 		jdbcTemplate.update("DELETE FROM project_members");
 		jdbcTemplate.update("DELETE FROM project_actors");
+		jdbcTemplate.update("DELETE FROM project_departments");
+		jdbcTemplate.update("DELETE FROM project_features");
 		jdbcTemplate.update("DELETE FROM projects");
 		jdbcTemplate.update("DELETE FROM audit_logs");
 		jdbcTemplate.update("DELETE FROM login_history");

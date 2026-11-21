@@ -122,22 +122,15 @@ public class AdminUserService {
 		if (command.departmentId() != null) {
 			requireAssignableDepartment(command.departmentId());
 		}
-		if (command.canCreateProject() && command.systemRole() != SystemRole.USER) {
-			throw new CustomException(ErrorCode.PROJECT_CREATION_NOT_ALLOWED);
-		}
 
 		final User user = User.create(command.loginId(), name, command.systemRole(), command.departmentId(), jobTitle);
-		if (command.canCreateProject()) {
-			user.grantProjectCreation();
-		}
 		final User saved = saveAndFlushNewUser(user);
 		auditLogger.record(actor, AuditAction.USER_CREATED, AuditTargetType.USER, saved.getId(), AuditChanges.create()
 			.value("loginId", saved.getLoginId())
 			.value("name", saved.getName())
 			.value("systemRole", saved.getSystemRole())
 			.value("departmentId", saved.getDepartmentId())
-			.value("jobTitle", saved.getJobTitle())
-			.value("canCreateProject", saved.isCanCreateProject()));
+			.value("jobTitle", saved.getJobTitle()));
 		return toResult(saved);
 	}
 
@@ -183,11 +176,9 @@ public class AdminUserService {
 			requireDepartmentForRole(systemRole, user.getDepartmentId());
 
 			final SystemRole beforeRole = user.getSystemRole();
-			final boolean beforeProjectCreation = user.isCanCreateProject();
 			user.changeSystemRole(systemRole);
 			auditLogger.record(actor, AuditAction.USER_ROLE_CHANGED, AuditTargetType.USER, userId, AuditChanges.create()
-				.change("systemRole", beforeRole, systemRole)
-				.change("canCreateProject", beforeProjectCreation, user.isCanCreateProject()));
+				.change("systemRole", beforeRole, systemRole));
 			return toResult(user);
 		});
 		terminateSessions(userId);
@@ -222,26 +213,6 @@ public class AdminUserService {
 			terminateSessions(userId);
 		}
 		return result;
-	}
-
-	/** 같은 값이면 아무것도 바꾸지 않는다. 프로젝트 생성 권한은 요구사항 명세서 3.1에 따라 일반 사용자만 가진다. */
-	@Transactional
-	public AdminUserResult changeProjectCreation(final AuditActor actor, final Long userId, final boolean enabled) {
-		final User user = getUser(userId);
-		if (user.isCanCreateProject() == enabled) {
-			return toResult(user);
-		}
-		if (enabled) {
-			if (user.getSystemRole() != SystemRole.USER) {
-				throw new CustomException(ErrorCode.PROJECT_CREATION_NOT_ALLOWED);
-			}
-			user.grantProjectCreation();
-			auditLogger.record(actor, AuditAction.PROJECT_CREATION_GRANTED, AuditTargetType.USER, userId, null);
-		} else {
-			user.revokeProjectCreation();
-			auditLogger.record(actor, AuditAction.PROJECT_CREATION_REVOKED, AuditTargetType.USER, userId, null);
-		}
-		return toResult(user);
 	}
 
 	/** 세션 저장소 장애는 DB 변경이 이미 커밋된 뒤라 되돌리지 않고 503으로 알려, 같은 요청 재전송으로 세션만 다시 끊게 한다. */

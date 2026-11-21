@@ -27,7 +27,7 @@ import jakarta.servlet.http.Cookie;
 import tools.jackson.databind.JsonNode;
 
 /**
- * FR-PRJ-01 프로젝트 생성을 HTTP 경계에서 검증한다(인수 기준 단위로 테스트를 나눈다).
+ * FR-PRJ-01·06·09 프로젝트 생성을 HTTP·DB 경계에서 검증한다(통합 테스트, 인수 기준 단위로 테스트를 나눈다).
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -44,11 +44,17 @@ class ProjectCreateApiIntegrationTest extends ProjectApiTestSupport {
 		final JsonNode project = readResponse(create(cookie, validCreateBody("PUR-2026")));
 
 		assertThat(project.get("code").asString()).isEqualTo("PUR-2026");
+		assertThat(project.get("template").asString()).isEqualTo("IT_PROJECT");
 		assertThat(project.get("methodology").asString()).isEqualTo("WATERFALL");
 		assertThat(project.get("status").asString()).isEqualTo("PLANNED");
-		assertThat(project.get("pmUserId").asLong()).isEqualTo(creator.getId());
+		assertThat(project.get("pms").valueStream().map(pm -> pm.get("id").asLong()).toList())
+			.containsExactly(creator.getId());
+		assertThat(project.get("pms").get(0).get("name").asString()).isEqualTo(creator.getName());
 		assertThat(project.get("createdBy").asLong()).isEqualTo(creator.getId());
-		assertThat(project.get("departmentName").asString()).isEqualTo("개발팀");
+		assertThat(project.get("departments").valueStream().map(d -> d.get("name").asString()).toList())
+			.containsExactly("개발팀");
+		assertThat(project.get("features").valueStream().map(JsonNode::asString).toList())
+			.containsExactly("WBS", "KANBAN", "DELIVERABLE");
 		assertThat(project.get("actors").valueStream().map(JsonNode::asString).toList())
 			.containsExactly("PM", "BUSINESS_OWNER", "DEVELOPER");
 		// 멤버는 별도 커서 목록으로 조회한다. 등록순(id 오름차순)이라 생성자 PM이 먼저, 초대 멤버는 userId 순으로 저장된다.
@@ -81,7 +87,7 @@ class ProjectCreateApiIntegrationTest extends ProjectApiTestSupport {
 	}
 
 	@Test
-	@DisplayName("④ 멤버와 ⑤ 게이트 승인자는 선택이다: 생략하면 PM만 멤버이고 게이트 승인자는 미지정이다")
+	@DisplayName("⑤ 멤버와 ⑥ 게이트 승인자는 선택이다: 생략하면 PM만 멤버이고 게이트 승인자는 미지정이다")
 	void membersAndApproverAreOptional() throws Exception {
 		final Map<String, Object> body = validCreateBody("ERP-1");
 		body.remove("members");
@@ -111,10 +117,11 @@ class ProjectCreateApiIntegrationTest extends ProjectApiTestSupport {
 	}
 
 	@Test
-	@DisplayName("필수 항목(명칭·코드·기간) 누락, 코드 형식 오류는 400이고 아무것도 저장되지 않는다")
+	@DisplayName("필수 항목(명칭·코드·공개 범위·템플릿·운영 방식·부서 유형·액터·기능 구성) 누락, 코드 형식 오류는 400이고 아무것도 저장되지 않는다")
 	void requiredFieldsAndCodeFormat() throws Exception {
 		final Cookie cookie = loginAs(creator);
-		for (final String field : List.of("name", "code", "startDate", "endDate")) {
+		for (final String field : List.of(
+			"name", "code", "visibility", "template", "methodology", "departmentType", "actors", "features")) {
 			final Map<String, Object> body = validCreateBody("ERP-1");
 			body.put(field, null);
 			create(cookie, body).andExpect(status().isBadRequest()).andExpect(jsonPath("$.success").value(false));
@@ -123,6 +130,21 @@ class ProjectCreateApiIntegrationTest extends ProjectApiTestSupport {
 			create(cookie, validCreateBody(code)).andExpect(status().isBadRequest());
 		}
 		assertThat(projectRepository.count()).isZero();
+	}
+
+	@Test
+	@DisplayName("기간·주관 부서는 생성 후 입력할 수 있어 비워 둔 채 생성할 수 있다")
+	void periodAndDepartmentsAreOptional() throws Exception {
+		final Map<String, Object> body = validCreateBody("ERP-1");
+		body.remove("startDate");
+		body.put("endDate", null);
+		body.remove("departmentIds");
+
+		final JsonNode project = readResponse(create(loginAs(creator), body));
+
+		assertThat(project.get("startDate").isNull()).isTrue();
+		assertThat(project.get("endDate").isNull()).isTrue();
+		assertThat(project.get("departments")).isEmpty();
 	}
 
 	@Test
@@ -136,6 +158,61 @@ class ProjectCreateApiIntegrationTest extends ProjectApiTestSupport {
 		final Map<String, Object> sameDay = validCreateBody("ERP-2");
 		sameDay.put("startDate", "2027-03-31");
 		create(cookie, sameDay).andExpect(status().isOk());
+	}
+
+	@Test
+	@DisplayName("주관 부서는 여러 개 지정할 수 있고(ID 순 응답), 같은 부서를 두 번 지정하면 거부한다")
+	void multipleDepartments() throws Exception {
+		final Cookie cookie = loginAs(creator);
+		final Map<String, Object> body = validCreateBody("ERP-1");
+		body.put("departmentIds", List.of(salesTeam.getId(), devTeam.getId()));
+
+		final JsonNode project = readResponse(create(cookie, body));
+		assertThat(project.get("departments").valueStream().map(d -> d.get("id").asLong()).toList())
+			.containsExactly(devTeam.getId(), salesTeam.getId());
+
+		final Map<String, Object> duplicate = validCreateBody("ERP-2");
+		duplicate.put("departmentIds", List.of(devTeam.getId(), devTeam.getId()));
+		expectError(create(cookie, duplicate), ErrorCode.DUPLICATE_PROJECT_DEPARTMENT);
+	}
+
+	@Test
+	@DisplayName("빈 템플릿·단계 없음으로 생성하면 단계·게이트가 없고, 단계 조회는 PHASES_NOT_AVAILABLE")
+	void createNoPhaseProject() throws Exception {
+		final Cookie cookie = loginAs(creator);
+		final Map<String, Object> body = validCreateBody("OPS-1");
+		body.put("template", "EMPTY");
+		body.put("methodology", "NONE");
+		body.put("features", List.of("KANBAN", "MEETING", "FILE"));
+		body.put("gateApproverUserId", null);
+
+		final JsonNode project = readResponse(create(cookie, body));
+
+		assertThat(project.get("template").asString()).isEqualTo("EMPTY");
+		assertThat(project.get("methodology").asString()).isEqualTo("NONE");
+		expectError(getAs(cookie, PROJECTS + "/{id}/phases", project.get("id").asLong()), ErrorCode.PHASES_NOT_AVAILABLE);
+	}
+
+	@Test
+	@DisplayName("단계 없음 프로젝트에는 게이트 승인자·산출물 모듈을 지정할 수 없고, Git 연동은 MVP에서 켤 수 없다")
+	void noPhaseRules() throws Exception {
+		final Cookie cookie = loginAs(creator);
+
+		final Map<String, Object> approver = validCreateBody("OPS-1");
+		approver.put("methodology", "NONE");
+		approver.put("features", List.of("KANBAN"));
+		expectError(create(cookie, approver), ErrorCode.GATE_APPROVER_NOT_AVAILABLE);
+
+		final Map<String, Object> deliverable = validCreateBody("OPS-1");
+		deliverable.put("methodology", "NONE");
+		deliverable.put("gateApproverUserId", null);
+		expectError(create(cookie, deliverable), ErrorCode.FEATURE_NOT_AVAILABLE);
+
+		final Map<String, Object> git = validCreateBody("OPS-1");
+		git.put("features", List.of("GIT"));
+		expectError(create(cookie, git), ErrorCode.FEATURE_NOT_AVAILABLE);
+
+		assertThat(projectRepository.count()).isZero();
 	}
 
 	@Test
@@ -209,7 +286,7 @@ class ProjectCreateApiIntegrationTest extends ProjectApiTestSupport {
 		final Cookie cookie = loginAs(creator);
 
 		final Map<String, Object> notInvited = validCreateBody("ERP-1");
-		notInvited.put("gateApproverUserId", noPermission.getId());
+		notInvited.put("gateApproverUserId", outsider.getId());
 		expectError(create(cookie, notInvited), ErrorCode.GATE_APPROVER_NOT_MEMBER);
 
 		final Map<String, Object> pmAsApprover = validCreateBody("ERP-1");
@@ -223,17 +300,24 @@ class ProjectCreateApiIntegrationTest extends ProjectApiTestSupport {
 	}
 
 	@Test
-	@DisplayName("프로젝트 생성 권한이 없는 일반 사용자와 경영진은 403, 시스템 관리자는 프로젝트 API 자체가 404")
+	@DisplayName("생성 권한 제한이 없어 활성 일반 사용자는 누구나 만들고 PM이 된다. 경영진·비활성 사용자는 403, 시스템 관리자는 404")
 	void creationPermission() throws Exception {
-		expectError(create(loginAs(noPermission), validCreateBody("ERP-1")), ErrorCode.PROJECT_CREATION_FORBIDDEN);
-		expectError(create(loginAs(itExecutive), validCreateBody("ERP-1")), ErrorCode.PROJECT_CREATION_FORBIDDEN);
+		final JsonNode project = readResponse(create(loginAs(outsider), validCreateBody("ERP-1")));
+		assertThat(project.get("pms").get(0).get("id").asLong()).isEqualTo(outsider.getId());
+
+		expectError(create(loginAs(itExecutive), validCreateBody("ERP-2")), ErrorCode.PROJECT_CREATION_FORBIDDEN);
+
+		final Cookie leaverCookie = loginAs(developer);
+		deactivate(developer);
+		// 비활성화된 사용자의 세션은 보안 필터에서 먼저 끊긴다(로그인 상태 재검증).
+		create(leaverCookie, validCreateBody("ERP-3")).andExpect(status().is4xxClientError());
 
 		saveUser("admin01", USER_PASSWORD, SystemRole.SYSTEM_ADMIN, null);
 		final Cookie admin = loginOk("admin01", USER_PASSWORD);
-		expectError(create(admin, validCreateBody("ERP-1")), ErrorCode.NOT_FOUND);
+		expectError(create(admin, validCreateBody("ERP-4")), ErrorCode.NOT_FOUND);
 		expectError(getAs(admin, PROJECTS), ErrorCode.NOT_FOUND);
 
-		assertThat(projectRepository.count()).isZero();
+		assertThat(projectRepository.count()).isEqualTo(1);
 	}
 
 	@Test
@@ -245,16 +329,16 @@ class ProjectCreateApiIntegrationTest extends ProjectApiTestSupport {
 		final Cookie cookie = loginAs(creator);
 
 		final Map<String, Object> inactive = validCreateBody("ERP-1");
-		inactive.put("departmentId", closed.getId());
+		inactive.put("departmentIds", List.of(devTeam.getId(), closed.getId()));
 		expectError(create(cookie, inactive), ErrorCode.INVALID_PROJECT_DEPARTMENT);
 
 		final Map<String, Object> missing = validCreateBody("ERP-1");
-		missing.put("departmentId", 999_999L);
+		missing.put("departmentIds", List.of(999_999L));
 		expectError(create(cookie, missing), ErrorCode.INVALID_PROJECT_DEPARTMENT);
 	}
 
 	@Test
-	@DisplayName("코드 중복 확인: 정규화한 코드와 사용 가능 여부를 주고, 생성 권한이 없으면 403")
+	@DisplayName("코드 중복 확인: 정규화한 코드와 사용 가능 여부를 주고, 생성할 수 없는 경영진은 403")
 	void codeAvailability() throws Exception {
 		final Cookie cookie = loginAs(creator);
 		getAs(cookie, PROJECTS + "/code-availability?code=erp-1")
@@ -266,25 +350,36 @@ class ProjectCreateApiIntegrationTest extends ProjectApiTestSupport {
 			.andExpect(jsonPath("$.response.available").value(false));
 
 		getAs(cookie, PROJECTS + "/code-availability?code=-bad").andExpect(status().isBadRequest());
-		expectError(getAs(loginAs(noPermission), PROJECTS + "/code-availability?code=ERP-2"), ErrorCode.PROJECT_CREATION_FORBIDDEN);
+		getAs(loginAs(outsider), PROJECTS + "/code-availability?code=ERP-2")
+			.andExpect(jsonPath("$.response.available").value(true));
+		expectError(getAs(loginAs(itExecutive), PROJECTS + "/code-availability?code=ERP-2"), ErrorCode.PROJECT_CREATION_FORBIDDEN);
 	}
 
 	@Test
-	@DisplayName("생성 선택지: 애자일·제조 액터는 비활성, SW 액터는 활성, PM은 필수로 내려간다")
+	@DisplayName("생성 선택지: 템플릿 기본값, 단계 없음·폭포수 활성/애자일 비활성, SW 액터 활성·PM 필수, 기능 모듈 선택 가능 운영 방식")
 	void creationOptions() throws Exception {
 		getAs(loginAs(developer), PROJECTS + "/creation-options")
 			.andExpect(status().isOk())
-			.andExpect(jsonPath("$.response.methodologies[0].value").value("WATERFALL"))
+			.andExpect(jsonPath("$.response.templates[0].value").value("EMPTY"))
+			.andExpect(jsonPath("$.response.templates[0].defaultMethodology").value("NONE"))
+			.andExpect(jsonPath("$.response.templates[1].value").value("IT_PROJECT"))
+			.andExpect(jsonPath("$.response.templates[1].defaultMethodology").value("WATERFALL"))
+			.andExpect(jsonPath("$.response.templates[1].defaultActors.length()").value(4))
+			.andExpect(jsonPath("$.response.methodologies[0].value").value("NONE"))
 			.andExpect(jsonPath("$.response.methodologies[0].enabled").value(true))
-			.andExpect(jsonPath("$.response.methodologies[1].value").value("AGILE"))
-			.andExpect(jsonPath("$.response.methodologies[1].enabled").value(false))
+			.andExpect(jsonPath("$.response.methodologies[1].value").value("WATERFALL"))
+			.andExpect(jsonPath("$.response.methodologies[1].enabled").value(true))
+			.andExpect(jsonPath("$.response.methodologies[2].value").value("AGILE"))
+			.andExpect(jsonPath("$.response.methodologies[2].enabled").value(false))
 			.andExpect(jsonPath("$.response.departmentTypes[0].value").value("SW"))
 			.andExpect(jsonPath("$.response.departmentTypes[0].actors[0].value").value("PM"))
 			.andExpect(jsonPath("$.response.departmentTypes[0].actors[0].required").value(true))
 			.andExpect(jsonPath("$.response.departmentTypes[0].actors[*].enabled").value(everyItem(is(true))))
 			.andExpect(jsonPath("$.response.departmentTypes[1].value").value("MANUFACTURING"))
 			.andExpect(jsonPath("$.response.departmentTypes[1].enabled").value(false))
-			.andExpect(jsonPath("$.response.departmentTypes[1].actors[*].enabled").value(everyItem(is(false))));
+			.andExpect(jsonPath("$.response.departmentTypes[1].actors[*].enabled").value(everyItem(is(false))))
+			.andExpect(jsonPath("$.response.features[?(@.value == 'DELIVERABLE')].methodologies[0]").value("WATERFALL"))
+			.andExpect(jsonPath("$.response.features[?(@.value == 'GIT')].enabled").value(false));
 	}
 
 	private Map<String, Object> withSingleMember(final String code, final Long userId) {

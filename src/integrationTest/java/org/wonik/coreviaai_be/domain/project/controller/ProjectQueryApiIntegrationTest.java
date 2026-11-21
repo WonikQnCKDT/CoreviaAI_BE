@@ -18,6 +18,7 @@ import org.springframework.test.context.ActiveProfiles;
 import org.wonik.coreviaai_be.domain.project.entity.Project;
 import org.wonik.coreviaai_be.domain.project.entity.type.DepartmentType;
 import org.wonik.coreviaai_be.domain.project.entity.type.Methodology;
+import org.wonik.coreviaai_be.domain.project.entity.type.ProjectTemplate;
 import org.wonik.coreviaai_be.domain.project.entity.type.ProjectVisibility;
 import org.wonik.coreviaai_be.domain.project.repository.ProjectRepository;
 import org.wonik.global.common.exception.ErrorCode;
@@ -28,7 +29,7 @@ import jakarta.servlet.http.Cookie;
 import tools.jackson.databind.JsonNode;
 
 /**
- * FR-PRJ-01 목록·상세의 공개 범위(요구사항 명세서 3.1·3.2: 권한 밖 프로젝트 미표시)와 필터·커서 페이지를 검증한다.
+ * FR-PRJ-01 목록·상세의 공개 범위(요구사항 명세서 3.1·3.2: 권한 밖 프로젝트 미표시)와 필터·커서 페이지를 검증한다(통합 테스트).
  * <p>
  * 준비: 개발팀 주관으로 전사 공개(COMPANY_ID), 부서 공개(DEPT_ID), 멤버 전용(MEMBERS_ID, 영업팀 현업 담당자 초대) 세 개.
  */
@@ -67,6 +68,32 @@ class ProjectQueryApiIntegrationTest extends ProjectApiTestSupport {
 
 		final User noDepartmentExecutive = saveUser("exec00", USER_PASSWORD, SystemRole.EXECUTIVE, null);
 		assertThat(visibleIds(loginAs(noDepartmentExecutive))).containsExactly(companyId);
+	}
+
+	@Test
+	@DisplayName("주관 부서가 여러 개인 부서 공개 프로젝트는 주관 부서 어느 쪽 소속이든 볼 수 있다(목록·상세)")
+	void multiDepartmentVisibility() throws Exception {
+		final Map<String, Object> body = project("JNT-1", "DEPARTMENT", List.of());
+		body.put("departmentIds", List.of(devTeam.getId(), salesTeam.getId()));
+		final long jointId = createProject(body);
+
+		assertThat(visibleIds(loginAs(businessOwner))).contains(jointId);
+		getAs(loginAs(businessOwner), PROJECTS + "/{id}", jointId).andExpect(status().isOk());
+		assertThat(visibleIds(loginAs(salesExecutive))).contains(jointId);
+		assertThat(visibleIds(loginAs(creator), "&departmentId=" + salesTeam.getId())).containsExactly(jointId);
+	}
+
+	@Test
+	@DisplayName("주관 부서가 없는 부서 공개 프로젝트는 멤버만 볼 수 있고, 경영진 소속 범위에도 들지 않는다")
+	void departmentlessVisibility() throws Exception {
+		final Map<String, Object> body = project("NOD-1", "DEPARTMENT", List.of(member(businessOwner.getId(), "BUSINESS_OWNER")));
+		body.remove("departmentIds");
+		final long departmentlessId = createProject(body);
+
+		assertThat(visibleIds(loginAs(businessOwner))).contains(departmentlessId);
+		assertThat(visibleIds(loginAs(developer))).doesNotContain(departmentlessId);
+		assertThat(visibleIds(loginAs(itExecutive))).doesNotContain(departmentlessId);
+		expectError(getAs(loginAs(outsider), PROJECTS + "/{id}", departmentlessId), ErrorCode.PROJECT_NOT_FOUND);
 	}
 
 	@Test
@@ -113,7 +140,7 @@ class ProjectQueryApiIntegrationTest extends ProjectApiTestSupport {
 		final long projectId = createProject(project("TEAM-1", "COMPANY", List.of(
 			member(developer.getId(), "DEVELOPER"),
 			member(businessOwner.getId(), "BUSINESS_OWNER"),
-			member(noPermission.getId(), "DEVELOPER")
+			member(outsider.getId(), "DEVELOPER")
 		)));
 		final Cookie cookie = loginAs(developer);
 
@@ -123,7 +150,7 @@ class ProjectQueryApiIntegrationTest extends ProjectApiTestSupport {
 
 		final JsonNode second = readResponse(getAs(cookie,
 			PROJECTS + "/{id}/members?size=2&cursor=" + first.get("nextCursor").asString(), projectId));
-		assertThat(userIds(second)).containsExactly(noPermission.getId(), businessOwner.getId());
+		assertThat(userIds(second)).containsExactly(outsider.getId(), businessOwner.getId());
 		assertThat(second.get("hasNext").asBoolean()).isFalse();
 		assertThat(second.get("nextCursor").isNull()).isTrue();
 
@@ -137,21 +164,22 @@ class ProjectQueryApiIntegrationTest extends ProjectApiTestSupport {
 	void phasesNotAvailableForNonWaterfall() throws Exception {
 		// MVP에서는 API로 애자일 프로젝트를 만들 수 없어 저장소로 직접 만든다(FR-PRJ-10 이후 대비).
 		final Project agile = projectRepository.save(Project.create(
-			"AGL-1", "애자일 프로젝트", LocalDate.of(2026, 12, 1), LocalDate.of(2027, 3, 31), devTeam.getId(),
-			ProjectVisibility.COMPANY, Methodology.AGILE, DepartmentType.SW, creator.getId()));
+			"AGL-1", "애자일 프로젝트", LocalDate.of(2026, 12, 1), LocalDate.of(2027, 3, 31),
+			ProjectVisibility.COMPANY, ProjectTemplate.EMPTY, Methodology.AGILE, DepartmentType.SW, creator.getId()));
 
 		expectError(getAs(loginAs(developer), PROJECTS + "/{id}/phases", agile.getId()), ErrorCode.PHASES_NOT_AVAILABLE);
 	}
 
 	@Test
-	@DisplayName("목록 항목에 주관 부서명·PM 이름이 나오고, 상태·주관 부서·PM으로 거를 수 있다")
+	@DisplayName("목록 항목에 주관 부서·PM(복수)·템플릿이 나오고, 상태·주관 부서·PM으로 거를 수 있다")
 	void listFieldsAndFilters() throws Exception {
 		final Cookie cookie = loginAs(creator);
 		getAs(cookie, PROJECTS + "?size=1")
 			.andExpect(jsonPath("$.response.items[0].code").value("MEM-1"))
-			.andExpect(jsonPath("$.response.items[0].departmentName").value("개발팀"))
-			.andExpect(jsonPath("$.response.items[0].pmUserId").value(creator.getId()))
-			.andExpect(jsonPath("$.response.items[0].pmName").value(creator.getName()))
+			.andExpect(jsonPath("$.response.items[0].departments[0].name").value("개발팀"))
+			.andExpect(jsonPath("$.response.items[0].pms[0].id").value(creator.getId()))
+			.andExpect(jsonPath("$.response.items[0].pms[0].name").value(creator.getName()))
+			.andExpect(jsonPath("$.response.items[0].template").value("IT_PROJECT"))
 			.andExpect(jsonPath("$.response.items[0].methodology").value("WATERFALL"));
 
 		assertThat(visibleIds(cookie, "&status=PLANNED")).hasSize(3);

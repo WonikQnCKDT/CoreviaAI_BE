@@ -1,6 +1,7 @@
 package org.wonik.coreviaai_be.domain.project.service;
 
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -13,15 +14,22 @@ import org.wonik.coreviaai_be.domain.department.entity.Department;
 import org.wonik.coreviaai_be.domain.department.repository.DepartmentRepository;
 import org.wonik.coreviaai_be.domain.project.entity.Project;
 import org.wonik.coreviaai_be.domain.project.entity.ProjectActorAssignment;
+import org.wonik.coreviaai_be.domain.project.entity.ProjectDepartment;
+import org.wonik.coreviaai_be.domain.project.entity.ProjectFeatureAssignment;
+import org.wonik.coreviaai_be.domain.project.entity.ProjectMember;
 import org.wonik.coreviaai_be.domain.project.entity.ProjectPhase;
-import org.wonik.coreviaai_be.domain.project.entity.type.Methodology;
 import org.wonik.coreviaai_be.domain.project.entity.type.ProjectActor;
+import org.wonik.coreviaai_be.domain.project.entity.type.ProjectFeature;
 import org.wonik.coreviaai_be.domain.project.entity.type.ProjectStatus;
 import org.wonik.coreviaai_be.domain.project.policy.ProjectAccessPolicy;
 import org.wonik.coreviaai_be.domain.project.policy.ProjectVisibilityPolicy;
 import org.wonik.coreviaai_be.domain.project.repository.ProjectActorAssignmentRepository;
+import org.wonik.coreviaai_be.domain.project.repository.ProjectDepartmentRepository;
+import org.wonik.coreviaai_be.domain.project.repository.ProjectFeatureAssignmentRepository;
+import org.wonik.coreviaai_be.domain.project.repository.ProjectMemberRepository;
 import org.wonik.coreviaai_be.domain.project.repository.ProjectPhaseRepository;
 import org.wonik.coreviaai_be.domain.project.repository.ProjectRepository;
+import org.wonik.coreviaai_be.domain.project.service.result.NamedRef;
 import org.wonik.coreviaai_be.domain.project.service.result.ProjectDetailResult;
 import org.wonik.coreviaai_be.domain.project.service.result.ProjectPhasesResult;
 import org.wonik.coreviaai_be.domain.project.service.result.ProjectSummaryResult;
@@ -45,6 +53,9 @@ public class ProjectQueryService {
 
 	private final ProjectRepository projectRepository;
 	private final ProjectActorAssignmentRepository actorAssignmentRepository;
+	private final ProjectDepartmentRepository projectDepartmentRepository;
+	private final ProjectFeatureAssignmentRepository featureAssignmentRepository;
+	private final ProjectMemberRepository memberRepository;
 	private final ProjectPhaseRepository phaseRepository;
 	private final UserRepository userRepository;
 	private final DepartmentRepository departmentRepository;
@@ -67,14 +78,27 @@ public class ProjectQueryService {
 				page.cursorId(), status, departmentId, pmUserId,
 				viewer.getId(), viewer.getDepartmentId(), page.fetchPageable());
 		final CursorPage<Project> projects = CursorPage.of(fetched, page.size(), Project::getId);
-		final Map<Long, String> departmentNames = departmentNamesOf(
-			projects.items().stream().map(Project::getDepartmentId).collect(Collectors.toSet()));
-		final Map<Long, String> userNames = userNamesOf(
-			projects.items().stream().map(Project::getPmUserId).collect(Collectors.toSet()));
+		final Set<Long> projectIds = projects.items().stream().map(Project::getId).collect(Collectors.toSet());
+		if (projectIds.isEmpty()) {
+			return projects.map(project -> new ProjectSummaryResult(project, List.of(), List.of()));
+		}
+		// 한 페이지의 주관 부서·PM을 각각 한 번에 읽어 N+1 query를 피한다.
+		final Map<Long, List<Long>> departmentIdsByProject = projectDepartmentRepository.findAllByProjectIdIn(projectIds)
+			.stream()
+			.sorted(Comparator.comparing(ProjectDepartment::getDepartmentId))
+			.collect(Collectors.groupingBy(ProjectDepartment::getProjectId,
+				Collectors.mapping(ProjectDepartment::getDepartmentId, Collectors.toList())));
+		final Map<Long, List<Long>> pmUserIdsByProject = memberRepository.findAllByProjectIdInAndActor(projectIds, ProjectActor.PM)
+			.stream()
+			.sorted(Comparator.comparing(ProjectMember::getId))
+			.collect(Collectors.groupingBy(ProjectMember::getProjectId,
+				Collectors.mapping(ProjectMember::getUserId, Collectors.toList())));
+		final Map<Long, String> departmentNames = departmentNamesOf(flatten(departmentIdsByProject));
+		final Map<Long, String> userNames = userNamesOf(flatten(pmUserIdsByProject));
 		return projects.map(project -> new ProjectSummaryResult(
 			project,
-			departmentNames.get(project.getDepartmentId()),
-			userNames.get(project.getPmUserId())
+			namedRefs(departmentIdsByProject.getOrDefault(project.getId(), List.of()), departmentNames),
+			namedRefs(pmUserIdsByProject.getOrDefault(project.getId(), List.of()), userNames)
 		));
 	}
 
@@ -86,22 +110,35 @@ public class ProjectQueryService {
 			.map(ProjectActorAssignment::getActor)
 			.sorted()
 			.toList();
+		final List<ProjectFeature> features = featureAssignmentRepository.findAllByProjectIdOrderById(projectId).stream()
+			.map(ProjectFeatureAssignment::getFeature)
+			.sorted()
+			.toList();
+		final List<Long> departmentIds = projectDepartmentRepository.findAllByProjectIdOrderById(projectId).stream()
+			.map(ProjectDepartment::getDepartmentId)
+			.sorted()
+			.toList();
+		final List<Long> pmUserIds = memberRepository.findAllByProjectIdAndActorOrderById(projectId, ProjectActor.PM)
+			.stream()
+			.map(ProjectMember::getUserId)
+			.toList();
 		return new ProjectDetailResult(
 			project,
-			departmentNamesOf(Set.of(project.getDepartmentId())).get(project.getDepartmentId()),
+			namedRefs(departmentIds, departmentNamesOf(departmentIds)),
+			namedRefs(pmUserIds, userNamesOf(pmUserIds)),
 			actors,
-			userNamesOf(Set.of(project.getPmUserId()))
+			features
 		);
 	}
 
 	/**
-	 * 폭포수 단계·게이트. 단계가 없는 운영 방식(애자일 등)이면 PHASES_NOT_AVAILABLE로 알려,
+	 * 폭포수 단계·게이트. 단계가 없는 운영 방식(단계 없음·애자일)이면 PHASES_NOT_AVAILABLE로 알려,
 	 * FE가 빈 목록을 "단계가 아직 없음"으로 오해하지 않게 한다.
 	 */
 	@Transactional(readOnly = true)
 	public ProjectPhasesResult getPhases(final Long viewerId, final Long projectId) {
 		final Project project = accessPolicy.getVisibleProject(viewerId, projectId);
-		if (project.getMethodology() != Methodology.WATERFALL) {
+		if (!project.getMethodology().isUsesPhases()) {
 			throw new CustomException(ErrorCode.PHASES_NOT_AVAILABLE);
 		}
 		final List<ProjectPhase> phases = phaseRepository.findAllByProjectIdOrderByPhaseOrder(projectId);
@@ -131,6 +168,14 @@ public class ProjectQueryService {
 		}
 		return projectRepository.findPageForExecutive(
 			page.cursorId(), status, departmentId, pmUserId, scope, page.fetchPageable());
+	}
+
+	private static Set<Long> flatten(final Map<Long, List<Long>> idsByProject) {
+		return idsByProject.values().stream().flatMap(List::stream).collect(Collectors.toSet());
+	}
+
+	private static List<NamedRef> namedRefs(final List<Long> ids, final Map<Long, String> names) {
+		return ids.stream().map(id -> new NamedRef(id, names.get(id))).toList();
 	}
 
 	private Map<Long, String> departmentNamesOf(final Collection<Long> departmentIds) {

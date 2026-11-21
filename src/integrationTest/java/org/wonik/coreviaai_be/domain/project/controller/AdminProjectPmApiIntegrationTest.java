@@ -19,7 +19,7 @@ import jakarta.servlet.http.Cookie;
 import tools.jackson.databind.JsonNode;
 
 /**
- * FR-PRJ-04 시스템 관리자의 PM 재지정(요구사항 명세서 3.1 예외)을 HTTP 경계에서 검증한다.
+ * FR-PRJ-04 시스템 관리자의 PM 재지정(요구사항 명세서 3.1 예외: 활성 PM이 남지 않은 경우)을 HTTP·DB 경계에서 검증한다.
  * 관리자는 프로젝트 데이터를 볼 수 없으므로 코드·새 PM ID만 보내고, 결과 확인은 프로젝트 멤버(developer) 계정으로 한다.
  * 프로젝트 API 준비(부서·사용자·프로젝트)를 그대로 쓰려고 프로젝트 테스트 패키지에 둔다.
  */
@@ -42,14 +42,15 @@ class AdminProjectPmApiIntegrationTest extends ProjectApiTestSupport {
 	}
 
 	@Test
-	@DisplayName("PM이 비활성이면 기존 멤버를 PM으로 바꾸고 기존 PM을 멤버에서 뺀다. 이력·감사 로그의 처리자는 관리자다")
+	@DisplayName("활성 PM이 없으면 기존 멤버를 PM으로 바꾸고 비활성 PM을 멤버에서 뺀다. 이력·감사 로그의 처리자는 관리자다")
 	void reassignToExistingMember() throws Exception {
 		deactivate(creator);
 
 		final JsonNode result = readResponse(reassign("pur-2026", developer.getId()));
 
 		assertThat(result.get("projectCode").asString()).isEqualTo("PUR-2026");
-		assertThat(result.get("pmUserId").asLong()).isEqualTo(developer.getId());
+		assertThat(result.get("pms").valueStream().map(pm -> pm.get("id").asLong()).toList())
+			.containsExactly(developer.getId());
 		final Cookie member = loginAs(developer);
 		assertThat(memberRoles(member, projectId)).containsExactly(
 			developer.getId() + ":PM",
@@ -74,17 +75,48 @@ class AdminProjectPmApiIntegrationTest extends ProjectApiTestSupport {
 	void reassignToNonMember() throws Exception {
 		deactivate(creator);
 
-		reassign("PUR-2026", noPermission.getId()).andExpect(status().isOk());
+		reassign("PUR-2026", outsider.getId()).andExpect(status().isOk());
 
-		final Cookie newPm = loginAs(noPermission);
+		final Cookie newPm = loginAs(outsider);
 		assertThat(memberRoles(newPm, projectId)).containsExactly(
 			developer.getId() + ":DEVELOPER",
 			businessOwner.getId() + ":BUSINESS_OWNER",
-			noPermission.getId() + ":PM"
+			outsider.getId() + ":PM"
 		);
 		assertThat(historiesOf(newPm, projectId).get(1).get("beforeActor").isNull()).isTrue();
 		assertThat(auditLogs(AuditAction.PROJECT_PM_REASSIGNED)).singleElement()
 			.satisfies(log -> assertThat(log.getDetails()).contains("\"addedAsMember\":true"));
+	}
+
+	@Test
+	@DisplayName("복수 PM 중 비활성 PM은 모두 빠지고 새 PM 한 명만 남는다")
+	void reassignRemovesAllInactivePms() throws Exception {
+		final Cookie pmCookie = loginAs(creator);
+		patchJson(pmCookie, body("actor", "PM"), PROJECTS + "/{id}/members/{userId}/role", projectId, developer.getId())
+			.andExpect(status().isOk());
+		deactivate(creator);
+		deactivate(developer);
+
+		final JsonNode result = readResponse(reassign("PUR-2026", outsider.getId()));
+
+		assertThat(result.get("pms").valueStream().map(pm -> pm.get("id").asLong()).toList())
+			.containsExactly(outsider.getId());
+		assertThat(memberRoles(loginAs(outsider), projectId)).containsExactly(
+			businessOwner.getId() + ":BUSINESS_OWNER",
+			outsider.getId() + ":PM"
+		);
+		assertThat(auditLogs(AuditAction.PROJECT_PM_REASSIGNED)).singleElement().satisfies(log -> assertThat(log.getDetails())
+			.contains("\"removedPmUserIds\":[" + creator.getId() + "," + developer.getId() + "]"));
+	}
+
+	@Test
+	@DisplayName("복수 PM 중 한 명이라도 활성이면 재지정할 수 없다(PM이 직접 추가·해제한다)")
+	void notAllowedWhileAnyPmActive() throws Exception {
+		patchJson(loginAs(creator), body("actor", "PM"), PROJECTS + "/{id}/members/{userId}/role", projectId, developer.getId())
+			.andExpect(status().isOk());
+		deactivate(creator);
+
+		expectError(reassign("PUR-2026", outsider.getId()), ErrorCode.PM_REASSIGN_NOT_ALLOWED);
 	}
 
 	@Test

@@ -8,7 +8,6 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
-import org.wonik.coreviaai_be.domain.admin.dto.request.ChangeProjectCreationRequest;
 import org.wonik.coreviaai_be.domain.admin.dto.request.ChangeSystemRoleRequest;
 import org.wonik.coreviaai_be.domain.admin.dto.request.ChangeUserStatusRequest;
 import org.wonik.coreviaai_be.domain.admin.dto.request.CreateUserRequest;
@@ -101,17 +100,6 @@ public class AdminUserController {
 		@Valid @RequestBody final ChangeUserStatusRequest request
 	) {
 		return ApiResponse.success(AdminUserResponse.from(adminUserService.changeStatus(actor, userId, request.status())));
-	}
-
-	@PatchMapping("/{userId}/project-creation")
-	public ApiResponse<AdminUserResponse> changeProjectCreation(
-		final AuditActor actor,
-		@PathVariable @Positive final Long userId,
-		@Valid @RequestBody final ChangeProjectCreationRequest request
-	) {
-		return ApiResponse.success(
-			AdminUserResponse.from(adminUserService.changeProjectCreation(actor, userId, request.enabled()))
-		);
 	}
 
 	@GetMapping("/{userId}/histories")

@@ -25,7 +25,8 @@ import jakarta.servlet.http.Cookie;
 import tools.jackson.databind.JsonNode;
 
 /**
- * FR-PRJ-04 멤버 초대·역할 변경·제외·이력을 HTTP 경계에서 검증한다.
+ * FR-PRJ-04 멤버 초대·역할 변경·제외·이력을 HTTP·DB 경계에서 검증한다(통합 테스트).
+ * 복수 PM(추가·해제·최소 1명)은 ProjectMultiPmApiIntegrationTest가 다룬다.
  * <p>
  * 준비: 전사 공개 프로젝트. 액터 PM·현업 담당자·개발자(QA 미지정), 멤버 creator(PM)·developer(개발자)·
  * businessOwner(현업 담당자, 5개 게이트 승인자). 초대 후보 newcomer(개발팀 일반 사용자).
@@ -125,7 +126,7 @@ class ProjectMemberApiIntegrationTest extends ProjectApiTestSupport {
 		final Map<String, Object> membersOnly = validCreateBody("MEM-1");
 		membersOnly.put("visibility", "MEMBERS_ONLY");
 		final long hiddenId = createProject(membersOnly);
-		final Cookie outsider = loginAs(noPermission);
+		final Cookie outsider = loginAs(this.outsider);
 		expectError(postJson(PROJECTS + "/" + hiddenId + "/members", outsider,
 			body("members", List.of(member(newcomer.getId(), "DEVELOPER")))), ErrorCode.PROJECT_NOT_FOUND);
 		expectError(getAs(outsider, MEMBERS, hiddenId), ErrorCode.PROJECT_NOT_FOUND);
@@ -156,10 +157,8 @@ class ProjectMemberApiIntegrationTest extends ProjectApiTestSupport {
 	}
 
 	@Test
-	@DisplayName("역할 변경 규칙: PM 역할은 위임으로만 바뀌고, 미지정 액터·멤버가 아닌 사용자는 거부한다")
+	@DisplayName("역할 변경 규칙: 미지정 액터·멤버가 아닌 사용자·역할 누락은 거부하고 이력이 남지 않는다")
 	void changeRoleRules() throws Exception {
-		expectError(changeRole(pm, creator, "DEVELOPER"), ErrorCode.PM_ROLE_NOT_CHANGEABLE);
-		expectError(changeRole(pm, developer, "PM"), ErrorCode.PM_ROLE_NOT_CHANGEABLE);
 		expectError(changeRole(pm, developer, "QA"), ErrorCode.MEMBER_ACTOR_NOT_ASSIGNED);
 		expectError(changeRole(pm, newcomer, "DEVELOPER"), ErrorCode.PROJECT_MEMBER_NOT_FOUND);
 		patchJson(pm, body("actor", null), MEMBER_ROLE, projectId, developer.getId()).andExpect(status().isBadRequest());
@@ -187,9 +186,9 @@ class ProjectMemberApiIntegrationTest extends ProjectApiTestSupport {
 	}
 
 	@Test
-	@DisplayName("제외 규칙: PM은 400, 게이트 승인자는 409(승인자 변경 먼저), 멤버가 아니면 404")
+	@DisplayName("제외 규칙: 마지막 PM·게이트 승인자는 409, 멤버가 아니면 404")
 	void removeRules() throws Exception {
-		expectError(deleteAs(pm, MEMBER, projectId, creator.getId()), ErrorCode.CANNOT_REMOVE_PM);
+		expectError(deleteAs(pm, MEMBER, projectId, creator.getId()), ErrorCode.LAST_PM_REQUIRED);
 		expectError(deleteAs(pm, MEMBER, projectId, businessOwner.getId()), ErrorCode.GATE_APPROVER_NOT_REMOVABLE);
 		expectError(deleteAs(pm, MEMBER, projectId, newcomer.getId()), ErrorCode.PROJECT_MEMBER_NOT_FOUND);
 		assertThat(memberRoles(pm, projectId)).hasSize(3);

@@ -30,20 +30,16 @@ public record CreateUserRequest(
 	Long departmentId,
 
 	@Size(max = 50, message = "직무는 50자 이하로 입력해 주세요")
-	String jobTitle,
-
-	Boolean canCreateProject
+	String jobTitle
 ) {
 
-	/** canCreateProject를 생략하면 권한 없음으로 본다. */
 	public CreateUserCommand toCommand() {
 		return new CreateUserCommand(
 			loginId,
 			name,
 			systemRole,
 			departmentId,
-			jobTitle,
-			Boolean.TRUE.equals(canCreateProject)
+			jobTitle
 		);
 	}
 }

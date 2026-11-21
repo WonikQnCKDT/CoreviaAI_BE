@@ -67,15 +67,14 @@ class AdminUserApiIntegrationTest extends AdminApiTestSupport {
 			"name", " 홍길동 ",
 			"systemRole", "USER",
 			"departmentId", devTeam.getId(),
-			"jobTitle", "백엔드 개발",
-			"canCreateProject", true
+			"jobTitle", "백엔드 개발"
 		)));
 
 		assertThat(created.get("loginId").asString()).isEqualTo("hong.gd");
 		assertThat(created.get("name").asString()).isEqualTo("홍길동");
 		assertThat(created.get("status").asString()).isEqualTo("ACTIVE");
 		assertThat(created.get("departmentName").asString()).isEqualTo("개발팀");
-		assertThat(created.get("canCreateProject").asBoolean()).isTrue();
+		assertThat(created.has("canCreateProject")).as("최종안에서 생성 권한 필드는 폐지됐다").isFalse();
 
 		// 비밀번호가 아직 없으므로 로그인 불가
 		expectError(login("hong.gd", "anything1!"), ErrorCode.INVALID_CREDENTIALS);
@@ -201,17 +200,14 @@ class AdminUserApiIntegrationTest extends AdminApiTestSupport {
 	// ---- 역할 변경 ----
 
 	@Test
-	@DisplayName("역할을 바꾸면 기존 세션이 끊기고, 일반 사용자가 아니게 되면 프로젝트 생성 권한이 회수된다")
-	void changeRoleTerminatesSessionAndRevokesProjectCreation() throws Exception {
+	@DisplayName("역할을 바꾸면 기존 세션이 끊기고 역할 변경이 감사 로그에 남는다")
+	void changeRoleTerminatesSession() throws Exception {
 		final User user = saveUser("user01", USER_PASSWORD, SystemRole.USER, devTeam.getId());
-		patchJson(adminCookie, body("enabled", true), USERS + "/{id}/project-creation", user.getId())
-			.andExpect(status().isOk());
 		final Cookie userCookie = loginOk("user01", USER_PASSWORD);
 
 		patchJson(adminCookie, body("systemRole", "EXECUTIVE"), USERS + "/{id}/system-role", user.getId())
 			.andExpect(status().isOk())
-			.andExpect(jsonPath("$.response.systemRole").value("EXECUTIVE"))
-			.andExpect(jsonPath("$.response.canCreateProject").value(false));
+			.andExpect(jsonPath("$.response.systemRole").value("EXECUTIVE"));
 
 		expectError(getAs(userCookie, "/api/auth/me"), ErrorCode.SESSION_EXPIRED);
 		login("user01", USER_PASSWORD)
@@ -222,7 +218,7 @@ class AdminUserApiIntegrationTest extends AdminApiTestSupport {
 		final JsonNode details = jsonMapper.readTree(roleLog.getDetails());
 		assertThat(details.get("systemRole").get("before").asString()).isEqualTo("USER");
 		assertThat(details.get("systemRole").get("after").asString()).isEqualTo("EXECUTIVE");
-		assertThat(details.get("canCreateProject").get("after").asBoolean()).isFalse();
+		assertThat(details.has("canCreateProject")).isFalse();
 	}
 
 	@Test
@@ -269,40 +265,25 @@ class AdminUserApiIntegrationTest extends AdminApiTestSupport {
 		assertThat(findUser(admin2.getId()).isActive()).isTrue();
 	}
 
-	// ---- 프로젝트 생성 권한 ----
+	// ---- 프로젝트 생성 권한(폐지) ----
 
 	@Test
-	@DisplayName("프로젝트 생성 권한은 일반 사용자에게만 부여된다")
-	void projectCreationOnlyForUser() throws Exception {
+	@DisplayName("프로젝트 생성 권한 부여 API는 폐지됐다(최종안 3.1: 생성 권한 제한 없음)")
+	void projectCreationPermissionApiRemoved() throws Exception {
 		final User user = saveUser("user01", USER_PASSWORD, SystemRole.USER, devTeam.getId());
-		final User executive = saveUser("exec01", USER_PASSWORD, SystemRole.EXECUTIVE, devTeam.getId());
 
-		expectError(
-			patchJson(adminCookie, body("enabled", true), USERS + "/{id}/project-creation", executive.getId()),
-			ErrorCode.PROJECT_CREATION_NOT_ALLOWED
-		);
-		expectError(
-			postJson(USERS, adminCookie, body(
-				"loginId", "exec02", "name", "경영진", "systemRole", "EXECUTIVE",
-				"departmentId", devTeam.getId(), "canCreateProject", true
-			)),
-			ErrorCode.PROJECT_CREATION_NOT_ALLOWED
-		);
-
+		// 매핑된 핸들러가 없어 4xx로 끝난다(엔드포인트 제거 확인).
 		patchJson(adminCookie, body("enabled", true), USERS + "/{id}/project-creation", user.getId())
-			.andExpect(status().isOk())
-			.andExpect(jsonPath("$.response.canCreateProject").value(true));
-		getAs(adminCookie, USERS + "/{id}", user.getId())
-			.andExpect(jsonPath("$.response.canCreateProject").value(true));
+			.andExpect(status().is4xxClientError());
+	}
 
-		// 같은 값으로 다시 요청하면 이력이 늘지 않는다
-		patchJson(adminCookie, body("enabled", true), USERS + "/{id}/project-creation", user.getId())
-			.andExpect(status().isOk());
-		assertThat(auditLogs(AuditAction.PROJECT_CREATION_GRANTED)).hasSize(1);
-
-		patchJson(adminCookie, body("enabled", false), USERS + "/{id}/project-creation", user.getId())
-			.andExpect(jsonPath("$.response.canCreateProject").value(false));
-		assertThat(auditLogs(AuditAction.PROJECT_CREATION_REVOKED)).hasSize(1);
+	@Test
+	@DisplayName("이전 FE가 canCreateProject를 보내도 무시하고 사용자를 추가한다")
+	void legacyCanCreateProjectFieldIgnored() throws Exception {
+		postJson(USERS, adminCookie, body(
+			"loginId", "exec02", "name", "경영진", "systemRole", "EXECUTIVE",
+			"departmentId", devTeam.getId(), "canCreateProject", true
+		)).andExpect(status().isOk());
 	}
 
 	// ---- 프로필 변경·이력 ----

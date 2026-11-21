@@ -9,6 +9,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.wonik.coreviaai_be.domain.project.entity.ProjectMember;
+import org.wonik.coreviaai_be.domain.project.entity.type.ProjectActor;
 
 public interface ProjectMemberRepository extends JpaRepository<ProjectMember, Long> {
 
@@ -18,8 +19,18 @@ public interface ProjectMemberRepository extends JpaRepository<ProjectMember, Lo
 
 	List<ProjectMember> findAllByProjectIdAndUserIdIn(Long projectId, Collection<Long> userIds);
 
+	boolean existsByProjectIdAndUserIdAndActor(Long projectId, Long userId, ProjectActor actor);
+
+	/** PM 최소 1명 규칙(FR-PRJ-04) 판정용. */
+	long countByProjectIdAndActor(Long projectId, ProjectActor actor);
+
+	List<ProjectMember> findAllByProjectIdAndActorOrderById(Long projectId, ProjectActor actor);
+
+	/** 목록 화면에서 한 페이지 프로젝트의 PM을 한 번에 읽는다(N+1 방지). */
+	List<ProjectMember> findAllByProjectIdInAndActor(Collection<Long> projectIds, ProjectActor actor);
+
 	/**
-	 * 프로젝트 멤버 목록(커서 방식, id 오름차순 = 등록순). 생성자 PM이 첫 행으로 저장되므로 생성 직후에는 PM이 맨 앞이다.
+	 * 프로젝트 멤버 목록(커서 방식, id 오름차순 = 등록순). 생성자(첫 PM)가 첫 행으로 저장되므로 생성 직후에는 생성자가 맨 앞이다.
 	 * 호출자가 size + 1개를 요청한다.
 	 */
 	@Query("""

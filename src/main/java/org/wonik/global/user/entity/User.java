@@ -62,9 +62,6 @@ public class User extends BaseTimeEntity {
 	@Column(name = "job_title", length = 50)
 	private String jobTitle;
 
-	@Column(name = "can_create_project", nullable = false)
-	private boolean canCreateProject;
-
 	@Column(name = "last_login_at")
 	private Instant lastLoginAt;
 
@@ -107,12 +104,8 @@ public class User extends BaseTimeEntity {
 		this.jobTitle = jobTitle;
 	}
 
-	/** 일반 사용자가 아닌 역할로 바뀌면 프로젝트 생성 권한도 함께 회수한다. */
 	public void changeSystemRole(final SystemRole systemRole) {
 		this.systemRole = systemRole;
-		if (systemRole != SystemRole.USER) {
-			this.canCreateProject = false;
-		}
 	}
 
 	public void deactivate() {
@@ -121,17 +114,6 @@ public class User extends BaseTimeEntity {
 
 	public void activate() {
 		this.status = UserStatus.ACTIVE;
-	}
-
-	public void grantProjectCreation() {
-		if (systemRole != SystemRole.USER) {
-			throw new IllegalStateException("프로젝트 생성 권한은 일반 사용자(USER)에게만 부여할 수 있습니다");
-		}
-		this.canCreateProject = true;
-	}
-
-	public void revokeProjectCreation() {
-		this.canCreateProject = false;
 	}
 
 	public void recordLogin(final Instant now) {

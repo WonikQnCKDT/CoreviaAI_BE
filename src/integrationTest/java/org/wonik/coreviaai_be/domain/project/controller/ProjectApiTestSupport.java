@@ -16,11 +16,12 @@ import tools.jackson.databind.JsonNode;
 /**
  * 프로젝트 API 통합 테스트 공통. 부서 트리와 역할별 사용자를 준비한다.
  * <pre>
- * IT사업부(division) ─ 개발팀(devTeam)      : creator(생성 권한), developer, noPermission
+ * IT사업부(division) ─ 개발팀(devTeam)      : creator(생성자), developer, outsider(같은 부서 비멤버)
  *                    경영진 itExecutive(division 소속)
  * 영업사업부(salesDivision) ─ 영업팀(salesTeam): businessOwner(현업 담당자 후보)
  *                    경영진 salesExecutive(salesDivision 소속)
  * </pre>
+ * 최종안에서 프로젝트 생성 권한 제한이 없어져(3.1) 일반 사용자는 누구나 생성할 수 있다.
  */
 abstract class ProjectApiTestSupport extends ApiIntegrationTestSupport {
 
@@ -33,7 +34,7 @@ abstract class ProjectApiTestSupport extends ApiIntegrationTestSupport {
 
 	protected User creator;
 	protected User developer;
-	protected User noPermission;
+	protected User outsider;
 	protected User businessOwner;
 	protected User itExecutive;
 	protected User salesExecutive;
@@ -46,13 +47,18 @@ abstract class ProjectApiTestSupport extends ApiIntegrationTestSupport {
 		salesTeam = saveDepartment("영업팀", salesDivision.getId());
 
 		creator = saveUser("creator01", USER_PASSWORD, SystemRole.USER, devTeam.getId());
-		creator.grantProjectCreation();
-		creator = userRepository.save(creator);
 		developer = saveUser("dev01", USER_PASSWORD, SystemRole.USER, devTeam.getId());
-		noPermission = saveUser("noperm01", USER_PASSWORD, SystemRole.USER, devTeam.getId());
+		outsider = saveUser("outsider01", USER_PASSWORD, SystemRole.USER, devTeam.getId());
 		businessOwner = saveUser("owner01", USER_PASSWORD, SystemRole.USER, salesTeam.getId());
 		itExecutive = saveUser("itexec01", USER_PASSWORD, SystemRole.EXECUTIVE, division.getId());
 		salesExecutive = saveUser("salesexec01", USER_PASSWORD, SystemRole.EXECUTIVE, salesDivision.getId());
+	}
+
+	/** 상세 응답의 PM 사용자 ID(등록순). */
+	protected List<Long> pmIdsOf(final Cookie cookie, final long projectId) throws Exception {
+		return readResponse(getAs(cookie, PROJECTS + "/{id}", projectId)).get("pms").valueStream()
+			.map(pm -> pm.get("id").asLong())
+			.toList();
 	}
 
 	protected Cookie loginAs(final User user) throws Exception {
@@ -60,8 +66,8 @@ abstract class ProjectApiTestSupport extends ApiIntegrationTestSupport {
 	}
 
 	/**
-	 * 통과하는 생성 요청 본문: 폭포수·SW, 액터 PM·현업 담당자·개발자, 멤버로 개발자와 현업 담당자,
-	 * 게이트 승인자는 현업 담당자. 테스트는 필요한 값만 바꿔 쓴다.
+	 * 통과하는 생성 요청 본문: IT 프로젝트 템플릿·폭포수·SW, 주관 부서 개발팀, 액터 PM·현업 담당자·개발자,
+	 * 기능 WBS·칸반·산출물, 멤버로 개발자와 현업 담당자, 게이트 승인자는 현업 담당자. 테스트는 필요한 값만 바꿔 쓴다.
 	 */
 	protected Map<String, Object> validCreateBody(final String code) {
 		return body(
@@ -69,11 +75,13 @@ abstract class ProjectApiTestSupport extends ApiIntegrationTestSupport {
 			"code", code,
 			"startDate", "2026-12-01",
 			"endDate", "2027-03-31",
-			"departmentId", devTeam.getId(),
+			"departmentIds", List.of(devTeam.getId()),
 			"visibility", "COMPANY",
+			"template", "IT_PROJECT",
 			"methodology", "WATERFALL",
 			"departmentType", "SW",
 			"actors", List.of("PM", "BUSINESS_OWNER", "DEVELOPER"),
+			"features", List.of("WBS", "KANBAN", "DELIVERABLE"),
 			"members", List.of(
 				member(developer.getId(), "DEVELOPER"),
 				member(businessOwner.getId(), "BUSINESS_OWNER")
@@ -124,7 +132,7 @@ abstract class ProjectApiTestSupport extends ApiIntegrationTestSupport {
 		userRepository.save(saved);
 	}
 
-	/** 생성 권한자로 프로젝트를 만들고 ID를 돌려준다. */
+	/** creator로 프로젝트를 만들고 ID를 돌려준다. */
 	protected long createProject(final Map<String, Object> body) throws Exception {
 		return readResponse(create(loginAs(creator), body)).get("id").asLong();
 	}
