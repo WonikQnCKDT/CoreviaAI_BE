@@ -74,6 +74,7 @@ public enum ErrorCode {
 
 	AI_GENERATION_FAILED(502, "AI 초안을 만들지 못했습니다. 잠시 후 다시 시도해 주세요"),
 	EXTERNAL_SERVICE_UNAVAILABLE(503, "외부 서비스에 일시적으로 연결할 수 없습니다"),
+	AI_NOT_READY(503, "AI 기능을 준비 중입니다"),
 	AI_TIMEOUT(504, "AI 응답 시간이 초과되었습니다. 잠시 후 다시 시도해 주세요"),
 
 	JSON_PARSING_FAILURE(500, "JSON 매핑에 실패했습니다"),

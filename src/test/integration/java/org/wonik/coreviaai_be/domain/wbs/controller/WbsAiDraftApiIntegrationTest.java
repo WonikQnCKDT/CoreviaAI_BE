@@ -56,7 +56,7 @@ import jakarta.servlet.http.Cookie;
 import tools.jackson.databind.JsonNode;
 
 /**
- * FR-PRJ-07 AI WBS 초안 생성·반영을 HTTP 경계에서 검증한다. AI 서버 호출(WbsDraftAiClient)만 가짜로 바꾼다.
+ * FR-PRJ-07 AI WBS 초안 생성·반영을 HTTP 경계에서 검증한다. aiserver 호출(WbsDraftAiClient)만 가짜로 바꾼다.
  * <p>
  * 준비: 전사 공개 폭포수 프로젝트(2026-12-01 ~ 2027-03-31, WBS 기능 사용). 멤버 creator(PM)·developer(개발자)·
  * businessOwner(현업 담당자). 반영한 작업은 단계와 연결하지 않는다(04. WBS·일정 ERD).
@@ -142,14 +142,14 @@ class WbsAiDraftApiIntegrationTest extends ProjectApiTestSupport {
 	}
 
 	@Test
-	@DisplayName("생성: AI 서버 장애는 503으로 알리고, 실패한 요청도 감사 로그에 남긴다")
+	@DisplayName("생성: AI 사용 불가는 503으로 알리고, 실패한 요청도 감사 로그에 남긴다")
 	void generateWhenAiUnavailable() throws Exception {
-		when(aiClient.generate(any())).thenThrow(new CustomException(ErrorCode.EXTERNAL_SERVICE_UNAVAILABLE));
+		when(aiClient.generate(any())).thenThrow(new CustomException(ErrorCode.AI_NOT_READY));
 
-		expectError(generate(pm, validGenerateBody()), ErrorCode.EXTERNAL_SERVICE_UNAVAILABLE);
+		expectError(generate(pm, validGenerateBody()), ErrorCode.AI_NOT_READY);
 
 		assertThat(auditLogs(AuditAction.AI_WBS_DRAFT_REQUESTED)).singleElement()
-			.extracting(AuditLog::getDetails).asString().contains("\"outcome\":\"EXTERNAL_SERVICE_UNAVAILABLE\"");
+			.extracting(AuditLog::getDetails).asString().contains("\"outcome\":\"AI_NOT_READY\"");
 	}
 
 	// ---- 반영 ----

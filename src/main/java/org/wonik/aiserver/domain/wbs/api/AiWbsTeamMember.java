@@ -1,4 +1,4 @@
-package org.wonik.coreviaai_be.domain.wbs.client.dto;
+package org.wonik.aiserver.domain.wbs.api;
 
 /**
  * 담당자·역할 제안에 쓰는 멤버(teamMembers). role은 ProjectActor 값이다.

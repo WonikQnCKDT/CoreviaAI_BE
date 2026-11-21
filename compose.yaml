@@ -39,8 +39,6 @@ services:
       INITIAL_ADMIN_LOGIN_ID: ${INITIAL_ADMIN_LOGIN_ID:-}
       INITIAL_ADMIN_PASSWORD: ${INITIAL_ADMIN_PASSWORD:-}
       INITIAL_ADMIN_NAME: ${INITIAL_ADMIN_NAME:-}
-      AI_SERVER_BASE_URL: ${AI_SERVER_BASE_URL:-http://localhost:8000}
-      AI_SERVER_READ_TIMEOUT: ${AI_SERVER_READ_TIMEOUT:-30s}
     depends_on:
       redis:
         condition: service_healthy

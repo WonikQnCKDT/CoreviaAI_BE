@@ -26,7 +26,7 @@ import lombok.RequiredArgsConstructor;
  * AI 초안 생성 입력을 한 번의 읽기 트랜잭션으로 모은다. AI 호출(최대 수십 초)을 트랜잭션 밖에서 하기 위해
  * 생성 서비스에서 분리했다(be-principles: 긴 트랜잭션 안에서 외부 호출 금지).
  * <p>
- * 프로젝트 기간은 선택 입력이라(FR-PRJ-01) 비어 있을 수 있고, 그대로 AI 서버에 넘긴다.
+ * 프로젝트 기간은 선택 입력이라(FR-PRJ-01) 비어 있을 수 있고, 그대로 aiserver에 넘긴다.
  */
 @Component
 @RequiredArgsConstructor

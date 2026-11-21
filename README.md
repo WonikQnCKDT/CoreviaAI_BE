@@ -66,8 +66,6 @@ docker compose up -d redis
 | `AUTH_COOKIE_SECURE` | 선택(기본 true) | 쿠키 Secure 속성. HTTPS가 아닌 로컬에서만 false | `true` |
 | `REDIS_HOST` / `REDIS_PORT` | 선택(기본 localhost/6379) | Redis 주소. compose에서는 자동 설정 | |
 | `BE_PORT` | 선택(기본 8080) | compose가 호스트에 여는 포트 | |
-| `AI_SERVER_BASE_URL` | 선택(기본 `http://localhost:8000`) | AI 서버(FastAPI) 주소. 내부망 전용 | `http://ai-server:8000` |
-| `AI_SERVER_READ_TIMEOUT` | 선택(기본 30s) | AI 응답 대기 시간 | `30s` |
 | `INITIAL_ADMIN_LOGIN_ID` / `_PASSWORD` / `_NAME` | 최초 1회 | 시스템 관리자가 없을 때 첫 관리자 생성. 생성 후 비워 둔다 | 비밀번호는 영문·숫자·특수문자 포함 8자 이상 |
 
 - 로컬은 `.env`(커밋 금지, `.gitignore` 등록)로 주입한다. 저장소에는 값이 없는 `.env.example`만 둔다.
@@ -80,7 +78,7 @@ docker compose up -d redis
 
 ## 5. 구조와 Architecture
 
-WebUI_BE의 `authserver / erpweb / global` 구성을 따른다. 인증 서버(`authserver`)는 이후 사내 SSO로 교체될 수 있으므로 업무 모듈과 분리한다.
+WebUI_BE의 `authserver / erpweb / global` 구성을 따른다. 인증 서버(`authserver`)는 이후 사내 SSO로 교체될 수 있으므로 업무 모듈과 분리한다. AI 기능(`aiserver`)은 별도 FastAPI 서버(CoreviaAI_AI) 코드를 Java로 옮겨 이 애플리케이션 안의 모듈로 둔다.
 
 ```
 org.wonik
@@ -97,6 +95,10 @@ org.wonik
 │  │  └─ dto
 │  ├─ domain/credential              LocalCredential(local_credentials): 비밀번호 해시·실패 횟수·잠금·변경 강제
 │  └─ security                       AuthServerSecurityConfig, AuthSessionLoginResolver, AuthSessionTerminator
+├─ aiserver/                         AI 모듈. FastAPI(CoreviaAI_AI) 코드를 Java로 옮기는 중. 업무 모듈을 import하지 않는다
+│  └─ domain/wbs
+│     ├─ api                         업무 모듈에 공개하는 계약: WbsDraftGenerator + 요청·응답 record(AiWbs*, 02. AI 생성 API 형태)
+│     └─ service                     NotReadyWbsDraftGenerator: 이식 전 임시 구현(항상 503 AI_NOT_READY)
 ├─ coreviaai_be/                     업무 모듈
 │  ├─ domain/department              Department(departments): 부서 계층(parentId). 사용자 소속·이후 프로젝트 주관 부서의 기준
 │  ├─ common/web                     CoreviaExceptionHandler: 업무 모듈 전체의 동시 수정 충돌 → 409 (authserver 응답은 그대로)
@@ -111,7 +113,7 @@ org.wonik
 │  │  ├─ controller                  WbsAiDraftController(초안 생성·승인 반영)
 │  │  ├─ service                     WbsDraftGenerationService(AI 호출·토큰 발급), WbsDraftApplyService(토큰 소비·반영), WbsDraftContextReader, WbsItemWriter
 │  │  ├─ policy                      WbsDraftAccessPolicy(PM·폭포수·WBS 기능), WbsDraftValidator(참조·기간·순환·담당자)
-│  │  ├─ client                      WbsDraftAiClient + dto(AI 서버 `/generate/wbs` 요청·응답)
+│  │  ├─ client                      WbsDraftAiClient: 도메인 입력·결과 ↔ aiserver 계약(`aiserver.domain.wbs.api`) 변환
 │  │  ├─ drafttoken                  WbsDraftTokenStore(인터페이스) + RedisWbsDraftTokenStore: 1회용 draftToken
 │  │  ├─ entity                      WbsTask, WbsDependency, Milestone, MilestoneTask, TaskDetails, type/(enum)
 │  │  └─ dto                         request / response (service/command·result는 서비스 입출력)
@@ -124,7 +126,6 @@ org.wonik
 │  └─ security                       CoreviaSecurityConfig
 └─ global/                           공통. authserver·coreviaai_be를 import하지 않는다
    ├─ user                           User(users): 사람·조직 정보(소속 부서·직무 포함). authserver·업무 모듈이 함께 사용
-   ├─ aiserver                       AiServerClient(RestClient, `{success, response, error}` 해석·오류 변환), AiServerProperties. 기능별 요청·응답 DTO는 각 도메인에 둔다
    ├─ audit                          AuditLog(audit_logs), AuditLogger, AuditActor: 감사 로그. 변경과 같은 트랜잭션에서 기록
    ├─ jwt                            JwtTokenProvider, AuthCookieManager, JwtProperties, LoginUser(principal)
    ├─ security                       JwtAuthenticationFilter, LoginSessionResolver·UserSessionTerminator(인터페이스), ApiSecuritySupport
@@ -136,7 +137,7 @@ org.wonik
    └─ config                         Clock, JPA auditing, PasswordEncoder, 401/403 JSON 응답, AuditActor 인자 주입(web)
 ```
 
-- 의존 방향: `authserver → global`, `coreviaai_be → global`. 업무 코드는 인증 결과를 `@AuthenticationPrincipal LoginUser`(global)로만 받고 `authserver`를 import하지 않는다. 그래서 SSO로 바뀌면 `authserver`만 교체하면 된다.
+- 의존 방향: `authserver → global`, `coreviaai_be → global`, `aiserver → global`, `coreviaai_be → aiserver.*.api`(공개 계약만). aiserver는 업무 모듈을, 업무 모듈은 aiserver 구현 패키지를 import하지 않는다. 기능별 AI 요청·응답 타입은 global이 아니라 aiserver 계약 패키지에 둔다. 업무 코드는 인증 결과를 `@AuthenticationPrincipal LoginUser`(global)로만 받고 `authserver`를 import하지 않는다. 그래서 SSO로 바뀌면 `authserver`만 교체하면 된다.
 - 인증 방식 분리는 두 단계로 되어 있다: 패키지 단위(`authserver` 교체)와, 같은 서버 안에서 자격 증명 확인만 바꾸는 `CredentialAuthenticator` 구현체 교체.
 - 보안 체인은 경로를 소유한 모듈이 갖는다(WebUI_BE ADR-0007 방식).
   - `@Order(1)` `authserver.security.AuthServerSecurityConfig`: `/api/auth/**`, `/api/users/me/password`, `/api/admin/users/*/password-reset`
@@ -250,13 +251,13 @@ org.wonik
 
 ### AI WBS 초안 규칙 (FR-PRJ-07)
 
-- 흐름: FE → BE → AI 서버 `POST /generate/wbs` → Ollama. BE는 LLM을 직접 부르지 않는다. BE↔AI 인증 키와 민감정보 마스킹은 팀 결정으로 미구현이라 요구사항 원문이 내부망의 AI 서버로 그대로 간다.
-- 대상: PM(복수 PM 누구나), 폭포수 프로젝트(단계 없음은 404 `PHASES_NOT_AVAILABLE`), WBS 기능을 켠 프로젝트(끄면 404 `FEATURE_DISABLED`). 프로젝트 기간은 없어도 된다(AI에는 null로 보내고, 반영 검증은 있는 쪽만 적용).
+- 흐름: FE → `coreviaai_be`(권한·토큰·반영) → `aiserver` 계약 `WbsDraftGenerator`(같은 프로세스 호출). LLM 호출은 aiserver만 한다. FastAPI `/generate/wbs`의 Java 이식 전까지 aiserver는 503 `AI_NOT_READY`를 돌려준다. 민감정보 마스킹은 팀 결정으로 미구현이라 요구사항 원문이 aiserver로 그대로 간다.
+- 대상: PM(복수 PM 누구나), 폭포수 프로젝트(단계 없음은 404 `PHASES_NOT_AVAILABLE`), WBS 기능을 켠 프로젝트(끄면 404 `FEATURE_DISABLED`). 프로젝트 기간은 없어도 된다(aiserver에는 null로 보내고, 반영 검증은 있는 쪽만 적용).
 - 승인 전 저장 없음(NFR-08): 생성 API는 초안을 DB에 남기지 않고 Redis에 `draftToken`(프로젝트·PM에 묶임, 1시간)만 둔다. 반영 API는 FE가 보낸 승인 항목만 저장한다.
 - 반영: 토큰을 원자적으로 소비한 뒤 한 트랜잭션에서 PM·기능을 다시 확인하고, 참조·기간·순환·담당자를 서버에서 전부 검증한 뒤 작업·하위작업·선후행·마일스톤·감사 로그를 저장한다. 실패하면 토큰을 되돌려 같은 토큰으로 다시 반영할 수 있다. 이미 반영한 토큰은 409 `AI_DRAFT_ALREADY_APPLIED`.
 - 단계 미저장: ERD(04. WBS·일정)에 `wbs_tasks.phase_id`가 없어 응답의 단계 묶음은 검토 화면용이다. 반영 작업은 프로젝트 기존 작업 뒤에 요청 순서대로 붙는다.
 - 감사 로그: `AI_WBS_DRAFT_REQUESTED`(입력 길이·결과·제안 개수. 원문 미기록, AI 호출 뒤 별도 트랜잭션), `AI_WBS_DRAFT_APPLIED`(반영·제외 개수, 반영과 같은 트랜잭션).
-- AI 오류는 사용자에게 고정 메시지만 준다: 502 `AI_GENERATION_FAILED`, 503 `EXTERNAL_SERVICE_UNAVAILABLE`, 504 `AI_TIMEOUT`. AI 서버가 400을 주면 BE 요청 오류라 500.
+- AI 오류는 사용자에게 고정 메시지만 준다: 502 `AI_GENERATION_FAILED`(생성 실패·형식 오류·프로젝트에 없는 단계), 503 `AI_NOT_READY`(이식 전), 504 `AI_TIMEOUT`(이식 후 LLM 시간 초과에 사용).
 
 ### 목록 페이지네이션 (커서)
 
@@ -295,11 +296,9 @@ org.wonik
 | Redis (세션) | connect 2s, command 2s | 없음 (인증 판정을 추측으로 대신하지 않음) | 503 `외부 서비스에 일시적으로 연결할 수 없습니다` |
 | PostgreSQL | HikariCP 기본값 | 없음 | 500 |
 | Redis (AI 초안 토큰) | 세션과 같음 | 없음 | 503 |
-| AI 서버 `POST /generate/wbs` | connect 2s, read 30s(`AI_SERVER_READ_TIMEOUT`) | 없음 (LLM 호출이 비싸고 사용자가 다시 요청 가능) | 시간 초과 504, 연결 실패·AI 503은 503, AI 500·응답 형식 오류는 502 |
 
 - timeout 값 근거: 세션 조회는 모든 요청 경로에 있어 NFR-01(2초 응답)을 넘기지 않도록 2초로 정했다. overall deadline은 아직 따로 두지 않았다(미정).
-- AI 서버 read timeout 30초는 NFR(AI 응답 30초) 기준이다. AI 서버의 Ollama 대기 설정(120초/180초)이 더 길어 생성이 오래 걸리면 504가 난다(AI API 명세 미결 3).
-- test 대체: `InMemoryAuthSessionStore`·`InMemoryWbsDraftTokenStore`(src/test/integration), AI 호출은 단위 테스트에서 `AiServerClient`를 가짜 HTTP 응답으로, 통합 테스트에서 `WbsDraftAiClient`를 `@MockitoBean`으로 대체, H2.
+- test 대체: `InMemoryAuthSessionStore`·`InMemoryWbsDraftTokenStore`(src/test/integration), AI 호출은 통합 테스트에서 `WbsDraftAiClient`를 `@MockitoBean`으로 대체, H2. LLM timeout·retry는 aiserver 이식 때 정한다.
 
 ## 9. 오류 처리와 관측성
 
@@ -330,12 +329,12 @@ org.wonik
 - integration(FR-ADM-01): `AuthApiIntegrationTest` (시간 이동 가능한 Clock). 미인증 차단, 로그인 성공·실패 기록, 5회 잠금, 비활성 계정, 30분 무활동 만료·연장, 로그아웃, 비밀번호 변경, 관리자 초기화 흐름, 로컬 로그인 정보가 없는 사용자, 모듈별 보안 체인.
 - integration(FR-ADM-02): `AdminUserApiIntegrationTest`(추가→비밀번호 발급→로그인·초기화 감사 로그, 중복 재전송, 부서 필수·비활성 부서, 비활성화 로그인 차단·세션 종료, 역할 변경·세션 종료, 본인 변경 금지, 마지막 관리자 보호, 생성 권한 API 폐지, 이력, 커서 목록·필터·잘못된 커서), `AdminDepartmentApiIntegrationTest`, `AdminSessionTerminationFailureTest`
 - integration(FR-PRJ-01): `ProjectCreateApiIntegrationTest`(생성자 PM·5단계·승인자·기능·감사 로그, 기간·주관 부서 생략, 복수 주관 부서, 단계 없음 생성, 단계 없음 규칙·Git 비활성, 코드 정규화·중복, 필수 항목, 생성 권한 개방·경영진 403·관리자 404, 비활성 부서, 선택지), `ProjectQueryApiIntegrationTest`(공개 범위, 복수·무 주관 부서 공개 범위, 상세 404, 멤버·단계 API, 필터, 커서 경계)
-- unit(FR-PRJ-07): `WbsDraftValidatorTest`(tempId 중복, 참조, 기간·프로젝트 기간 없음·한쪽만 있음, 순환, 담당자), `AiServerClientTest`(응답 해석, 400·500·503·시간 초과·형식 오류 변환)
-- integration(FR-PRJ-07): `WbsAiDraftApiIntegrationTest`(생성·반영·토큰 1회용·만료·다른 프로젝트 토큰, 검증 실패 후 같은 토큰으로 재반영, 멤버 아닌 담당자, 기간 없는 프로젝트, 단계 없음·WBS 기능 꺼짐 404, PM 아님 403, AI 장애 503, 감사 로그)
+- unit(FR-PRJ-07): `WbsDraftValidatorTest`(tempId 중복, 참조, 기간·프로젝트 기간 없음·한쪽만 있음, 순환, 담당자), `WbsDraftAiClientTest`(aiserver 계약 변환, 기간 null·기존 작업 단계 null, 없는 단계 502), `NotReadyWbsDraftGeneratorTest`
+- integration(FR-PRJ-07): `WbsAiDraftApiIntegrationTest`(생성·반영·토큰 1회용·만료·다른 프로젝트 토큰, 검증 실패 후 같은 토큰으로 재반영, 멤버 아닌 담당자, 기간 없는 프로젝트, 단계 없음·WBS 기능 꺼짐 404, PM 아님 403, AI 사용 불가 503, 감사 로그)
 - integration(FR-PRJ-04): `ProjectMemberApiIntegrationTest`(초대·역할 변경·제외·이력), `ProjectMultiPmApiIntegrationTest`(PM 추가·동일 권한·해제·최소 1명·PM 제외·추가 규칙·위임 API 폐지·동시 해제 경쟁), `AdminProjectPmApiIntegrationTest`(재지정, 비활성 PM 전원 제외, 활성 PM 있으면 409, 새 PM 규칙, 관리자 전용), `common.web.CoreviaExceptionHandlerTest`(동시 수정 409)
 - 미검증: 같은 사용자 동시 초대·같은 코드 동시 생성의 유니크 제약 경쟁은 DB 제약으로 막지만 자동 테스트는 없다. H2로 검증하므로 PostgreSQL 고유 동작(잠금 대기 시간 등)은 운영 DB에서 확인이 필요하다.
 - 테스트 공통(`src/test/integration`): `support.ApiIntegrationTestSupport`(로그인·요청·오류 검증), `support.DatabaseCleaner`(테스트 클래스 간 공유 H2를 FK 역순으로 비움. 테이블을 추가하면 여기도 추가)
-- 미검증: `RedisAuthSessionStore`·`RedisWbsDraftTokenStore`는 실제 Redis가 필요해 자동 테스트가 없다(Testcontainers 도입 시 추가). AI 서버 실연동은 수동 확인 대상이다.
+- 미검증: `RedisAuthSessionStore`·`RedisWbsDraftTokenStore`는 실제 Redis가 필요해 자동 테스트가 없다(Testcontainers 도입 시 추가). aiserver의 실제 WBS 생성은 FastAPI 이식 후 테스트한다.
 - CI gate: `.github/workflows/DevelopCI.yml`이 PR마다 `./gradlew clean check bootJar`(단위 + 통합 테스트)를 실행한다.
 
 ## 11. Build·배포·운영
@@ -350,7 +349,6 @@ org.wonik
 |---|---|
 | spring-boot-starter-security | 인증·인가 체인 |
 | spring-boot-starter-data-redis | 세션 저장소, AI 초안 토큰 |
-| spring-boot-starter-restclient | AI 서버 호출(`RestClient.Builder`, Boot 4에서 분리된 모듈) |
 | spring-boot-starter-flyway, flyway-database-postgresql | 스키마 migration |
 | io.jsonwebtoken:jjwt 0.13.0 | JWT 발급·검증 (Apache-2.0) |
 | com.h2database:h2 (test) | 테스트 DB |

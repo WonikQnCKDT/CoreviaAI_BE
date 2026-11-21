@@ -6,7 +6,7 @@ import java.util.List;
 import org.wonik.coreviaai_be.domain.project.entity.type.WaterfallPhaseType;
 
 /**
- * AI 초안 생성에 넘길 프로젝트 정보. PM 권한을 확인한 뒤 읽은 값만 담는다(AI 서버는 권한을 다시 검사하지 않음).
+ * AI 초안 생성에 넘길 프로젝트 정보. PM 권한을 확인한 뒤 읽은 값만 담는다(aiserver는 권한을 다시 검사하지 않음).
  *
  * @param startDate     프로젝트 시작일. 선택 입력이라 null일 수 있다(FR-PRJ-01)
  * @param endDate       프로젝트 종료일. 선택 입력이라 null일 수 있다

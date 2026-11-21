@@ -1,4 +1,4 @@
-package org.wonik.coreviaai_be.domain.wbs.client.dto;
+package org.wonik.aiserver.domain.wbs.api;
 
 import java.util.List;
 

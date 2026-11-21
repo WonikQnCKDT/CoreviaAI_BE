@@ -7,18 +7,19 @@ import java.util.function.Function;
 import java.util.stream.IntStream;
 
 import org.springframework.stereotype.Component;
+import org.wonik.aiserver.domain.wbs.api.AiWbsDraftMilestone;
+import org.wonik.aiserver.domain.wbs.api.AiWbsDraftResult;
+import org.wonik.aiserver.domain.wbs.api.AiWbsDraftStage;
+import org.wonik.aiserver.domain.wbs.api.AiWbsDraftSubtask;
+import org.wonik.aiserver.domain.wbs.api.AiWbsDraftTask;
+import org.wonik.aiserver.domain.wbs.api.AiWbsExistingTask;
+import org.wonik.aiserver.domain.wbs.api.AiWbsGenerateRequest;
+import org.wonik.aiserver.domain.wbs.api.AiWbsProjectContext;
+import org.wonik.aiserver.domain.wbs.api.AiWbsStage;
+import org.wonik.aiserver.domain.wbs.api.AiWbsTeamMember;
+import org.wonik.aiserver.domain.wbs.api.WbsDraftGenerator;
 import org.wonik.coreviaai_be.domain.project.entity.type.Methodology;
 import org.wonik.coreviaai_be.domain.project.entity.type.WaterfallPhaseType;
-import org.wonik.coreviaai_be.domain.wbs.client.dto.AiWbsDraftMilestone;
-import org.wonik.coreviaai_be.domain.wbs.client.dto.AiWbsDraftResult;
-import org.wonik.coreviaai_be.domain.wbs.client.dto.AiWbsDraftStage;
-import org.wonik.coreviaai_be.domain.wbs.client.dto.AiWbsDraftSubtask;
-import org.wonik.coreviaai_be.domain.wbs.client.dto.AiWbsDraftTask;
-import org.wonik.coreviaai_be.domain.wbs.client.dto.AiWbsExistingTask;
-import org.wonik.coreviaai_be.domain.wbs.client.dto.AiWbsGenerateRequest;
-import org.wonik.coreviaai_be.domain.wbs.client.dto.AiWbsProjectContext;
-import org.wonik.coreviaai_be.domain.wbs.client.dto.AiWbsStage;
-import org.wonik.coreviaai_be.domain.wbs.client.dto.AiWbsTeamMember;
 import org.wonik.coreviaai_be.domain.wbs.service.command.GenerateWbsDraftCommand;
 import org.wonik.coreviaai_be.domain.wbs.service.command.WbsDraftContext;
 import org.wonik.coreviaai_be.domain.wbs.service.result.DraftFeasibility;
@@ -27,7 +28,6 @@ import org.wonik.coreviaai_be.domain.wbs.service.result.ProposedStage;
 import org.wonik.coreviaai_be.domain.wbs.service.result.ProposedSubtask;
 import org.wonik.coreviaai_be.domain.wbs.service.result.ProposedTask;
 import org.wonik.coreviaai_be.domain.wbs.service.result.WbsDraftProposal;
-import org.wonik.global.aiserver.AiServerClient;
 import org.wonik.global.common.exception.CustomException;
 import org.wonik.global.common.exception.ErrorCode;
 
@@ -35,18 +35,16 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * AI 서버 POST /generate/wbs 호출(FR-PRJ-07, 02. AI 생성 API). 도메인 입력을 AI DTO로, AI 결과를 도메인 결과로 바꾸는
- * 경계라서 서비스는 AI DTO를 알지 않는다.
+ * aiserver의 WBS 초안 생성 계약({@link WbsDraftGenerator}, FR-PRJ-07) 호출. 도메인 입력을 aiserver 계약 타입으로,
+ * 생성 결과를 도메인 결과로 바꾸는 경계라서 서비스는 aiserver 타입을 알지 않는다.
  * <p>
- * AI 결과의 단계 코드가 프로젝트 단계가 아니면 응답 형식 오류(502)로 본다. 그 밖의 값 검증(기간·순환 등)은
- * AI 서버가 하고, PM이 수정한 값은 반영 API에서 다시 검증한다.
+ * 결과의 단계 코드가 프로젝트 단계가 아니면 형식 오류(502)로 본다. 그 밖의 값 검증(기간·순환 등)은
+ * aiserver가 하고, PM이 수정한 값은 반영 API에서 다시 검증한다.
  */
 @Slf4j
 @Component
 @RequiredArgsConstructor
 public class WbsDraftAiClient {
-
-	static final String GENERATE_WBS_PATH = "/generate/wbs";
 
 	private static final Map<WaterfallPhaseType, String> PHASE_NAMES = new EnumMap<>(Map.of(
 		WaterfallPhaseType.ANALYSIS, "분석",
@@ -56,10 +54,10 @@ public class WbsDraftAiClient {
 		WaterfallPhaseType.TRANSITION, "이행"
 	));
 
-	private final AiServerClient aiServerClient;
+	private final WbsDraftGenerator draftGenerator;
 
 	public WbsDraftProposal generate(final WbsDraftContext context) {
-		final AiWbsDraftResult result = aiServerClient.post(GENERATE_WBS_PATH, toRequest(context), AiWbsDraftResult.class);
+		final AiWbsDraftResult result = draftGenerator.generate(toRequest(context));
 		return toProposal(result, context.phases());
 	}
 
