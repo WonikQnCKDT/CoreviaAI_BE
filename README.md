@@ -2,7 +2,7 @@
 
 > 상태: Draft
 > 담당자: 미정 (팀에서 지정 필요)
-> 마지막 검토일: 2026-11-21
+> 마지막 검토일: 2026-11-22
 > 적용 범위: `CoreviaAI_BE/` 백엔드 (Spring Boot)
 
 ## 1. 프로젝트 개요
@@ -361,3 +361,14 @@ org.wonik
 ## 13. License
 
 - 미정 (사내 프로젝트).
+
+## 14. 개인 TODO 구현 초안 (SCRUM-111)
+
+- 기준: FR-PSN-01·권한 매트릭스 3.3, 원격 `develop`의 `6d39260`.
+- 개인 TODO 등록·상세·제목/마감/완료 변경과 배정 WBS 실시간 통합 조회를 구현했다. 상태는 **Draft**다. 승인 요청 원천 연동 범위·개인 TODO 삭제 정책·마감 임박 기본값을 사용자에게 확인 중이므로 SCRUM-111 전체 완료로 보지 않는다.
+- API 초안: [06. 개인 업무](docs/api/06-personal-todos-draft.md), ERD 보완: [개인 TODO](docs/erd/06-personal-todos-draft.md), 시퀀스: [생성 멱등·통합 조회](docs/sequence/06-personal-todos-draft.md), [보안·검수·검증 한계](docs/reviews/SCRUM-111-draft-review.md).
+- 경로: `GET/POST /api/me/todos`, `GET/PATCH /api/me/todos/{todoId}`. 소유자는 로그인 주체에서만 정한다. 기본 목록은 미완료 개인 TODO·현재 담당 업무, 완료 개인은 `done=true`. 초안에는 `dueSoonDays`가 필수이며 `size` 기본20·최대100, 불투명 cursor를 사용한다.
+- 날짜: `Asia/Seoul`의 오늘을 기준으로 오늘→임박→지연→이후→마감없음 정렬, 지연은 `overdue`로 표시한다. 커서를 이어가는 동안 정렬 날짜를 고정하고 권한·행 상태는 매번 새로 확인한다.
+- 등록은 클라이언트 UUID `requestId`가 필수다. 본인 범위 같은 키·같은 입력의 재전송은 처음 응답, 다른 입력은409. 현재 할 일 내용을 바꿔도 최초 요청 해시를 보존한다.
+- Migration V13은 `personal_todos`만 추가한다. **운영 V8~V12 예약 작업을 통합·승인하고 순서대로 적용한 뒤 V13을 migrate해야 한다. V13 단독 선적용 금지.** 기본 Flyway outOfOrder=false에서 뒤늦은 V8~V12는 적용에 실패하므로 번호 변경·outOfOrder 임의 활성화로 우회하지 않는다.
+- 기존 표준 테스트 명령은 그대로다. 현재 오프라인 환경에는 JaCoCo agent0.8.15가 없어 표준 test/check·커버리지 증거를 확보하지 못했다. 별도 작업 공간 init으로 instrumentation만 끈 대체 테스트·빌드 증거와 기존 formatter/lint/lock/security-scan 미구축 한계는 검수 문서에 기록한다.
