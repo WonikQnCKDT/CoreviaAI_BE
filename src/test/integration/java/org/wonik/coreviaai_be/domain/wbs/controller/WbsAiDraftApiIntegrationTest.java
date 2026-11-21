@@ -32,8 +32,10 @@ import org.wonik.coreviaai_be.domain.project.entity.type.WaterfallPhaseType;
 import org.wonik.coreviaai_be.domain.wbs.client.WbsDraftAiClient;
 import org.wonik.coreviaai_be.domain.wbs.entity.Milestone;
 import org.wonik.coreviaai_be.domain.wbs.entity.MilestoneTask;
+import org.wonik.coreviaai_be.domain.wbs.entity.TaskHistory;
 import org.wonik.coreviaai_be.domain.wbs.entity.WbsDependency;
 import org.wonik.coreviaai_be.domain.wbs.entity.WbsTask;
+import org.wonik.coreviaai_be.domain.wbs.entity.type.TaskActivityType;
 import org.wonik.coreviaai_be.domain.wbs.entity.type.WbsItemSource;
 import org.wonik.coreviaai_be.domain.wbs.entity.type.WbsTaskStatus;
 import org.wonik.coreviaai_be.domain.aidraft.entity.AiDraft;
@@ -42,6 +44,7 @@ import org.wonik.coreviaai_be.domain.aidraft.entity.type.AiDraftStatus;
 import org.wonik.coreviaai_be.domain.aidraft.repository.AiDraftRepository;
 import org.wonik.coreviaai_be.domain.wbs.repository.MilestoneRepository;
 import org.wonik.coreviaai_be.domain.wbs.repository.MilestoneTaskRepository;
+import org.wonik.coreviaai_be.domain.wbs.repository.TaskHistoryRepository;
 import org.wonik.coreviaai_be.domain.wbs.repository.WbsDependencyRepository;
 import org.wonik.coreviaai_be.domain.wbs.repository.WbsTaskRepository;
 import org.wonik.coreviaai_be.domain.wbs.service.MilestoneService;
@@ -88,6 +91,8 @@ class WbsAiDraftApiIntegrationTest extends ProjectApiTestSupport {
 	private MilestoneTaskRepository milestoneTaskRepository;
 	@Autowired
 	private AiDraftRepository aiDraftRepository;
+	@Autowired
+	private TaskHistoryRepository historyRepository;
 
 	private long projectId;
 	private Cookie pm;
@@ -221,7 +226,7 @@ class WbsAiDraftApiIntegrationTest extends ProjectApiTestSupport {
 	}
 
 	@Test
-	@DisplayName("반영: 하위작업 기간이 있으면 상위 작업 기간을 하위작업 기간으로 맞춘다(FR-WBS-01 상위 기간 자동 산출)")
+	@DisplayName("반영: 하위작업 기간이 있으면 상위 작업 기간을 하위작업 기간으로 맞추고, 작업·하위작업마다 산출된 값으로 CREATED 이력을 남긴다(FR-TSK-01)")
 	void applyDerivesParentSchedule() throws Exception {
 		final Map<String, Object> body = body(
 			"draftToken", generateToken(),
@@ -232,11 +237,25 @@ class WbsAiDraftApiIntegrationTest extends ProjectApiTestSupport {
 			"rejectedCount", 0
 		);
 
-		final long taskId = readResponse(apply(pm, body)).get("taskIds").get("T-001").asLong();
+		final JsonNode taskIds = readResponse(apply(pm, body)).get("taskIds");
+		final long taskId = taskIds.get("T-001").asLong();
 
 		final WbsTask task = taskRepository.findById(taskId).orElseThrow();
 		assertThat(task.getStartDate()).isEqualTo(LocalDate.parse("2026-12-03"));
 		assertThat(task.getEndDate()).isEqualTo(LocalDate.parse("2026-12-12"));
+
+		// 변경 이력: 반영한 3건 모두 CREATED 1건씩, 상위 작업은 산출된 기간으로
+		assertThat(historyRepository.findAllByTaskIdOrderByIdAsc(taskId)).singleElement().satisfies(history -> {
+			assertThat(history.getActivityType()).isEqualTo(TaskActivityType.CREATED);
+			assertThat(history.getActorUserId()).isEqualTo(creator.getId());
+			assertThat(history.getBeforeValue()).isNull();
+			assertThat(history.getAfterValue()).contains("\"startDate\":\"2026-12-03\"", "\"endDate\":\"2026-12-12\"",
+				"\"source\":\"AI_DRAFT\"", "\"taskType\":\"TASK\"", "\"priority\":\"MEDIUM\"");
+		});
+		for (final String tempId : List.of("ST-001", "ST-002")) {
+			assertThat(historyRepository.findAllByTaskIdOrderByIdAsc(taskIds.get(tempId).asLong()))
+				.extracting(TaskHistory::getActivityType).containsExactly(TaskActivityType.CREATED);
+		}
 	}
 
 	@Test

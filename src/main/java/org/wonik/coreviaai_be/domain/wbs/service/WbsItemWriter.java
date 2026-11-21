@@ -33,6 +33,7 @@ import lombok.RequiredArgsConstructor;
  * <p>
  * 새 작업은 프로젝트의 기존 작업 뒤에 요청 순서대로 붙이고, 하위작업은 상위 작업 안에서 1부터 매긴다.
  * 하위작업이 있는 작업의 기간은 하위작업 기간(최소 시작일~최대 종료일)으로 맞춘다(FR-WBS-01 상위 기간 자동 산출).
+ * 등록한 작업·하위작업마다 CREATED 이력을 남긴다(FR-TSK-01, 상위 기간 산출이 끝난 값으로). 유형·우선순위는 기본값.
  */
 @Component
 @RequiredArgsConstructor
@@ -42,6 +43,7 @@ public class WbsItemWriter {
 	private final WbsDependencyRepository dependencyRepository;
 	private final MilestoneRepository milestoneRepository;
 	private final MilestoneTaskRepository milestoneTaskRepository;
+	private final TaskHistoryRecorder historyRecorder;
 
 	@Transactional(propagation = Propagation.MANDATORY)
 	public AppliedWbsDraft writeAiDraft(
@@ -52,7 +54,10 @@ public class WbsItemWriter {
 		final Map<String, WbsTask> tasks = saveTasks(projectId, userId, command.tasks());
 		final Map<String, Long> taskIds = new LinkedHashMap<>();
 		tasks.forEach((tempId, task) -> taskIds.put(tempId, task.getId()));
-		taskIds.putAll(saveSubtasks(userId, tasks, command.tasks()));
+		final List<WbsTask> subtasks = saveSubtasks(userId, tasks, command.tasks(), taskIds);
+		final List<WbsTask> created = new ArrayList<>(tasks.values());
+		created.addAll(subtasks);
+		historyRecorder.created(userId, created);
 		saveDependencies(projectId, userId, taskIds, command.tasks());
 		final Map<String, Long> milestoneIds = saveMilestones(projectId, userId, taskIds, command.milestones());
 		return new AppliedWbsDraft(taskIds, milestoneIds);
@@ -76,10 +81,12 @@ public class WbsItemWriter {
 		return tasks;
 	}
 
-	private Map<String, Long> saveSubtasks(
+	/** 하위작업을 저장하고 tempId → ID를 taskIds에 더한다. 저장한 하위작업을 돌려준다. */
+	private List<WbsTask> saveSubtasks(
 		final Long userId,
 		final Map<String, WbsTask> tasks,
-		final List<DraftTaskCommand> commands
+		final List<DraftTaskCommand> commands,
+		final Map<String, Long> taskIds
 	) {
 		final Map<String, WbsTask> subtasks = new LinkedHashMap<>();
 		for (final DraftTaskCommand command : commands) {
@@ -97,9 +104,8 @@ public class WbsItemWriter {
 			parent.deriveScheduleFrom(children);
 		}
 		taskRepository.saveAll(subtasks.values());
-		final Map<String, Long> ids = new LinkedHashMap<>();
-		subtasks.forEach((tempId, subtask) -> ids.put(tempId, subtask.getId()));
-		return ids;
+		subtasks.forEach((tempId, subtask) -> taskIds.put(tempId, subtask.getId()));
+		return List.copyOf(subtasks.values());
 	}
 
 	private void saveDependencies(
