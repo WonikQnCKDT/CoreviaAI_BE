@@ -20,12 +20,20 @@ repositories {
     mavenCentral()
 }
 
-// 테스트 폴더 구분
-//   src/test/java            : 단위 테스트. Spring 컨텍스트·DB 없이 빠르고 결정적으로 도는 테스트(domain 규칙, policy, util)
-//   src/integrationTest/java : 통합 테스트. Spring 컨텍스트·H2(PostgreSQL 모드)·MockMvc로 API·DB·보안 경계를 함께 검증
+// 테스트 폴더 구분 (src/test 아래에 단위·통합을 나눠 둔다)
+//   src/test/unit/java               : 단위 테스트. Spring 컨텍스트·DB 없이 빠르고 결정적으로 도는 테스트(domain 규칙, policy, util)
+//   src/test/integration/java        : 통합 테스트. Spring 컨텍스트·H2(PostgreSQL 모드)·MockMvc로 API·DB·보안 경계를 함께 검증
+//   src/test/integration/resources   : 통합 테스트 설정(application-test.properties)
+// 두 폴더는 별도 source set이라 `test`(단위)와 `integrationTest`(통합)를 따로 실행할 수 있다.
 // 통합 테스트는 단위 테스트의 보조 클래스(MutableClock 등)를 그대로 쓸 수 있도록 test 출력을 classpath에 둔다.
 sourceSets {
+    test {
+        java.srcDirs = ['src/test/unit/java']
+        resources.srcDirs = ['src/test/unit/resources']
+    }
     integrationTest {
+        java.srcDirs = ['src/test/integration/java']
+        resources.srcDirs = ['src/test/integration/resources']
         compileClasspath += sourceSets.main.output + sourceSets.test.output
         runtimeClasspath += sourceSets.main.output + sourceSets.test.output
     }
@@ -66,12 +74,12 @@ tasks.withType(JavaCompile).configureEach {
 }
 
 tasks.named('test') {
-    description = 'Runs unit tests (src/test).'
+    description = 'Runs unit tests (src/test/unit).'
     useJUnitPlatform()
 }
 
 def integrationTest = tasks.register('integrationTest', Test) {
-    description = 'Runs integration tests (src/integrationTest).'
+    description = 'Runs integration tests (src/test/integration).'
     group = 'verification'
     testClassesDirs = sourceSets.integrationTest.output.classesDirs
     classpath = sourceSets.integrationTest.runtimeClasspath
