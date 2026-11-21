@@ -10,5 +10,7 @@ public enum AuditTargetType {
 	/** 공통 코드(codes.id) */
 	CODE,
 	/** 다국어 라벨(i18n_labels.id) */
-	I18N_LABEL
+	I18N_LABEL,
+	/** WBS 작업·하위작업(wbs_tasks.id) */
+	WBS_TASK
 }
