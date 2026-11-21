@@ -9,7 +9,7 @@ public enum TaskActivityType {
 	CREATED,
 	/** 담당자 배정·변경. before·after = assigneeUserId(before는 null일 수 있음) */
 	ASSIGNED,
-	/** 담당자 해제. before = assigneeUserId, after = null 값 */
+	/** 담당자 해제. before = assigneeUserId, after = assigneeUserId(null) */
 	UNASSIGNED,
 	/** 시작·종료일 변경(직접 수정, 하위작업 변경에 따른 상위 기간 산출 포함). before·after = startDate, endDate */
 	DATE_CHANGED,
