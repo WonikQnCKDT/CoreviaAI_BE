@@ -78,7 +78,7 @@ docker compose up -d redis
 
 ## 5. 구조와 Architecture
 
-WebUI_BE의 `authserver / erpweb / global` 구성을 따른다. 인증 서버(`authserver`)는 이후 사내 SSO로 교체될 수 있으므로 업무 모듈과 분리한다.
+WebUI_BE의 `authserver / erpweb / global` 구성을 따른다. 인증 서버(`authserver`)는 이후 사내 SSO로 교체될 수 있으므로 업무 모듈과 분리한다. AI 기능(`aiserver`)은 별도 FastAPI 서버(CoreviaAI_AI) 코드를 Java로 옮겨 이 애플리케이션 안의 모듈로 둔다.
 
 ```
 org.wonik
@@ -95,6 +95,10 @@ org.wonik
 │  │  └─ dto
 │  ├─ domain/credential              LocalCredential(local_credentials): 비밀번호 해시·실패 횟수·잠금·변경 강제
 │  └─ security                       AuthServerSecurityConfig, AuthSessionLoginResolver, AuthSessionTerminator
+├─ aiserver/                         AI 모듈. FastAPI(CoreviaAI_AI) 코드를 Java로 옮기는 중. 업무 모듈을 import하지 않는다
+│  └─ domain/wbs
+│     ├─ api                         업무 모듈에 공개하는 계약: WbsDraftGenerator + 요청·응답 record(AiWbs*, 02. AI 생성 API 형태)
+│     └─ service                     NotReadyWbsDraftGenerator: 이식 전 임시 구현(항상 503 AI_NOT_READY)
 ├─ coreviaai_be/                     업무 모듈
 │  ├─ domain/department              Department(departments): 부서 계층(parentId). 사용자 소속·이후 프로젝트 주관 부서의 기준
 │  ├─ common/web                     CoreviaExceptionHandler: 업무 모듈 전체의 동시 수정 충돌 → 409 (authserver 응답은 그대로)
@@ -105,6 +109,15 @@ org.wonik
 │  │  ├─ structure                   ProjectStructureInitializer(운영 방식별 기본 구조) + WaterfallStructureInitializer(5단계·게이트)
 │  │  ├─ entity                      Project, ProjectActorAssignment, ProjectMember, ProjectMemberHistory, ProjectPhase, type/(enum)
 │  │  └─ dto                         request / response
+│  ├─ domain/aidraft                 AI 초안·추정 기록(ai_drafts): AiDraft, AiDraftRecorder. 저장만 담당하고 AI 기능 로직은 각 도메인에 둔다
+│  ├─ domain/wbs                     WBS·일정 (FR-PRJ-07 AI 초안 생성·반영. 조회·수정은 FR-WBS-01부터)
+│  │  ├─ controller                  WbsAiDraftController(초안 생성·승인 반영)
+│  │  ├─ service                     WbsDraftGenerationService(AI 호출·토큰 발급), WbsDraftApplyService(토큰 소비·반영), WbsDraftContextReader, WbsItemWriter
+│  │  ├─ policy                      WbsDraftAccessPolicy(PM·폭포수·WBS 기능), WbsDraftValidator(참조·기간·순환·담당자)
+│  │  ├─ client                      WbsDraftAiClient: 도메인 입력·결과 ↔ aiserver 계약(`aiserver.domain.wbs.api`) 변환
+│  │  ├─ drafttoken                  WbsDraftTokenStore(인터페이스) + RedisWbsDraftTokenStore: 1회용 draftToken
+│  │  ├─ entity                      WbsTask, WbsDependency, Milestone, MilestoneTask, TaskDetails, type/(enum)
+│  │  └─ dto                         request / response (service/command·result는 서비스 입출력)
 │  ├─ domain/admin                   관리자 콘솔 (FR-ADM-02)
 │  │  ├─ controller                  AdminUserController, AdminDepartmentController, AdminProjectController(PM 재지정)
 │  │  ├─ service                     AdminUserService, AdminDepartmentService
@@ -125,7 +138,7 @@ org.wonik
    └─ config                         Clock, JPA auditing, PasswordEncoder, 401/403 JSON 응답, AuditActor 인자 주입(web)
 ```
 
-- 의존 방향: `authserver → global`, `coreviaai_be → global`. 업무 코드는 인증 결과를 `@AuthenticationPrincipal LoginUser`(global)로만 받고 `authserver`를 import하지 않는다. 그래서 SSO로 바뀌면 `authserver`만 교체하면 된다.
+- 의존 방향: `authserver → global`, `coreviaai_be → global`, `aiserver → global`, `coreviaai_be → aiserver.*.api`(공개 계약만). aiserver는 업무 모듈을, 업무 모듈은 aiserver 구현 패키지를 import하지 않는다. 기능별 AI 요청·응답 타입은 global이 아니라 aiserver 계약 패키지에 둔다. 업무 코드는 인증 결과를 `@AuthenticationPrincipal LoginUser`(global)로만 받고 `authserver`를 import하지 않는다. 그래서 SSO로 바뀌면 `authserver`만 교체하면 된다.
 - 인증 방식 분리는 두 단계로 되어 있다: 패키지 단위(`authserver` 교체)와, 같은 서버 안에서 자격 증명 확인만 바꾸는 `CredentialAuthenticator` 구현체 교체.
 - 보안 체인은 경로를 소유한 모듈이 갖는다(WebUI_BE ADR-0007 방식).
   - `@Order(1)` `authserver.security.AuthServerSecurityConfig`: `/api/auth/**`, `/api/users/me/password`, `/api/admin/users/*/password-reset`
@@ -173,6 +186,8 @@ org.wonik
 | GET | `/api/projects/{projectId}/members/histories` | USER·EXECUTIVE | 멤버 이력(커서, id 내림차순). 공개 범위는 상세와 같음 |
 | PUT | `/api/admin/projects/pm` | SYSTEM_ADMIN | PM 재지정(활성 PM이 하나도 없을 때만). `projectCode`, `newPmUserId`. 응답은 재지정 후 PM 목록(`pms`) |
 | GET | `/api/projects/{projectId}/phases` | USER·EXECUTIVE | 폭포수 단계·게이트(단계 순서, 5개). 공개 범위는 상세와 같음. 단계 없음·애자일이면 404 `PHASES_NOT_AVAILABLE` |
+| POST | `/api/projects/{projectId}/wbs/ai-draft` | PM | AI WBS 초안 생성(저장 없음). 응답에 초안과 1회용 `draftToken`(1시간) |
+| POST | `/api/projects/{projectId}/wbs/ai-draft/apply` | PM | PM이 승인·수정한 항목만 WBS에 반영. 응답은 tempId → 정식 ID |
 
 ### 인증 방식 (세션 + JWT)
 
@@ -235,6 +250,17 @@ org.wonik
 - 이력: 변경마다 `project_member_histories`(업무 이력, 프로젝트와 함께 보관)와 `audit_logs`(감사 로그, 1년 보관)를 같은 트랜잭션에 남긴다. 한 행은 사람 한 명의 역할 변화이며 재지정은 새 PM 한 행과 제외된 비활성 PM마다 한 행이다. 기존 `PM_DELEGATED` 이력은 조회용으로 남는다. FR-PRJ-01 생성 시 초대한 멤버는 이력 없이 시작한다(`PROJECT_CREATED` 감사 로그에 남음).
 - 동시 수정: PM 구성이 바뀔 수 있는 변경(역할 변경·제외·재지정)은 `projects` 행을 비관적 잠금(`SELECT ... FOR UPDATE`)으로 잡고 처리해, 두 PM이 동시에 서로를 해제해도 PM이 0명이 되지 않는다. 잠금 획득 실패는 409 `CONCURRENT_MODIFICATION`. 같은 사용자를 동시에 초대하면 `uk_project_members_project_id_user_id` 위반을 409 `ALREADY_PROJECT_MEMBER`로 바꾼다.
 
+### AI WBS 초안 규칙 (FR-PRJ-07)
+
+- 흐름: FE → `coreviaai_be`(권한·토큰·반영) → `aiserver` 계약 `WbsDraftGenerator`(같은 프로세스 호출). LLM 호출은 aiserver만 한다. FastAPI `/generate/wbs`의 Java 이식 전까지 aiserver는 503 `AI_NOT_READY`를 돌려준다. 민감정보 마스킹은 팀 결정으로 미구현이라 요구사항 원문이 aiserver로 그대로 간다.
+- 대상: PM(복수 PM 누구나), 폭포수 프로젝트(단계 없음은 404 `PHASES_NOT_AVAILABLE`), WBS 기능을 켠 프로젝트(끄면 404 `FEATURE_DISABLED`). 프로젝트 기간은 없어도 된다(aiserver에는 null로 보내고, 반영 검증은 있는 쪽만 적용).
+- 초안 기록과 승인(NFR-07·08): 생성 결과는 `ai_drafts`에 `DRAFT`(feature `WBS_DRAFT`, AI 결과 JSON·응답 시간)로, AI 실패는 `FAILED`로 남긴다. WBS 테이블은 바꾸지 않는다. 반영하면 같은 트랜잭션에서 `ACCEPTED`(제외 항목이 있으면 `PARTIALLY_ACCEPTED`)와 결정자·시각을 남긴다. 반영하지 않은 초안은 `DRAFT`로 남는다(거절 API 없음). 요구사항 원문 등 사용자 입력은 저장하지 않는다.
+- 반영 토큰: Redis에 `draftToken`(프로젝트·PM·`ai_drafts.id`에 묶임, 1시간)을 둔다. 반영 API는 FE가 보낸 승인 항목만 WBS에 저장한다.
+- 반영: 토큰을 원자적으로 소비한 뒤 한 트랜잭션에서 PM·기능을 다시 확인하고, 참조·기간·순환·담당자를 서버에서 전부 검증한 뒤 작업·하위작업·선후행·마일스톤·감사 로그를 저장한다. 실패하면 토큰을 되돌려 같은 토큰으로 다시 반영할 수 있다. 이미 반영한 토큰은 409 `AI_DRAFT_ALREADY_APPLIED`.
+- 단계 미저장: ERD(04. WBS·일정)에 `wbs_tasks.phase_id`가 없어 응답의 단계 묶음은 검토 화면용이다. 반영 작업은 프로젝트 기존 작업 뒤에 요청 순서대로 붙는다.
+- 감사 로그: `AI_WBS_DRAFT_REQUESTED`(`aiDraftId`, 입력 길이·결과·제안 개수. 원문 미기록, AI 호출 뒤 별도 트랜잭션), `AI_WBS_DRAFT_APPLIED`(`aiDraftId`, 반영·제외 개수, 반영과 같은 트랜잭션).
+- AI 오류는 사용자에게 고정 메시지만 준다: 502 `AI_GENERATION_FAILED`(생성 실패·형식 오류·프로젝트에 없는 단계), 503 `AI_NOT_READY`(이식 전), 504 `AI_TIMEOUT`(이식 후 LLM 시간 초과에 사용).
+
 ### 목록 페이지네이션 (커서)
 
 - 요청: `?cursor={이전 응답의 nextCursor}&size=20` (기본 20, 최대 100). 첫 페이지는 `cursor` 없이 요청한다.
@@ -246,13 +272,14 @@ org.wonik
 
 - 사용자 추가: `loginId`가 자연 키다. 같은 요청을 다시 보내면 409 `DUPLICATE_LOGIN_ID`로 끝나고 계정은 하나만 생긴다. 별도 Idempotency-Key는 쓰지 않는다.
 - 부서 추가: (상위 부서, 이름)이 자연 키다. 재전송은 409 `DUPLICATE_DEPARTMENT_NAME`.
+- AI 초안 반영: `draftToken`이 1회용 키다. 재전송·동시 반영은 409 `AI_DRAFT_ALREADY_APPLIED`. 초안 생성은 부수효과가 없어 재전송하면 새 초안·새 토큰이 나온다.
 - 프로젝트 생성: `code`가 자연 키다. 재전송은 409 `DUPLICATE_PROJECT_CODE`로 끝나고 프로젝트는 하나만 생긴다(사전 검사 + `uk_projects_code`).
 - 멤버 초대: (프로젝트, 사용자)가 자연 키다. 재전송은 409 `ALREADY_PROJECT_MEMBER`. 제외 재전송은 404 `PROJECT_MEMBER_NOT_FOUND`, 역할 변경 재전송은 같은 역할이라 변경 없음.
 - 수정·상태 변경(PATCH): 현재와 같은 값이면 변경·이력 없이 현재 상태를 돌려준다. 역할 변경·비활성화는 DB 커밋 후 세션을 끊는데, 세션 저장소 장애로 실패하면 오류가 반환되고 같은 요청을 다시 보내면 세션 끊기만 다시 수행된다.
 
 ## 7. Database와 Migration
 
-- 저장소: PostgreSQL (`users`, `local_credentials`, `login_history`, `departments`, `audit_logs`, `projects`, `project_departments`, `project_actors`, `project_features`, `project_members`, `project_phases`, `project_member_histories`), Redis (세션). 테이블 정의는 Confluence [BE_ERD](https://jnu-team-aaptc1y6.atlassian.net/wiki/spaces/CoreviaAI/folder/12878096) 도메인 페이지 참고. ERD 원본은 `docs/erd/`(draw.io, 현재 `02-admin.drawio`).
+- 저장소: PostgreSQL (`users`, `local_credentials`, `login_history`, `departments`, `audit_logs`, `projects`, `project_departments`, `project_actors`, `project_features`, `project_members`, `project_phases`, `project_member_histories`, `wbs_tasks`, `wbs_dependencies`, `milestones`, `milestone_tasks`, `ai_drafts`), Redis (세션, AI 초안 토큰). 테이블 정의는 Confluence [BE_ERD](https://jnu-team-aaptc1y6.atlassian.net/wiki/spaces/CoreviaAI/folder/12878096) 도메인 페이지 참고. ERD 원본은 `docs/erd/`(draw.io, 현재 `02-admin.drawio`).
 - 시각은 모두 UTC instant(`timestamptz`)로 저장한다. KST 표시는 응답·화면 경계에서 변환한다.
 - 동시성: 로그인 시 `users` → `local_credentials` 순서로 `SELECT … FOR UPDATE`해 같은 계정의 동시 로그인과 실패 횟수 갱신을 순서대로 처리한다. 비밀번호 변경·초기화는 `local_credentials`만 잠근다. 두 테이블 모두 `version`으로 낙관적 잠금도 건다.
 - 동시성(관리자 기능): `users`·`departments`는 `version` 낙관적 잠금으로 동시 수정을 막고 충돌 시 409 `CONCURRENT_MODIFICATION`. 마지막 관리자 보호는 활성 관리자 행을 `FOR UPDATE`로 잠근 뒤 확인한다. 아이디·부서 이름 중복은 사전 검사 + DB 유니크 제약으로 막는다(최상위 부서 이름은 NULL 특성상 사전 검사만).
@@ -260,6 +287,8 @@ org.wonik
 - V3(`V3__create_projects.sql`): `projects`, `project_actors`, `project_members`, `project_phases` 테이블만 새로 만든다(기존 테이블 변경 없음). 프로젝트 기간은 달력 날짜라 `DATE`로 저장한다(UTC 시각 아님). enum 컬럼은 `audit_logs.action`과 같이 CHECK 제약 없이 이름을 저장한다. 되돌릴 때는 네 테이블을 지우는 새 버전을 추가한다.
 - V4(`V4__create_project_member_histories.sql`): `project_member_histories`만 새로 만든다(기존 테이블 변경 없음). `change_type`은 닫힌 값이라 CHECK 제약을 두고, `before_actor`·`after_actor`는 `project_members.actor`와 같이 CHECK 없이 저장한다. 되돌릴 때는 이 테이블을 지우는 새 버전을 추가한다.
 - V5(`V5__align_projects_with_final_spec.sql`, 요구사항명세 최종안 반영): `users.can_create_project` 삭제, `projects.start_date`·`end_date` NULL 허용, `projects.template` 추가(기존 행은 `IT_PROJECT`), `project_departments` 신설 후 `projects.department_id` 이관·삭제, `projects.pm_user_id` 삭제(PM은 `project_members.actor = PM`), `project_features` 신설(기존 행은 IT 템플릿 기본 모듈), 멤버 이력 CHECK에 `PM_ADDED`·`PM_RELEASED` 추가. 컬럼을 지우므로 같은 버전의 애플리케이션과 함께 배포해야 한다(이전 버전은 지운 컬럼을 읽음). 되돌릴 때는 컬럼을 다시 추가하고 새 테이블에서 값을 채우는 새 버전을 추가한다(roll-forward). 실행 전 운영 DB 백업을 확인한다.
+- V6(`V6__create_wbs.sql`): `wbs_tasks`, `wbs_dependencies`, `milestones`, `milestone_tasks`만 새로 만든다(기존 테이블 변경 없음). 단계(`project_phases`) 연결 컬럼은 두지 않는다(ERD 04). `source`·`dependency_type`은 닫힌 값이라 CHECK, `wbs_tasks.status`는 공통 코드 TASK_STATUS로 값이 늘 수 있어 CHECK 없음. 업무 상세 컬럼(유형·우선순위·칸반 컬럼 등)은 FR-TSK-01·02에서 추가한다. 되돌릴 때는 네 테이블을 지우는 새 버전을 추가한다.
+- V7(`V7__create_ai_drafts.sql`): `ai_drafts`(ERD 10)만 새로 만든다. `feature`·`status`는 닫힌 값이라 CHECK(AI 기능이 늘면 CHECK도 새 버전으로 수정). `output`은 TEXT(AI 결과 JSON). 보관 기간(1년, NFR-07) 정리는 FR-ADM-04. 되돌릴 때는 테이블을 지우는 새 버전을 추가한다.
 - Migration: `src/main/resources/db/migration/V{n}__설명.sql`, 기동 시 Flyway 자동 적용. 이미 적용된 파일은 수정하지 않고 새 버전을 추가한다(roll-forward).
 - backup·보존: DB 백업은 NFR-13(일 1회) 기준으로 회사 DB 측 운영. `login_history`·`audit_logs` 1년 보관(NFR-07) 정리 작업은 FR-ADM-04에서 구현 예정. `audit_logs`는 추가만 하고 수정·삭제 API가 없다.
 
@@ -269,9 +298,10 @@ org.wonik
 |---|---|---|---|
 | Redis (세션) | connect 2s, command 2s | 없음 (인증 판정을 추측으로 대신하지 않음) | 503 `외부 서비스에 일시적으로 연결할 수 없습니다` |
 | PostgreSQL | HikariCP 기본값 | 없음 | 500 |
+| Redis (AI 초안 토큰) | 세션과 같음 | 없음 | 503 |
 
 - timeout 값 근거: 세션 조회는 모든 요청 경로에 있어 NFR-01(2초 응답)을 넘기지 않도록 2초로 정했다. overall deadline은 아직 따로 두지 않았다(미정).
-- test 대체: `InMemoryAuthSessionStore`(src/test/integration), H2.
+- test 대체: `InMemoryAuthSessionStore`·`InMemoryWbsDraftTokenStore`(src/test/integration), AI 호출은 통합 테스트에서 `WbsDraftAiClient`를 `@MockitoBean`으로 대체, H2. LLM timeout·retry는 aiserver 이식 때 정한다.
 
 ## 9. 오류 처리와 관측성
 
@@ -302,10 +332,12 @@ org.wonik
 - integration(FR-ADM-01): `AuthApiIntegrationTest` (시간 이동 가능한 Clock). 미인증 차단, 로그인 성공·실패 기록, 5회 잠금, 비활성 계정, 30분 무활동 만료·연장, 로그아웃, 비밀번호 변경, 관리자 초기화 흐름, 로컬 로그인 정보가 없는 사용자, 모듈별 보안 체인.
 - integration(FR-ADM-02): `AdminUserApiIntegrationTest`(추가→비밀번호 발급→로그인·초기화 감사 로그, 중복 재전송, 부서 필수·비활성 부서, 비활성화 로그인 차단·세션 종료, 역할 변경·세션 종료, 본인 변경 금지, 마지막 관리자 보호, 생성 권한 API 폐지, 이력, 커서 목록·필터·잘못된 커서), `AdminDepartmentApiIntegrationTest`, `AdminSessionTerminationFailureTest`
 - integration(FR-PRJ-01): `ProjectCreateApiIntegrationTest`(생성자 PM·5단계·승인자·기능·감사 로그, 기간·주관 부서 생략, 복수 주관 부서, 단계 없음 생성, 단계 없음 규칙·Git 비활성, 코드 정규화·중복, 필수 항목, 생성 권한 개방·경영진 403·관리자 404, 비활성 부서, 선택지), `ProjectQueryApiIntegrationTest`(공개 범위, 복수·무 주관 부서 공개 범위, 상세 404, 멤버·단계 API, 필터, 커서 경계)
+- unit(FR-PRJ-07): `AiDraftTest`(DRAFT에서 한 번만 결정, FAILED·결정된 초안은 409), `WbsDraftValidatorTest`(tempId 중복, 참조, 기간·프로젝트 기간 없음·한쪽만 있음, 순환, 담당자), `WbsDraftAiClientTest`(aiserver 계약 변환, 기간 null·기존 작업 단계 null, 없는 단계 502), `NotReadyWbsDraftGeneratorTest`
+- integration(FR-PRJ-07): `WbsAiDraftApiIntegrationTest`(ai_drafts DRAFT·FAILED·ACCEPTED·PARTIALLY_ACCEPTED 기록, 생성·반영·토큰 1회용·만료·다른 프로젝트 토큰, 검증 실패 후 같은 토큰으로 재반영, 멤버 아닌 담당자, 기간 없는 프로젝트, 단계 없음·WBS 기능 꺼짐 404, PM 아님 403, AI 사용 불가 503, 감사 로그)
 - integration(FR-PRJ-04): `ProjectMemberApiIntegrationTest`(초대·역할 변경·제외·이력), `ProjectMultiPmApiIntegrationTest`(PM 추가·동일 권한·해제·최소 1명·PM 제외·추가 규칙·위임 API 폐지·동시 해제 경쟁), `AdminProjectPmApiIntegrationTest`(재지정, 비활성 PM 전원 제외, 활성 PM 있으면 409, 새 PM 규칙, 관리자 전용), `common.web.CoreviaExceptionHandlerTest`(동시 수정 409)
 - 미검증: 같은 사용자 동시 초대·같은 코드 동시 생성의 유니크 제약 경쟁은 DB 제약으로 막지만 자동 테스트는 없다. H2로 검증하므로 PostgreSQL 고유 동작(잠금 대기 시간 등)은 운영 DB에서 확인이 필요하다.
 - 테스트 공통(`src/test/integration`): `support.ApiIntegrationTestSupport`(로그인·요청·오류 검증), `support.DatabaseCleaner`(테스트 클래스 간 공유 H2를 FK 역순으로 비움. 테이블을 추가하면 여기도 추가)
-- 미검증: `RedisAuthSessionStore`는 실제 Redis가 필요해 자동 테스트가 없다(Testcontainers 도입 시 추가).
+- 미검증: `RedisAuthSessionStore`·`RedisWbsDraftTokenStore`는 실제 Redis가 필요해 자동 테스트가 없다(Testcontainers 도입 시 추가). aiserver의 실제 WBS 생성은 FastAPI 이식 후 테스트한다.
 - CI gate: `.github/workflows/DevelopCI.yml`이 PR마다 `./gradlew clean check bootJar`(단위 + 통합 테스트)를 실행한다.
 
 ## 11. Build·배포·운영
@@ -319,7 +351,7 @@ org.wonik
 | Dependency | 목적 |
 |---|---|
 | spring-boot-starter-security | 인증·인가 체인 |
-| spring-boot-starter-data-redis | 세션 저장소 |
+| spring-boot-starter-data-redis | 세션 저장소, AI 초안 토큰 |
 | spring-boot-starter-flyway, flyway-database-postgresql | 스키마 migration |
 | io.jsonwebtoken:jjwt 0.13.0 | JWT 발급·검증 (Apache-2.0) |
 | com.h2database:h2 (test) | 테스트 DB |

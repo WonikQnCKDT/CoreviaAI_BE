@@ -31,6 +31,11 @@ public enum ErrorCode {
 	GATE_APPROVER_NOT_AVAILABLE(400, "단계가 없는 운영 방식에서는 게이트 승인자를 지정할 수 없습니다"),
 	INVALID_PM_TARGET(400, "PM은 활성 멤버만 지정할 수 있습니다"),
 	PM_TARGET_IS_GATE_APPROVER(400, "게이트 승인자는 PM이 될 수 없습니다. 승인자 지정을 먼저 해제해 주세요"),
+	DUPLICATE_WBS_DRAFT_ITEM(400, "AI 초안 항목의 임시 ID가 중복되었습니다"),
+	INVALID_WBS_DRAFT_REFERENCE(400, "AI 초안 항목이 반영하지 않는 작업을 참조합니다"),
+	INVALID_WBS_DRAFT_SCHEDULE(400, "AI 초안 항목의 기간을 확인해 주세요. 시작일은 종료일보다 늦을 수 없고 프로젝트 기간이 있으면 그 안이어야 합니다"),
+	WBS_DEPENDENCY_CYCLE(400, "선후행 관계에 순환이 있습니다"),
+	INVALID_TASK_ASSIGNEE(400, "담당자는 프로젝트 멤버 중에서만 지정할 수 있습니다"),
 
 	EXPIRED_TOKEN(401, "인증 토큰이 만료되었습니다"),
 	INVALID_TOKEN(401, "유효하지 않은 토큰입니다"),
@@ -50,6 +55,8 @@ public enum ErrorCode {
 	PROJECT_NOT_FOUND(404, "프로젝트를 찾을 수 없습니다"),
 	PHASES_NOT_AVAILABLE(404, "이 운영 방식의 프로젝트에는 단계가 없습니다"),
 	PROJECT_MEMBER_NOT_FOUND(404, "프로젝트 멤버를 찾을 수 없습니다"),
+	FEATURE_DISABLED(404, "이 프로젝트에서 사용하지 않는 기능입니다"),
+	AI_DRAFT_EXPIRED(404, "AI 초안이 만료되었습니다. 초안을 다시 생성해 주세요"),
 
 	DUPLICATE_LOGIN_ID(409, "이미 사용 중인 아이디입니다"),
 	DUPLICATE_PROJECT_CODE(409, "이미 사용 중인 프로젝트 코드입니다"),
@@ -61,10 +68,14 @@ public enum ErrorCode {
 	GATE_APPROVER_NOT_REMOVABLE(409, "게이트 승인자는 멤버에서 제외할 수 없습니다. 승인자를 먼저 변경해 주세요"),
 	LAST_PM_REQUIRED(409, "프로젝트에는 PM이 1명 이상 있어야 합니다. 다른 멤버를 PM으로 추가한 뒤 다시 시도해 주세요"),
 	PM_REASSIGN_NOT_ALLOWED(409, "PM을 재지정할 수 없는 프로젝트입니다. 프로젝트 코드와 활성 PM이 남아 있지 않은지 확인해 주세요"),
+	AI_DRAFT_ALREADY_APPLIED(409, "이미 반영한 AI 초안입니다"),
 
 	ACCOUNT_LOCKED(423, "로그인에 5회 연속 실패해 계정이 잠겼습니다. 시스템 관리자에게 비밀번호 초기화를 요청해 주세요"),
 
+	AI_GENERATION_FAILED(502, "AI 초안을 만들지 못했습니다. 잠시 후 다시 시도해 주세요"),
 	EXTERNAL_SERVICE_UNAVAILABLE(503, "외부 서비스에 일시적으로 연결할 수 없습니다"),
+	AI_NOT_READY(503, "AI 기능을 준비 중입니다"),
+	AI_TIMEOUT(504, "AI 응답 시간이 초과되었습니다. 잠시 후 다시 시도해 주세요"),
 
 	JSON_PARSING_FAILURE(500, "JSON 매핑에 실패했습니다"),
 	INTERNAL_SERVER_ERROR(500, "서버에서 오류가 발생했습니다");

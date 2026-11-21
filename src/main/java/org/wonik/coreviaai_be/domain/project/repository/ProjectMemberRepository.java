@@ -24,6 +24,9 @@ public interface ProjectMemberRepository extends JpaRepository<ProjectMember, Lo
 	/** PM 최소 1명 규칙(FR-PRJ-04) 판정용. */
 	long countByProjectIdAndActor(Long projectId, ProjectActor actor);
 
+	/** 프로젝트 전체 멤버(등록순). 멤버 수 상한이 없어 화면 목록은 커서 조회를 쓰고, 이 메서드는 서버 내부 판정·AI 입력에만 쓴다. */
+	List<ProjectMember> findAllByProjectIdOrderById(Long projectId);
+
 	List<ProjectMember> findAllByProjectIdAndActorOrderById(Long projectId, ProjectActor actor);
 
 	/** 목록 화면에서 한 페이지 프로젝트의 PM을 한 번에 읽는다(N+1 방지). */

@@ -23,7 +23,7 @@ import tools.jackson.databind.JsonNode;
  * </pre>
  * 최종안에서 프로젝트 생성 권한 제한이 없어져(3.1) 일반 사용자는 누구나 생성할 수 있다.
  */
-abstract class ProjectApiTestSupport extends ApiIntegrationTestSupport {
+public abstract class ProjectApiTestSupport extends ApiIntegrationTestSupport {
 
 	protected static final String PROJECTS = "/api/projects";
 

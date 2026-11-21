@@ -17,6 +17,13 @@ public class DatabaseCleaner {
 	private final JdbcTemplate jdbcTemplate;
 
 	public void clearAll() {
+		jdbcTemplate.update("DELETE FROM ai_drafts");
+		jdbcTemplate.update("DELETE FROM milestone_tasks");
+		jdbcTemplate.update("DELETE FROM milestones");
+		jdbcTemplate.update("DELETE FROM wbs_dependencies");
+		// 하위작업이 상위 작업을 참조하므로 하위작업을 먼저 지운다.
+		jdbcTemplate.update("DELETE FROM wbs_tasks WHERE parent_task_id IS NOT NULL");
+		jdbcTemplate.update("DELETE FROM wbs_tasks");
 		jdbcTemplate.update("DELETE FROM project_member_histories");
 		jdbcTemplate.update("DELETE FROM project_phases");
 		jdbcTemplate.update("DELETE FROM project_members");
