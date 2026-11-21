@@ -57,6 +57,8 @@ public enum ErrorCode {
 	PROJECT_MEMBER_NOT_FOUND(404, "프로젝트 멤버를 찾을 수 없습니다"),
 	FEATURE_DISABLED(404, "이 프로젝트에서 사용하지 않는 기능입니다"),
 	AI_DRAFT_EXPIRED(404, "AI 초안이 만료되었습니다. 초안을 다시 생성해 주세요"),
+	CODE_GROUP_NOT_FOUND(404, "코드 그룹을 찾을 수 없습니다"),
+	CODE_NOT_FOUND(404, "코드를 찾을 수 없습니다"),
 
 	DUPLICATE_LOGIN_ID(409, "이미 사용 중인 아이디입니다"),
 	DUPLICATE_PROJECT_CODE(409, "이미 사용 중인 프로젝트 코드입니다"),
@@ -69,6 +71,7 @@ public enum ErrorCode {
 	LAST_PM_REQUIRED(409, "프로젝트에는 PM이 1명 이상 있어야 합니다. 다른 멤버를 PM으로 추가한 뒤 다시 시도해 주세요"),
 	PM_REASSIGN_NOT_ALLOWED(409, "PM을 재지정할 수 없는 프로젝트입니다. 프로젝트 코드와 활성 PM이 남아 있지 않은지 확인해 주세요"),
 	AI_DRAFT_ALREADY_APPLIED(409, "이미 반영한 AI 초안입니다"),
+	DUPLICATE_CODE(409, "같은 코드 그룹에 이미 있는 코드 값입니다"),
 
 	ACCOUNT_LOCKED(423, "로그인에 5회 연속 실패해 계정이 잠겼습니다. 시스템 관리자에게 비밀번호 초기화를 요청해 주세요"),
 

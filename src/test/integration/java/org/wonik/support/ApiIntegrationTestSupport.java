@@ -17,6 +17,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
@@ -67,6 +68,8 @@ public abstract class ApiIntegrationTestSupport {
 	protected InMemoryAuthSessionStore sessionStore;
 	@Autowired
 	protected MutableClock clock;
+	@Autowired
+	protected JdbcTemplate jdbcTemplate;
 
 	@BeforeEach
 	void resetData() {
@@ -88,6 +91,20 @@ public abstract class ApiIntegrationTestSupport {
 
 	protected Department saveDepartment(final String name, final Long parentId) {
 		return departmentRepository.save(Department.create(parentId, name));
+	}
+
+	/**
+	 * 테스트 전용 코드 그룹을 만든다. 그룹은 마이그레이션으로만 추가하므로 운영 코드에 생성 기능이 없어 SQL로 넣는다.
+	 * 이름은 TEST_로 시작해야 DatabaseCleaner가 지운다.
+	 */
+	protected void saveTestCodeGroup(final String groupCode) {
+		if (!groupCode.startsWith("TEST_")) {
+			throw new IllegalArgumentException("테스트 코드 그룹은 TEST_로 시작해야 합니다: " + groupCode);
+		}
+		jdbcTemplate.update(
+			"INSERT INTO code_groups (group_code, label_key, created_at, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
+			groupCode, "codeGroup." + groupCode
+		);
 	}
 
 	protected User findUser(final Long userId) {
