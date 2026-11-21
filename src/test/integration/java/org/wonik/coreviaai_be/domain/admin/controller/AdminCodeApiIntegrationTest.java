@@ -17,6 +17,8 @@ import org.wonik.coreviaai_be.domain.code.entity.CommonCode;
 import org.wonik.coreviaai_be.domain.code.repository.CodeGroupRepository;
 import org.wonik.coreviaai_be.domain.code.repository.CommonCodeRepository;
 import org.wonik.coreviaai_be.domain.department.entity.Department;
+import org.wonik.coreviaai_be.domain.i18n.entity.I18nLabel;
+import org.wonik.coreviaai_be.domain.i18n.repository.I18nLabelRepository;
 import org.wonik.global.audit.AuditAction;
 import org.wonik.global.audit.AuditLog;
 import org.wonik.global.audit.AuditTargetType;
@@ -45,6 +47,8 @@ class AdminCodeApiIntegrationTest extends AdminApiTestSupport {
 	private CodeGroupRepository codeGroupRepository;
 	@Autowired
 	private CommonCodeRepository commonCodeRepository;
+	@Autowired
+	private I18nLabelRepository i18nLabelRepository;
 
 	@Test
 	@DisplayName("일반 사용자·경영진이 코드 관리 API를 호출하면 404, 로그인하지 않으면 401")
@@ -200,6 +204,30 @@ class AdminCodeApiIntegrationTest extends AdminApiTestSupport {
 
 		assertThat(findCode("RISK_LEVEL", "NORMAL").getLabelKey()).isEqualTo("code.RISK_LEVEL.NORMAL");
 		assertThat(codeGroupRepository.findByGroupCode("RISK_LEVEL")).isPresent();
+	}
+
+	@Test
+	@DisplayName("코드를 추가하면 라벨이 없을 때 한국어 = 코드 값인 라벨이 함께 생기고(번역은 누락), 이미 있으면 그대로 둔다")
+	void createCodeCreatesMissingLabel() throws Exception {
+		saveTestCodeGroup(TEST_GROUP);
+		i18nLabelRepository.save(I18nLabel.create("code.TEST_GROUP.PRESET", "미리 등록", "Preset", null));
+
+		postJson(codesUrl(), adminCookie, body("code", "ALPHA")).andExpect(status().isOk());
+		postJson(codesUrl(), adminCookie, body("code", "PRESET")).andExpect(status().isOk());
+
+		final I18nLabel created = i18nLabelRepository.findByLabelKey("code.TEST_GROUP.ALPHA").orElseThrow();
+		assertThat(created.getTextKo()).isEqualTo("ALPHA");
+		assertThat(created.getTextEn()).isNull();
+		assertThat(created.getTextZhTw()).isNull();
+		final I18nLabel preset = i18nLabelRepository.findByLabelKey("code.TEST_GROUP.PRESET").orElseThrow();
+		assertThat(preset.getTextKo()).isEqualTo("미리 등록");
+		assertThat(preset.getVersion()).isZero();
+		assertThat(auditLogs(AuditAction.I18N_LABEL_CREATED)).singleElement()
+			.satisfies(log -> assertThat(log.getTargetId()).isEqualTo(created.getId()));
+
+		// 코드 추가가 실패(중복)하면 라벨도 생기지 않는다(같은 트랜잭션)
+		expectError(postJson(codesUrl(), adminCookie, body("code", "ALPHA")), ErrorCode.DUPLICATE_CODE);
+		assertThat(auditLogs(AuditAction.I18N_LABEL_CREATED)).hasSize(1);
 	}
 
 	private String codesUrl() {

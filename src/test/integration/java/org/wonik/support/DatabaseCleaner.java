@@ -41,5 +41,9 @@ public class DatabaseCleaner {
 		// 공통 코드는 V8 시드를 남기고, 테스트가 만든 TEST_ 그룹과 그 코드만 지운다(테스트는 시드 그룹을 바꾸지 않는다).
 		jdbcTemplate.update("DELETE FROM codes WHERE group_id IN (SELECT id FROM code_groups WHERE group_code LIKE 'TEST\\_%')");
 		jdbcTemplate.update("DELETE FROM code_groups WHERE group_code LIKE 'TEST\\_%'");
+		// 다국어 라벨도 V9 시드를 남기고, 테스트가 만든 라벨(test. 키, TEST_ 코드 그룹의 코드 라벨)만 지운다.
+		// 테스트는 시드 라벨의 문구를 바꾸지 않는다(바꾸면 다른 테스트의 기대값이 달라진다).
+		jdbcTemplate.update("DELETE FROM i18n_labels WHERE label_key LIKE 'test.%' OR label_key LIKE 'code.TEST\\_%'"
+			+ " OR label_key LIKE 'codeGroup.TEST\\_%'");
 	}
 }
