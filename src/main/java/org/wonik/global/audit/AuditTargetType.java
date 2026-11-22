@@ -8,5 +8,7 @@ public enum AuditTargetType {
 	DEPARTMENT,
 	PROJECT,
 	/** 공통 코드(codes.id) */
-	CODE
+	CODE,
+	/** 다국어 라벨(i18n_labels.id) */
+	I18N_LABEL
 }
