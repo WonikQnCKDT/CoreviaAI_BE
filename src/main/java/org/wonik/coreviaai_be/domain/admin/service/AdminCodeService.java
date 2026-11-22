@@ -25,8 +25,6 @@ import lombok.RequiredArgsConstructor;
  * 코드 값은 업무 데이터가 참조하는 고정 값이다(인수 기준: 코드 값 수정·삭제 불가). 코드 값의 추가·삭제와 사용 여부(active)
  * 변경은 기능 수정이라 마이그레이션으로만 한다. 관리자는 정렬 순서만 바꾸고, 표시 텍스트는 라벨 키로 다국어 라벨(FR-ADM-06)에서 바꾼다.
  * 변경은 감사 로그와 같은 트랜잭션으로 남겨 이력을 보관한다(인수 기준 "변경 이력 보관").
- * 코드를 추가하면 라벨 키에 해당하는 다국어 라벨이 없을 때 한국어 = 코드 값으로 같은 트랜잭션에서 만든다(FR-ADM-06):
- * 화면이 라벨 묶음에 없는 키를 받지 않게 하고, 영어·번체 중국어는 누락으로 남아 관리 화면의 누락 필터에 나타난다.
  */
 @Service
 @RequiredArgsConstructor
@@ -34,7 +32,6 @@ public class AdminCodeService {
 
 	private final CodeGroupRepository codeGroupRepository;
 	private final CommonCodeRepository commonCodeRepository;
-	private final AdminLabelService adminLabelService;
 	private final AuditLogger auditLogger;
 
 	@Transactional(readOnly = true)

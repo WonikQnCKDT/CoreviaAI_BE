@@ -6,7 +6,6 @@ import java.util.Objects;
 
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.wonik.coreviaai_be.domain.i18n.entity.I18nLabel;
 import org.wonik.coreviaai_be.domain.i18n.entity.type.LabelLanguage;
@@ -71,24 +70,6 @@ public class AdminLabelService {
 		final I18nLabel saved = saveAndFlush(I18nLabel.create(labelKey, textKo, textEn, textZhTw));
 		recordCreated(actor, saved);
 		return saved;
-	}
-
-	/**
-	 * 공통 코드 추가(FR-ADM-07)처럼 라벨 키를 서버가 만드는 기능이 호출한다. 라벨이 없으면 한국어 = 기본 문구로 만들고
-	 * (영어·번체 중국어는 누락 → 누락 필터에 나타남), 이미 있으면(관리자가 미리 등록) 그대로 둔다.
-	 * 호출자 트랜잭션 안에서만 쓴다(코드와 라벨이 함께 생기거나 함께 롤백).
-	 */
-	@Transactional(propagation = Propagation.MANDATORY)
-	public void createIfAbsent(final AuditActor actor, final String labelKey, final String defaultTextKo) {
-		if (i18nLabelRepository.existsByLabelKey(labelKey)) {
-			return;
-		}
-		try {
-			recordCreated(actor, i18nLabelRepository.saveAndFlush(I18nLabel.create(labelKey, defaultTextKo, null, null)));
-		} catch (final DataIntegrityViolationException e) {
-			// 사전 검사 뒤 같은 키가 동시에 등록됐다. 트랜잭션은 이미 롤백 대상이라 재시도를 안내하는 409로 끝낸다.
-			throw new CustomException(ErrorCode.CONCURRENT_MODIFICATION, e);
-		}
 	}
 
 	/**
