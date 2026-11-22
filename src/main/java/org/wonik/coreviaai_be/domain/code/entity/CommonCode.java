@@ -17,7 +17,8 @@ import lombok.NoArgsConstructor;
  * <p>
  * 코드 값(code)과 라벨 키(labelKey)는 업무 데이터·화면이 참조하는 고정 식별자라 수정·삭제하지 않는다:
  * 컬럼을 updatable = false로 두고 바꾸는 메서드도 두지 않는다. 표시 텍스트는 라벨 키로 다국어 라벨(FR-ADM-06)에서 관리한다.
- * 관리자가 바꿀 수 있는 것은 정렬 순서와 사용 여부뿐이다. 그룹은 JPA 연관관계 없이 ID만 가진다.
+ * 코드 추가·삭제와 사용 여부(active) 변경은 마이그레이션으로만 한다. 관리자가 바꿀 수 있는 것은 정렬 순서뿐이다.
+ * 그룹은 JPA 연관관계 없이 ID만 가진다.
  */
 @Getter
 @Entity
@@ -56,19 +57,6 @@ public class CommonCode extends BaseTimeEntity {
 	@Column(name = "active", nullable = false)
 	private boolean active;
 
-	private CommonCode(final CodeGroup group, final String code, final int sortOrder) {
-		this.groupId = group.getId();
-		this.code = code;
-		this.labelKey = codeLabelKey(group.getGroupCode(), code);
-		this.sortOrder = sortOrder;
-		this.active = true;
-	}
-
-	/** 새 코드는 사용 중(active) 상태로 만들고 라벨 키는 규칙대로 서버가 정한다. */
-	public static CommonCode create(final CodeGroup group, final String code, final int sortOrder) {
-		return new CommonCode(group, code, sortOrder);
-	}
-
 	/** 그룹 이름 라벨 키. 다국어 라벨(FR-ADM-06) 시드가 이 규칙으로 키를 만든다. */
 	public static String groupLabelKey(final String groupCode) {
 		return GROUP_LABEL_PREFIX + groupCode;
@@ -81,9 +69,5 @@ public class CommonCode extends BaseTimeEntity {
 
 	public void changeSortOrder(final int sortOrder) {
 		this.sortOrder = sortOrder;
-	}
-
-	public void changeActive(final boolean active) {
-		this.active = active;
 	}
 }

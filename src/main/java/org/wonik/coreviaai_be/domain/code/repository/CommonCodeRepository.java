@@ -4,8 +4,6 @@ import java.util.List;
 import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.Query;
-import org.springframework.data.repository.query.Param;
 import org.wonik.coreviaai_be.domain.code.entity.CommonCode;
 
 /**
@@ -18,9 +16,4 @@ public interface CommonCodeRepository extends JpaRepository<CommonCode, Long> {
 	List<CommonCode> findAllByGroupIdAndActiveTrueOrderBySortOrderAscIdAsc(Long groupId);
 
 	Optional<CommonCode> findByGroupIdAndCode(Long groupId, String code);
-
-	boolean existsByGroupIdAndCode(Long groupId, String code);
-
-	@Query("select max(c.sortOrder) from CommonCode c where c.groupId = :groupId")
-	Optional<Integer> findMaxSortOrder(@Param("groupId") Long groupId);
 }

@@ -5,11 +5,9 @@ import java.util.List;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
-import org.wonik.coreviaai_be.domain.admin.dto.request.CreateCodeRequest;
 import org.wonik.coreviaai_be.domain.admin.dto.request.UpdateCodeRequest;
 import org.wonik.coreviaai_be.domain.admin.dto.response.AdminCodeGroupResponse;
 import org.wonik.coreviaai_be.domain.admin.dto.response.AdminCodeResponse;
@@ -25,7 +23,8 @@ import lombok.RequiredArgsConstructor;
 
 /**
  * 시스템 관리자의 공통 코드 관리 API(FR-ADM-07). 접근 제어(SYSTEM_ADMIN)는 CoreviaSecurityConfig의 /api/admin/** 규칙이 맡는다.
- * 코드 값 수정·삭제 API는 두지 않는다(인수 기준: 코드 값 수정·삭제 불가). 그런 요청은 매핑이 없어 404로 끝난다.
+ * 코드 값은 고정이라(인수 기준: 코드 값 수정·삭제 불가) 코드 추가·수정·삭제와 사용 여부 변경 API는 두지 않는다.
+ * 그런 요청은 매핑이 없어 404로 끝난다. 관리자는 정렬 순서만 바꾼다.
  */
 @RestController
 @RequestMapping("/api/admin/code-groups")
@@ -49,18 +48,6 @@ public class AdminCodeController {
 			.toList());
 	}
 
-	@PostMapping("/{groupCode}/codes")
-	public ApiResponse<AdminCodeResponse> create(
-		final AuditActor actor,
-		@PathVariable @Pattern(regexp = CommonCode.GROUP_CODE_PATTERN) final String groupCode,
-		@Valid @RequestBody final CreateCodeRequest request
-	) {
-		return ApiResponse.success(AdminCodeResponse.from(
-			groupCode,
-			adminCodeService.create(actor, groupCode, request.code(), request.sortOrder())
-		));
-	}
-
 	@PatchMapping("/{groupCode}/codes/{code}")
 	public ApiResponse<AdminCodeResponse> update(
 		final AuditActor actor,
@@ -70,7 +57,7 @@ public class AdminCodeController {
 	) {
 		return ApiResponse.success(AdminCodeResponse.from(
 			groupCode,
-			adminCodeService.update(actor, groupCode, code, request.sortOrder(), request.active())
+			adminCodeService.changeSortOrder(actor, groupCode, code, request.sortOrder())
 		));
 	}
 }

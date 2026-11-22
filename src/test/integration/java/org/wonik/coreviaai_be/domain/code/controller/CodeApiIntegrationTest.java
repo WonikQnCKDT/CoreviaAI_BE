@@ -18,7 +18,7 @@ import jakarta.servlet.http.Cookie;
 
 /**
  * FR-ADM-07 화면용 공통 코드 조회(GET /api/codes/{groupCode})를 HTTP 경계에서 검증한다.
- * 로그인 사용자 누구나, 사용 중 코드만 정렬 순서대로, 관리자 변경이 재배포 없이 바로 반영.
+ * 로그인 사용자 누구나, 사용 중 코드만 정렬 순서대로, 관리자 정렬 변경이 재배포 없이 바로 반영.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -57,16 +57,14 @@ class CodeApiIntegrationTest extends ApiIntegrationTestSupport {
 	}
 
 	@Test
-	@DisplayName("관리자가 정렬·사용 여부를 바꾸면 다음 조회에 바로 반영되고, 사용 안 함 코드는 빠진다")
+	@DisplayName("관리자가 정렬 순서를 바꾸면 다음 조회에 바로 반영되고, 사용 안 함 코드(마이그레이션으로 지정)는 빠진다")
 	void adminChangesAreReflectedImmediately() throws Exception {
 		saveTestCodeGroup("TEST_FLOW");
-		postJson("/api/admin/code-groups/TEST_FLOW/codes", adminCookie, body("code", "A", "sortOrder", 1)).andExpect(status().isOk());
-		postJson("/api/admin/code-groups/TEST_FLOW/codes", adminCookie, body("code", "B", "sortOrder", 2)).andExpect(status().isOk());
-		postJson("/api/admin/code-groups/TEST_FLOW/codes", adminCookie, body("code", "C", "sortOrder", 3)).andExpect(status().isOk());
+		saveTestCode("TEST_FLOW", "A", 1, true);
+		saveTestCode("TEST_FLOW", "B", 2, false);
+		saveTestCode("TEST_FLOW", "C", 3, true);
 
-		patchJson(adminCookie, body("sortOrder", 0, "active", true), ADMIN_CODES + "/{code}", "TEST_FLOW", "C")
-			.andExpect(status().isOk());
-		patchJson(adminCookie, body("sortOrder", 2, "active", false), ADMIN_CODES + "/{code}", "TEST_FLOW", "B")
+		patchJson(adminCookie, body("sortOrder", 0), ADMIN_CODES + "/{code}", "TEST_FLOW", "C")
 			.andExpect(status().isOk());
 
 		getAs(userCookie, CODES, "TEST_FLOW")

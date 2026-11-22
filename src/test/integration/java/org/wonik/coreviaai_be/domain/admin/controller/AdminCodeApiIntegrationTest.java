@@ -28,8 +28,8 @@ import tools.jackson.databind.JsonNode;
 
 /**
  * FR-ADM-07 공통 코드 관리 API를 HTTP 경계에서 검증한다.
- * 시스템 관리자만 호출, 코드 추가·정렬·사용 여부 변경, 코드 값 수정·삭제 불가, 감사 로그(변경 이력).
- * 변경 테스트는 시드 그룹을 건드리지 않도록 TEST_ 그룹을 만들어 쓴다.
+ * 시스템 관리자만 호출, 정렬 순서 변경, 코드 추가·수정·삭제와 사용 여부 변경 불가(코드 값 고정), 감사 로그(변경 이력).
+ * 변경 테스트는 시드 그룹을 건드리지 않도록 TEST_ 그룹과 코드를 SQL로 만들어 쓴다.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -59,13 +59,13 @@ class AdminCodeApiIntegrationTest extends AdminApiTestSupport {
 			expectError(getAs(cookie, CODES, "RISK_LEVEL"), ErrorCode.NOT_FOUND);
 			expectError(postJson(GROUPS + "/" + TEST_GROUP + "/codes", cookie, body("code", "A")), ErrorCode.NOT_FOUND);
 			expectError(
-				patchJson(cookie, body("sortOrder", 1, "active", false), CODE, "RISK_LEVEL", "NORMAL"),
+				patchJson(cookie, body("sortOrder", 9), CODE, "RISK_LEVEL", "NORMAL"),
 				ErrorCode.NOT_FOUND
 			);
 		}
 		expectError(getAs(null, GROUPS), ErrorCode.UNAUTHORIZED);
 		assertThat(commonCodeRepository.findAllByGroupIdOrderBySortOrderAscIdAsc(groupId(TEST_GROUP))).isEmpty();
-		assertThat(findCode("RISK_LEVEL", "NORMAL").isActive()).isTrue();
+		assertThat(findCode("RISK_LEVEL", "NORMAL").getSortOrder()).isEqualTo(1);
 	}
 
 	@Test
@@ -94,68 +94,23 @@ class AdminCodeApiIntegrationTest extends AdminApiTestSupport {
 	}
 
 	@Test
-	@DisplayName("코드를 추가하면 라벨 키는 규칙대로 정해지고, 순서를 주지 않으면 마지막 뒤에 붙으며, 생성 이력이 남는다")
-	void createCode() throws Exception {
+	@DisplayName("코드 추가 API는 없어 404이고 코드도 이력도 생기지 않는다(FR-ADM-07: 코드 값은 고정)")
+	void codeCannotBeAdded() throws Exception {
 		saveTestCodeGroup(TEST_GROUP);
 
-		final JsonNode first = readResponse(postJson(codesUrl(), adminCookie, body("code", "ALPHA", "sortOrder", 5)));
-		assertThat(first.get("code").asString()).isEqualTo("ALPHA");
-		assertThat(first.get("labelKey").asString()).isEqualTo("code.TEST_GROUP.ALPHA");
-		assertThat(first.get("sortOrder").asInt()).isEqualTo(5);
-		assertThat(first.get("active").asBoolean()).isTrue();
+		expectError(postJson(codesUrl(), adminCookie, body("code", "ALPHA", "sortOrder", 1)), ErrorCode.NOT_FOUND);
+		expectError(postJson(GROUPS + "/RISK_LEVEL/codes", adminCookie, body("code", "EXTRA")), ErrorCode.NOT_FOUND);
 
-		final JsonNode second = readResponse(postJson(codesUrl(), adminCookie, body("code", "BETA", "sortOrder", null)));
-		assertThat(second.get("sortOrder").asInt()).isEqualTo(6);
-
-		final List<AuditLog> logs = auditLogs(AuditAction.CODE_CREATED);
-		assertThat(logs).hasSize(2).allSatisfy(log -> {
-			assertThat(log.getTargetType()).isEqualTo(AuditTargetType.CODE);
-			assertThat(log.getActorUserId()).isEqualTo(adminId);
-		});
-		final JsonNode details = jsonMapper.readTree(logs.get(0).getDetails());
-		assertThat(details.get("groupCode").asString()).isEqualTo(TEST_GROUP);
-		assertThat(details.get("code").asString()).isEqualTo("ALPHA");
-		assertThat(details.get("labelKey").asString()).isEqualTo("code.TEST_GROUP.ALPHA");
+		assertThat(commonCodeRepository.findAllByGroupIdOrderBySortOrderAscIdAsc(groupId(TEST_GROUP))).isEmpty();
+		assertThat(commonCodeRepository.findAllByGroupIdOrderBySortOrderAscIdAsc(groupId("RISK_LEVEL"))).hasSize(3);
+		assertThat(auditLogRepository.findAll()).noneMatch(log -> log.getTargetType() == AuditTargetType.CODE);
 	}
 
 	@Test
-	@DisplayName("빈 그룹의 첫 코드는 순서 1이고, 순서 경계값 0·9999는 허용한다")
-	void createCodeSortOrderBoundaries() throws Exception {
+	@DisplayName("정렬 순서를 바꾸면 변경 전·후가 이력에 남고, 본문에 넣은 코드 값·라벨 키·사용 여부는 무시된다")
+	void changeSortOrder() throws Exception {
 		saveTestCodeGroup(TEST_GROUP);
-
-		assertThat(readResponse(postJson(codesUrl(), adminCookie, body("code", "FIRST"))).get("sortOrder").asInt()).isEqualTo(1);
-		assertThat(readResponse(postJson(codesUrl(), adminCookie, body("code", "ZERO", "sortOrder", 0)))
-			.get("sortOrder").asInt()).isZero();
-		assertThat(readResponse(postJson(codesUrl(), adminCookie, body("code", "MAX", "sortOrder", 9999)))
-			.get("sortOrder").asInt()).isEqualTo(9999);
-	}
-
-	@Test
-	@DisplayName("코드 추가 입력 오류: 형식 위반·순서 범위 밖은 400, 없는 그룹은 404, 같은 코드 재등록은 409")
-	void createCodeRejected() throws Exception {
-		saveTestCodeGroup(TEST_GROUP);
-		postJson(codesUrl(), adminCookie, body("code", "ALPHA")).andExpect(status().isOk());
-
-		for (final Object badCode : new Object[] {null, "", "alpha", "1ABC", "A-B", "A".repeat(41)}) {
-			postJson(codesUrl(), adminCookie, body("code", badCode))
-				.andExpect(status().isBadRequest())
-				.andExpect(jsonPath("$.success").value(false));
-		}
-		postJson(codesUrl(), adminCookie, body("code", "A".repeat(40))).andExpect(status().isOk());
-		postJson(codesUrl(), adminCookie, body("code", "NEG", "sortOrder", -1)).andExpect(status().isBadRequest());
-		postJson(codesUrl(), adminCookie, body("code", "BIG", "sortOrder", 10000)).andExpect(status().isBadRequest());
-
-		expectError(postJson(GROUPS + "/TEST_NONE/codes", adminCookie, body("code", "ALPHA")), ErrorCode.CODE_GROUP_NOT_FOUND);
-		expectError(postJson(codesUrl(), adminCookie, body("code", "ALPHA")), ErrorCode.DUPLICATE_CODE);
-		assertThat(commonCodeRepository.findAllByGroupIdOrderBySortOrderAscIdAsc(groupId(TEST_GROUP))).hasSize(2);
-		assertThat(auditLogs(AuditAction.CODE_CREATED)).hasSize(2);
-	}
-
-	@Test
-	@DisplayName("정렬 순서·사용 여부를 바꾸면 변경 전·후가 이력에 남고, 본문에 넣은 코드 값·라벨 키는 바뀌지 않는다")
-	void updateCode() throws Exception {
-		saveTestCodeGroup(TEST_GROUP);
-		postJson(codesUrl(), adminCookie, body("code", "ALPHA", "sortOrder", 1)).andExpect(status().isOk());
+		saveTestCode(TEST_GROUP, "ALPHA", 1, true);
 
 		final JsonNode updated = readResponse(patchJson(
 			adminCookie,
@@ -165,52 +120,71 @@ class AdminCodeApiIntegrationTest extends AdminApiTestSupport {
 		assertThat(updated.get("code").asString()).isEqualTo("ALPHA");
 		assertThat(updated.get("labelKey").asString()).isEqualTo("code.TEST_GROUP.ALPHA");
 		assertThat(updated.get("sortOrder").asInt()).isEqualTo(3);
-		assertThat(updated.get("active").asBoolean()).isFalse();
+		assertThat(updated.get("active").asBoolean()).isTrue();
 
 		final CommonCode stored = findCode(TEST_GROUP, "ALPHA");
+		assertThat(stored.getSortOrder()).isEqualTo(3);
 		assertThat(stored.getLabelKey()).isEqualTo("code.TEST_GROUP.ALPHA");
-		assertThat(stored.isActive()).isFalse();
+		assertThat(stored.isActive()).isTrue();
 
 		final List<AuditLog> logs = auditLogs(AuditAction.CODE_CHANGED);
 		assertThat(logs).hasSize(1);
+		assertThat(logs.get(0).getTargetType()).isEqualTo(AuditTargetType.CODE);
 		assertThat(logs.get(0).getTargetId()).isEqualTo(stored.getId());
+		assertThat(logs.get(0).getActorUserId()).isEqualTo(adminId);
 		final JsonNode details = jsonMapper.readTree(logs.get(0).getDetails());
+		assertThat(details.get("groupCode").asString()).isEqualTo(TEST_GROUP);
 		assertThat(details.get("code").asString()).isEqualTo("ALPHA");
 		assertThat(details.get("sortOrder").get("before").asInt()).isEqualTo(1);
 		assertThat(details.get("sortOrder").get("after").asInt()).isEqualTo(3);
-		assertThat(details.get("active").get("before").asBoolean()).isTrue();
-		assertThat(details.get("active").get("after").asBoolean()).isFalse();
+		assertThat(details.has("active")).isFalse();
 
-		// 같은 값 재전송은 변경·이력 없음
+		// 같은 순서 재전송은 변경·이력 없음(사용 여부만 다르게 보내도 무시되므로 변경 없음)
+		patchJson(adminCookie, body("sortOrder", 3), CODE, TEST_GROUP, "ALPHA").andExpect(status().isOk());
 		patchJson(adminCookie, body("sortOrder", 3, "active", false), CODE, TEST_GROUP, "ALPHA").andExpect(status().isOk());
 		assertThat(auditLogs(AuditAction.CODE_CHANGED)).hasSize(1);
-
-		// 사용 여부만 다시 켜면 바뀐 필드만 기록
-		patchJson(adminCookie, body("sortOrder", 3, "active", true), CODE, TEST_GROUP, "ALPHA").andExpect(status().isOk());
-		final JsonNode second = jsonMapper.readTree(auditLogs(AuditAction.CODE_CHANGED).get(1).getDetails());
-		assertThat(second.has("sortOrder")).isFalse();
-		assertThat(second.get("active").get("after").asBoolean()).isTrue();
+		assertThat(findCode(TEST_GROUP, "ALPHA").isActive()).isTrue();
 	}
 
 	@Test
-	@DisplayName("변경 입력 오류: 필수 누락·순서 범위 밖은 400, 없는 코드·그룹은 404")
-	void updateCodeRejected() throws Exception {
+	@DisplayName("마이그레이션으로 사용 안 함이 된 코드도 정렬 순서는 바꿀 수 있고 사용 여부는 그대로다")
+	void inactiveCodeKeepsInactive() throws Exception {
 		saveTestCodeGroup(TEST_GROUP);
-		postJson(codesUrl(), adminCookie, body("code", "ALPHA")).andExpect(status().isOk());
+		saveTestCode(TEST_GROUP, "OLD", 5, false);
 
-		patchJson(adminCookie, body("sortOrder", null, "active", true), CODE, TEST_GROUP, "ALPHA").andExpect(status().isBadRequest());
-		patchJson(adminCookie, body("sortOrder", 1, "active", null), CODE, TEST_GROUP, "ALPHA").andExpect(status().isBadRequest());
-		patchJson(adminCookie, body("sortOrder", -1, "active", true), CODE, TEST_GROUP, "ALPHA").andExpect(status().isBadRequest());
-		patchJson(adminCookie, body("sortOrder", 10000, "active", true), CODE, TEST_GROUP, "ALPHA").andExpect(status().isBadRequest());
-		expectError(
-			patchJson(adminCookie, body("sortOrder", 1, "active", true), CODE, TEST_GROUP, "NOPE"),
-			ErrorCode.CODE_NOT_FOUND
-		);
-		expectError(
-			patchJson(adminCookie, body("sortOrder", 1, "active", true), CODE, "TEST_NONE", "ALPHA"),
-			ErrorCode.CODE_GROUP_NOT_FOUND
-		);
+		final JsonNode updated = readResponse(patchJson(adminCookie, body("sortOrder", 2, "active", true), CODE, TEST_GROUP, "OLD"));
+		assertThat(updated.get("sortOrder").asInt()).isEqualTo(2);
+		assertThat(updated.get("active").asBoolean()).isFalse();
+		assertThat(findCode(TEST_GROUP, "OLD").isActive()).isFalse();
+	}
+
+	@Test
+	@DisplayName("정렬 순서 경계값 0·9999는 허용한다")
+	void sortOrderBoundaries() throws Exception {
+		saveTestCodeGroup(TEST_GROUP);
+		saveTestCode(TEST_GROUP, "ALPHA", 1, true);
+
+		assertThat(readResponse(patchJson(adminCookie, body("sortOrder", 0), CODE, TEST_GROUP, "ALPHA")).get("sortOrder").asInt())
+			.isZero();
+		assertThat(readResponse(patchJson(adminCookie, body("sortOrder", 9999), CODE, TEST_GROUP, "ALPHA")).get("sortOrder").asInt())
+			.isEqualTo(9999);
+		assertThat(auditLogs(AuditAction.CODE_CHANGED)).hasSize(2);
+	}
+
+	@Test
+	@DisplayName("변경 입력 오류: 순서 누락·범위 밖(-1, 10000)은 400, 없는 코드·그룹은 404")
+	void changeSortOrderRejected() throws Exception {
+		saveTestCodeGroup(TEST_GROUP);
+		saveTestCode(TEST_GROUP, "ALPHA", 1, true);
+
+		patchJson(adminCookie, body("sortOrder", null), CODE, TEST_GROUP, "ALPHA").andExpect(status().isBadRequest());
+		patchJson(adminCookie, body("active", false), CODE, TEST_GROUP, "ALPHA").andExpect(status().isBadRequest());
+		patchJson(adminCookie, body("sortOrder", -1), CODE, TEST_GROUP, "ALPHA").andExpect(status().isBadRequest());
+		patchJson(adminCookie, body("sortOrder", 10000), CODE, TEST_GROUP, "ALPHA").andExpect(status().isBadRequest());
+		expectError(patchJson(adminCookie, body("sortOrder", 1), CODE, TEST_GROUP, "NOPE"), ErrorCode.CODE_NOT_FOUND);
+		expectError(patchJson(adminCookie, body("sortOrder", 1), CODE, "TEST_NONE", "ALPHA"), ErrorCode.CODE_GROUP_NOT_FOUND);
 		assertThat(auditLogs(AuditAction.CODE_CHANGED)).isEmpty();
+		assertThat(findCode(TEST_GROUP, "ALPHA").isActive()).isTrue();
 	}
 
 	@Test

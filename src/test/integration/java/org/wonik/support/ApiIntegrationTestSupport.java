@@ -107,6 +107,20 @@ public abstract class ApiIntegrationTestSupport {
 		);
 	}
 
+	/**
+	 * 테스트 전용 코드 그룹에 코드를 넣는다. 코드 추가·사용 여부 변경은 마이그레이션으로만 하므로(FR-ADM-07) 운영 코드에 기능이 없어 SQL로 넣는다.
+	 */
+	protected void saveTestCode(final String groupCode, final String code, final int sortOrder, final boolean active) {
+		if (!groupCode.startsWith("TEST_")) {
+			throw new IllegalArgumentException("테스트 코드 그룹은 TEST_로 시작해야 합니다: " + groupCode);
+		}
+		jdbcTemplate.update(
+			"INSERT INTO codes (group_id, code, label_key, sort_order, active, created_at, updated_at) "
+				+ "SELECT id, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP FROM code_groups WHERE group_code = ?",
+			code, "code." + groupCode + "." + code, sortOrder, active, groupCode
+		);
+	}
+
 	protected User findUser(final Long userId) {
 		return userRepository.findById(userId).orElseThrow();
 	}
