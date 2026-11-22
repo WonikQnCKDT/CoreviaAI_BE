@@ -38,5 +38,8 @@ public class DatabaseCleaner {
 		// 부서는 상위 참조를 먼저 끊고 지운다.
 		jdbcTemplate.update("UPDATE departments SET parent_id = NULL");
 		jdbcTemplate.update("DELETE FROM departments");
+		// 공통 코드는 V8 시드를 남기고, 테스트가 만든 TEST_ 그룹과 그 코드만 지운다(테스트는 시드 그룹을 바꾸지 않는다).
+		jdbcTemplate.update("DELETE FROM codes WHERE group_id IN (SELECT id FROM code_groups WHERE group_code LIKE 'TEST\\_%')");
+		jdbcTemplate.update("DELETE FROM code_groups WHERE group_code LIKE 'TEST\\_%'");
 	}
 }

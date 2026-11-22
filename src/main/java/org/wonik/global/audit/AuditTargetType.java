@@ -6,5 +6,7 @@ package org.wonik.global.audit;
 public enum AuditTargetType {
 	USER,
 	DEPARTMENT,
-	PROJECT
+	PROJECT,
+	/** 공통 코드(codes.id) */
+	CODE
 }

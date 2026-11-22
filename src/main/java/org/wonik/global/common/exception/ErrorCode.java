@@ -57,6 +57,8 @@ public enum ErrorCode {
 	PROJECT_MEMBER_NOT_FOUND(404, "프로젝트 멤버를 찾을 수 없습니다"),
 	FEATURE_DISABLED(404, "이 프로젝트에서 사용하지 않는 기능입니다"),
 	AI_DRAFT_EXPIRED(404, "AI 초안이 만료되었습니다. 초안을 다시 생성해 주세요"),
+	CODE_GROUP_NOT_FOUND(404, "코드 그룹을 찾을 수 없습니다"),
+	CODE_NOT_FOUND(404, "코드를 찾을 수 없습니다"),
 
 	DUPLICATE_LOGIN_ID(409, "이미 사용 중인 아이디입니다"),
 	DUPLICATE_PROJECT_CODE(409, "이미 사용 중인 프로젝트 코드입니다"),
