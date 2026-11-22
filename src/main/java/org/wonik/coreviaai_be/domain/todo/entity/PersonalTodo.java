@@ -36,6 +36,8 @@ public class PersonalTodo extends BaseTimeEntity {
 	private boolean done;
 	@Column(name = "done_at")
 	private Instant doneAt;
+	@Column(name = "deleted_at")
+	private Instant deletedAt;
 	@Column(name = "request_id", nullable = false, updatable = false, length = 36)
 	private String requestId;
 	@Column(name = "request_hash", nullable = false, updatable = false, length = 64)
@@ -60,6 +62,13 @@ public class PersonalTodo extends BaseTimeEntity {
 			this.doneAt = done ? now : null;
 			this.done = done;
 		}
+	}
+
+	/** Tombstones retain creation keys; retries must never resurrect or duplicate a deleted item. */
+	public boolean softDelete(final Instant now) {
+		if (deletedAt != null) { return false; }
+		deletedAt = now;
+		return true;
 	}
 
 	public boolean matches(final String title, final LocalDate dueDate, final boolean done) {

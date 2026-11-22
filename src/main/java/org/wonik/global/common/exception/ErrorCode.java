@@ -11,6 +11,7 @@ public enum ErrorCode {
 	INVALID_TODO_DATE(400, "할 일 마감일은 0001-01-01부터 9999-12-31까지 입력해 주세요"),
 	TODO_NOT_FOUND(404, "할 일을 찾을 수 없습니다"),
 	TODO_REQUEST_CONFLICT(409, "같은 요청 ID로 다른 할 일을 등록할 수 없습니다"),
+	TODO_DELETED(409, "삭제한 할 일의 등록 요청입니다. 새 할 일은 새 요청 ID로 등록해 주세요"),
 	INVALID_CURSOR(400, "목록 조회 위치(cursor)가 올바르지 않습니다"),
 	DEPARTMENT_REQUIRED(400, "시스템 관리자가 아닌 사용자는 소속 부서를 지정해야 합니다"),
 	DEPARTMENT_INACTIVE(400, "비활성 부서에는 사용자를 배치할 수 없습니다"),

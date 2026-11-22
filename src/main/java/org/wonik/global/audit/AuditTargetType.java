@@ -6,5 +6,6 @@ package org.wonik.global.audit;
 public enum AuditTargetType {
 	USER,
 	DEPARTMENT,
-	PROJECT
+	PROJECT,
+	PERSONAL_TODO
 }

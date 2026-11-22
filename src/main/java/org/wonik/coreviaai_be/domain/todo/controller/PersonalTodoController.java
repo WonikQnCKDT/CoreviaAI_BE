@@ -3,6 +3,7 @@ package org.wonik.coreviaai_be.domain.todo.controller;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -21,6 +22,7 @@ import org.wonik.global.common.pagination.CursorPage;
 import org.wonik.global.common.pagination.CursorPageRequest;
 import org.wonik.global.common.response.ApiResponse;
 import org.wonik.global.jwt.LoginUser;
+import org.wonik.global.audit.AuditActor;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -39,7 +41,7 @@ public class PersonalTodoController {
 		@RequestParam(required = false) final String cursor,
 		@RequestParam(defaultValue = "20") @Min(1) @Max(CursorPageRequest.MAX_SIZE) final int size,
 		@RequestParam(defaultValue = "false") final boolean done,
-		@RequestParam @Min(1) @Max(365) final int dueSoonDays) {
+		@RequestParam(defaultValue = "3") @Min(1) @Max(365) final int dueSoonDays) {
 		return ApiResponse.success(feedService.findPage(viewer.userId(),done,size,dueSoonDays,cursor).map(TodoItemResponse::from));
 	}
 
@@ -60,5 +62,11 @@ public class PersonalTodoController {
 	public ApiResponse<PersonalTodoResponse> update(@AuthenticationPrincipal final LoginUser viewer,
 		@PathVariable @Positive final Long todoId, @Valid @RequestBody final UpdateTodoRequest request) {
 		return ApiResponse.success(PersonalTodoResponse.from(personalService.update(viewer.userId(),todoId,request.toCommand())));
+	}
+
+	@DeleteMapping("/{todoId}")
+	@ResponseStatus(HttpStatus.NO_CONTENT)
+	public void delete(final AuditActor actor, @PathVariable @Positive final Long todoId) {
+		personalService.delete(actor, todoId);
 	}
 }

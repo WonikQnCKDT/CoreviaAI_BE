@@ -10,7 +10,7 @@ import jakarta.persistence.LockModeType;
 
 public interface PersonalTodoRepository extends JpaRepository<PersonalTodo, Long> {
 	Optional<PersonalTodo> findByUserIdAndRequestId(Long userId, String requestId);
-	Optional<PersonalTodo> findByIdAndUserId(Long id, Long userId);
+	Optional<PersonalTodo> findByIdAndUserIdAndDeletedAtIsNull(Long id, Long userId);
 
 	@Lock(LockModeType.PESSIMISTIC_WRITE)
 	@Query("select t from PersonalTodo t where t.id = :id and t.userId = :userId")

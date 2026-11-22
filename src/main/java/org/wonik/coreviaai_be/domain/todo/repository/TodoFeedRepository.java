@@ -29,7 +29,7 @@ public class TodoFeedRepository {
 		 from (
 		 select t.id, 'PERSONAL' as source, 0 as source_order, t.title, t.due_date, t.done, t.done_at,
 		        cast(null as bigint) as project_id, cast(null as varchar(20)) as task_status
-		 from personal_todos t where t.user_id = :userId and t.done = :done
+		 from personal_todos t where t.user_id = :userId and t.done = :done and t.deleted_at is null
 		 union all
 		 select w.id, 'TASK' as source, 1 as source_order, w.name as title, w.end_date as due_date,
 		        false as done, cast(null as timestamp with time zone) as done_at, w.project_id, w.status as task_status

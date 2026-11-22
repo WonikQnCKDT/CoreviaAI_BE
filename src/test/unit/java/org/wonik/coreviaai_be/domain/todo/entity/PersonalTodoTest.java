@@ -27,4 +27,13 @@ class PersonalTodoTest {
 		assertThat(todo.matches("Changed", LocalDate.of(2027,1,1), true)).isTrue();
 		assertThat(todo.matches("Plan", null, false)).isFalse();
 	}
+	@Test void softDeleteKeepsOriginalInstantAndCreationIdentity() {
+		final UUID key=UUID.randomUUID();
+		final PersonalTodo todo=PersonalTodo.create(1L,key,"hash","Plan",null);
+		assertThat(todo.softDelete(NOW)).isTrue();
+		assertThat(todo.softDelete(NOW.plusSeconds(1))).isFalse();
+		assertThat(todo.getDeletedAt()).isEqualTo(NOW);
+		assertThat(todo.getRequestId()).isEqualTo(key.toString());
+		assertThat(todo.getRequestHash()).isEqualTo("hash");
+	}
 }
