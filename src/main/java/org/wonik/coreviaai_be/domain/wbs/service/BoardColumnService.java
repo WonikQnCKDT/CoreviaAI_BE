@@ -127,7 +127,7 @@ public class BoardColumnService {
 		if (columnRepository.countByProjectIdAndStatusCategory(projectId, column.getStatusCategory()) <= 1) {
 			throw new CustomException(ErrorCode.BOARD_COLUMN_LAST_OF_STATUS);
 		}
-		if (boardReader.read(projectId).cardCount(columnId) > 0) {
+		if (boardReader.cardCount(column) > 0) {
 			throw new CustomException(ErrorCode.BOARD_COLUMN_NOT_EMPTY);
 		}
 		columnRepository.delete(column);

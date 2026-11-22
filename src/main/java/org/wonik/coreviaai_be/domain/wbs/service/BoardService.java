@@ -35,7 +35,7 @@ import lombok.RequiredArgsConstructor;
  * <p>
  * 카드 이동 판정 순서: 프로젝트 404 → 기능 404 → 업무 404 → 담당 403 → 컬럼 404 → 같은 컬럼이면 그대로 성공(멱등)
  * → version 409 → 반영. 반영은 프로젝트 행 잠금(WBS 변경·컬럼 관리와 직렬화) 안에서 상태·상태 변경 시각·완료 처리를 바꾸고
- * 같은 트랜잭션에서 이력(STATUS_CHANGED 등)을 남긴 뒤, 옮긴 컬럼의 카드 수로 WIP 초과 여부를 돌려준다(경고만, 차단 안 함).
+ * 같은 트랜잭션에서 이력(STATUS_CHANGED 등)을 남긴 뒤, 옮긴 컬럼의 카드 수(COUNT 쿼리)로 WIP 초과 여부를 돌려준다(경고만, 차단 안 함).
  */
 @Service
 @RequiredArgsConstructor
@@ -99,9 +99,11 @@ public class BoardService {
 			historyRecorder.changed(actor.userId(), before, TaskSnapshot.of(task));
 		}
 
-		final BoardLayout layout = boardReader.read(projectId);
-		final BoardCard card = cardOf(layout, task, userNameReader.namesOf(Collections.singletonList(task.getAssigneeUserId())));
-		return new BoardCardMove(card, new BoardColumnView(target, layout.cardCount(target.getId()), List.of()));
+		final String parentTaskName = task.getParentTaskId() == null ? null
+			: taskRepository.findByIdAndProjectId(task.getParentTaskId(), projectId).map(WbsTask::getName).orElse(null);
+		final Map<Long, String> names = userNameReader.namesOf(Collections.singletonList(task.getAssigneeUserId()));
+		final BoardCard card = new BoardCard(task, parentTaskName, names.get(task.getAssigneeUserId()));
+		return new BoardCardMove(card, new BoardColumnView(target, boardReader.cardCount(target), List.of()));
 	}
 
 	private static BoardCard cardOf(final BoardLayout layout, final WbsTask task, final Map<Long, String> names) {

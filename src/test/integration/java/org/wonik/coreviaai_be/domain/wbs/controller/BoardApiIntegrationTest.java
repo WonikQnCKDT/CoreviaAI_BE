@@ -376,6 +376,31 @@ class BoardApiIntegrationTest extends ProjectApiTestSupport {
 		assertThat(removed.get(1).get("wipLimit").isNull()).isTrue();
 	}
 
+	@Test
+	@DisplayName("카드 수(COUNT): 컬럼이 비어 있는 카드는 같은 상태 첫 컬럼의 카드 수에만 들어가 WIP 경고·삭제 판정에 반영된다")
+	void cardCountIncludesUnplacedCardsOnlyInFirstColumn() throws Exception {
+		final long placed = createTask("A", null, null, "2026-12-10");
+		final long unplaced = createTask("B", null, null, "2026-12-11");
+		jdbcTemplate.update("UPDATE wbs_tasks SET board_column_id = NULL WHERE id = ?", unplaced);
+		final long backlog = lastColumnId(readResponse(postJson(url(COLUMNS), pm, columnBody("백로그", "TODO", 1))));
+		patchJson(pm, body("name", null, "wipLimit", 1), COLUMN, projectId, todo).andExpect(status().isOk());
+
+		// 첫 대기 컬럼이 아닌 백로그에는 컬럼이 비어 있는 카드가 들어가지 않는다(한도와 같음 → 경고 없음)
+		final JsonNode toBacklog = readResponse(move(pm, placed, backlog));
+		assertThat(toBacklog.get("column").get("cardCount").asInt()).isEqualTo(1);
+		assertThat(toBacklog.get("wipWarning").asBoolean()).isFalse();
+
+		// 첫 대기 컬럼 = 놓인 카드 + 컬럼이 비어 있는 대기 카드(보드 조회와 같은 수)
+		final JsonNode toTodo = readResponse(move(pm, placed, todo));
+		assertThat(toTodo.get("column").get("cardCount").asInt()).isEqualTo(2);
+		assertThat(toTodo.get("wipWarning").asBoolean()).isTrue();
+		assertThat(columns(pm).get(0).get("cardCount").asInt()).isEqualTo(2);
+
+		// 컬럼이 비어 있는 카드만 남아도 첫 대기 컬럼은 비지 않은 것이라 삭제 409
+		move(pm, placed, backlog);
+		expectError(deleteAs(pm, COLUMN, projectId, todo), ErrorCode.BOARD_COLUMN_NOT_EMPTY);
+	}
+
 	// ---- 컬럼 관리 ----
 
 	@Test
@@ -424,6 +449,10 @@ class BoardApiIntegrationTest extends ProjectApiTestSupport {
 		patchJson(pm, body("name", fiftyOne, "wipLimit", null), COLUMN, projectId, todo)
 			.andExpect(status().isBadRequest());
 		patchJson(pm, body("name", null, "wipLimit", -1), COLUMN, projectId, todo).andExpect(status().isBadRequest());
+		// 컬럼 이름은 한 줄 문구: 줄바꿈·탭 등 제어 문자는 400
+		postJson(url(COLUMNS), pm, columnBody("코드\n리뷰", "TODO", null)).andExpect(status().isBadRequest());
+		patchJson(pm, body("name", "탭\t이름", "wipLimit", null), COLUMN, projectId, todo)
+			.andExpect(status().isBadRequest());
 	}
 
 	@Test

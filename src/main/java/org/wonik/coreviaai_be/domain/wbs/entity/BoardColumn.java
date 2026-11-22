@@ -38,6 +38,8 @@ public class BoardColumn extends BaseTimeEntity {
 
 	public static final int NAME_MAX_LENGTH = 50;
 	public static final int MAX_WIP_LIMIT = 999;
+	/** 컬럼 이름은 한 줄 문구라 줄바꿈·탭 등 제어 문자를 받지 않는다(다국어 라벨 문구와 같은 규칙). */
+	public static final String NAME_PATTERN = "^[^\\p{Cntrl}]*$";
 	/** 기본 컬럼 이름 라벨의 공통 코드 그룹(V8 시드). */
 	public static final String STATUS_CODE_GROUP = "TASK_STATUS";
 
