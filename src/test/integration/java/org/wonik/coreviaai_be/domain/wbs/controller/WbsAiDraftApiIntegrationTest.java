@@ -11,6 +11,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -31,8 +32,10 @@ import org.wonik.coreviaai_be.domain.project.entity.type.WaterfallPhaseType;
 import org.wonik.coreviaai_be.domain.wbs.client.WbsDraftAiClient;
 import org.wonik.coreviaai_be.domain.wbs.entity.Milestone;
 import org.wonik.coreviaai_be.domain.wbs.entity.MilestoneTask;
+import org.wonik.coreviaai_be.domain.wbs.entity.TaskHistory;
 import org.wonik.coreviaai_be.domain.wbs.entity.WbsDependency;
 import org.wonik.coreviaai_be.domain.wbs.entity.WbsTask;
+import org.wonik.coreviaai_be.domain.wbs.entity.type.TaskActivityType;
 import org.wonik.coreviaai_be.domain.wbs.entity.type.WbsItemSource;
 import org.wonik.coreviaai_be.domain.wbs.entity.type.WbsTaskStatus;
 import org.wonik.coreviaai_be.domain.aidraft.entity.AiDraft;
@@ -41,8 +44,11 @@ import org.wonik.coreviaai_be.domain.aidraft.entity.type.AiDraftStatus;
 import org.wonik.coreviaai_be.domain.aidraft.repository.AiDraftRepository;
 import org.wonik.coreviaai_be.domain.wbs.repository.MilestoneRepository;
 import org.wonik.coreviaai_be.domain.wbs.repository.MilestoneTaskRepository;
+import org.wonik.coreviaai_be.domain.wbs.repository.TaskHistoryRepository;
 import org.wonik.coreviaai_be.domain.wbs.repository.WbsDependencyRepository;
 import org.wonik.coreviaai_be.domain.wbs.repository.WbsTaskRepository;
+import org.wonik.coreviaai_be.domain.wbs.service.MilestoneService;
+import org.wonik.coreviaai_be.domain.wbs.service.WbsTaskService;
 import org.wonik.coreviaai_be.domain.wbs.service.command.DraftTeamMember;
 import org.wonik.coreviaai_be.domain.wbs.service.command.WbsDraftContext;
 import org.wonik.coreviaai_be.domain.wbs.service.result.DraftFeasibility;
@@ -85,6 +91,8 @@ class WbsAiDraftApiIntegrationTest extends ProjectApiTestSupport {
 	private MilestoneTaskRepository milestoneTaskRepository;
 	@Autowired
 	private AiDraftRepository aiDraftRepository;
+	@Autowired
+	private TaskHistoryRepository historyRepository;
 
 	private long projectId;
 	private Cookie pm;
@@ -191,6 +199,11 @@ class WbsAiDraftApiIntegrationTest extends ProjectApiTestSupport {
 		assertThat(analysis.getStatus()).isEqualTo(WbsTaskStatus.TODO);
 		assertThat(analysis.getSortOrder()).isEqualTo(1);
 		assertThat(taskRepository.findById(designTaskId).orElseThrow().getSortOrder()).isEqualTo(2);
+		// 칸반(FR-TSK-02): 반영한 작업·하위작업은 모두 대기(TODO) 첫 컬럼에 놓인다
+		final Long todoColumnId = jdbcTemplate.queryForObject("SELECT id FROM board_columns WHERE project_id = ?"
+			+ " AND status_category = 'TODO' ORDER BY sort_order, id LIMIT 1", Long.class, projectId);
+		assertThat(analysis.getBoardColumnId()).isEqualTo(todoColumnId);
+		assertThat(taskRepository.findById(subtaskId).orElseThrow().getBoardColumnId()).isEqualTo(todoColumnId);
 
 		final WbsTask subtask = taskRepository.findById(subtaskId).orElseThrow();
 		assertThat(subtask.getParentTaskId()).isEqualTo(analysisTaskId);
@@ -215,6 +228,75 @@ class WbsAiDraftApiIntegrationTest extends ProjectApiTestSupport {
 		assertThat(aiDraft.getStatus()).isEqualTo(AiDraftStatus.PARTIALLY_ACCEPTED);
 		assertThat(aiDraft.getDecidedBy()).isEqualTo(creator.getId());
 		assertThat(aiDraft.getDecidedAt()).isNotNull();
+	}
+
+	@Test
+	@DisplayName("반영: 하위작업 기간이 있으면 상위 작업 기간을 하위작업 기간으로 맞추고, 작업·하위작업마다 산출된 값으로 CREATED 이력을 남긴다(FR-TSK-01)")
+	void applyDerivesParentSchedule() throws Exception {
+		final Map<String, Object> body = body(
+			"draftToken", generateToken(),
+			"tasks", List.of(applyTask("T-001", "2026-12-01", "2026-12-20", null, List.of(), List.of(
+				body("tempId", "ST-001", "name", "앞", "startDate", "2026-12-03", "endDate", "2026-12-05"),
+				body("tempId", "ST-002", "name", "뒤", "startDate", "2026-12-04", "endDate", "2026-12-12")))),
+			"milestones", List.of(),
+			"rejectedCount", 0
+		);
+
+		final JsonNode taskIds = readResponse(apply(pm, body)).get("taskIds");
+		final long taskId = taskIds.get("T-001").asLong();
+
+		final WbsTask task = taskRepository.findById(taskId).orElseThrow();
+		assertThat(task.getStartDate()).isEqualTo(LocalDate.parse("2026-12-03"));
+		assertThat(task.getEndDate()).isEqualTo(LocalDate.parse("2026-12-12"));
+
+		// 변경 이력: 반영한 3건 모두 CREATED 1건씩, 상위 작업은 산출된 기간으로
+		assertThat(historyRepository.findAllByTaskIdOrderByIdAsc(taskId)).singleElement().satisfies(history -> {
+			assertThat(history.getActivityType()).isEqualTo(TaskActivityType.CREATED);
+			assertThat(history.getActorUserId()).isEqualTo(creator.getId());
+			assertThat(history.getBeforeValue()).isNull();
+			assertThat(history.getAfterValue()).contains("\"startDate\":\"2026-12-03\"", "\"endDate\":\"2026-12-12\"",
+				"\"source\":\"AI_DRAFT\"", "\"taskType\":\"TASK\"", "\"priority\":\"MEDIUM\"");
+		});
+		for (final String tempId : List.of("ST-001", "ST-002")) {
+			assertThat(historyRepository.findAllByTaskIdOrderByIdAsc(taskIds.get(tempId).asLong()))
+				.extracting(TaskHistory::getActivityType).containsExactly(TaskActivityType.CREATED);
+		}
+	}
+
+	@Test
+	@DisplayName("반영: 반영 후 프로젝트 WBS 항목이 2,000개를 넘으면 409 WBS_TASK_LIMIT_EXCEEDED이고 아무것도 저장하지 않는다")
+	void applyOverItemLimit() throws Exception {
+		final List<Object[]> rows = new ArrayList<>();
+		for (int i = 1; i <= WbsTaskService.MAX_ITEMS_PER_PROJECT - 2; i++) {
+			rows.add(new Object[] {projectId, i, creator.getId()});
+		}
+		jdbcTemplate.batchUpdate("""
+			INSERT INTO wbs_tasks (project_id, sort_order, name, start_date, end_date, status, source, created_by,
+			                       created_at, updated_at)
+			VALUES (?, ?, '작업', DATE '2026-12-01', DATE '2026-12-02', 'TODO', 'MANUAL', ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+			""", rows);
+
+		// 작업 2 + 하위작업 1 = 3개 추가 → 2,001개
+		expectError(apply(pm, validApplyBody(generateToken())), ErrorCode.WBS_TASK_LIMIT_EXCEEDED);
+		assertThat(taskRepository.count()).isEqualTo(WbsTaskService.MAX_ITEMS_PER_PROJECT - 2);
+	}
+
+	@Test
+	@DisplayName("반영: 반영 후 프로젝트 마일스톤이 200개를 넘으면 409 MILESTONE_LIMIT_EXCEEDED이고 아무것도 저장하지 않는다(SCRUM-108)")
+	void applyOverMilestoneLimit() throws Exception {
+		final List<Object[]> rows = new ArrayList<>();
+		for (int i = 1; i <= MilestoneService.MAX_MILESTONES_PER_PROJECT; i++) {
+			rows.add(new Object[] {projectId, creator.getId()});
+		}
+		jdbcTemplate.batchUpdate("""
+			INSERT INTO milestones (project_id, name, target_date, source, created_by, created_at, updated_at)
+			VALUES (?, '마일스톤', DATE '2026-12-20', 'MANUAL', ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+			""", rows);
+
+		// 마일스톤 1개 추가 → 201개
+		expectError(apply(pm, validApplyBody(generateToken())), ErrorCode.MILESTONE_LIMIT_EXCEEDED);
+		assertThat(milestoneRepository.count()).isEqualTo(MilestoneService.MAX_MILESTONES_PER_PROJECT);
+		assertThat(taskRepository.count()).isZero();
 	}
 
 	@Test

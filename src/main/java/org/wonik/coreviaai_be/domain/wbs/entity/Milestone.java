@@ -1,6 +1,7 @@
 package org.wonik.coreviaai_be.domain.wbs.entity;
 
 import java.time.LocalDate;
+import java.util.Objects;
 
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
@@ -79,5 +80,14 @@ public class Milestone extends BaseTimeEntity {
 		final Long createdBy
 	) {
 		return new Milestone(projectId, name, targetDate, source, createdBy);
+	}
+
+	public boolean hasSameDetails(final String name, final LocalDate targetDate) {
+		return Objects.equals(this.name, name) && Objects.equals(this.targetDate, targetDate);
+	}
+
+	public void changeDetails(final String name, final LocalDate targetDate) {
+		this.name = name;
+		this.targetDate = targetDate;
 	}
 }
