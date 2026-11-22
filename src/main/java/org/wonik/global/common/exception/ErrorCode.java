@@ -37,6 +37,7 @@ public enum ErrorCode {
 	WBS_DEPENDENCY_CYCLE(400, "선후행 관계에 순환이 있습니다"),
 	INVALID_TASK_ASSIGNEE(400, "담당자는 프로젝트 멤버 중에서만 지정할 수 있습니다"),
 	INVALID_MISSING_LANGUAGE(400, "번역 누락 필터는 en 또는 zh-TW만 지정할 수 있습니다"),
+	INVALID_PERIOD(400, "조회 시작 시각은 종료 시각보다 앞서야 합니다"),
 
 	EXPIRED_TOKEN(401, "인증 토큰이 만료되었습니다"),
 	INVALID_TOKEN(401, "유효하지 않은 토큰입니다"),
@@ -61,6 +62,7 @@ public enum ErrorCode {
 	CODE_GROUP_NOT_FOUND(404, "코드 그룹을 찾을 수 없습니다"),
 	CODE_NOT_FOUND(404, "코드를 찾을 수 없습니다"),
 	LABEL_NOT_FOUND(404, "다국어 라벨을 찾을 수 없습니다"),
+	ERROR_LOG_NOT_FOUND(404, "에러 로그를 찾을 수 없습니다"),
 
 	DUPLICATE_LOGIN_ID(409, "이미 사용 중인 아이디입니다"),
 	DUPLICATE_PROJECT_CODE(409, "이미 사용 중인 프로젝트 코드입니다"),
