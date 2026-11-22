@@ -10,6 +10,8 @@ import org.springframework.stereotype.Repository;
 import org.wonik.coreviaai_be.domain.todo.pagination.TodoCursor;
 import org.wonik.coreviaai_be.domain.todo.service.result.TodoItem;
 import lombok.RequiredArgsConstructor;
+import org.wonik.coreviaai_be.domain.project.entity.type.ProjectFeature;
+import org.wonik.coreviaai_be.domain.project.entity.type.ProjectStatus;
 import org.wonik.coreviaai_be.domain.wbs.entity.type.WbsTaskStatus;
 import org.wonik.coreviaai_be.domain.project.entity.type.ProjectVisibility;
 
@@ -36,6 +38,9 @@ public class TodoFeedRepository {
 		 from wbs_tasks w join projects p on p.id = w.project_id
 		 where w.assignee_user_id = :userId and w.status <> :completed and :done = false
 		   and :allowTasks = true
+		   and p.status <> :cancelled
+		   and exists (select 1 from project_features pf
+		       where pf.project_id = p.id and pf.feature in (:taskFeatures))
 		   and exists (select 1 from project_members m where m.project_id = w.project_id and m.user_id = :userId)
 		   and (:ordinary = true or p.visibility = :company or exists
 		       (select 1 from project_departments pd where pd.project_id = p.id and pd.department_id in (:scope)))
@@ -50,6 +55,8 @@ public class TodoFeedRepository {
 		final Set<Long> executiveScope) {
 		final MapSqlParameterSource params = new MapSqlParameterSource()
 			.addValue("userId", userId).addValue("done", done).addValue("completed", WbsTaskStatus.DONE.name())
+			.addValue("cancelled", ProjectStatus.CANCELLED.name())
+			.addValue("taskFeatures", Set.of(ProjectFeature.WBS.name(), ProjectFeature.KANBAN.name()))
 			.addValue("allowTasks", allowTasks).addValue("ordinary", ordinary).addValue("company", ProjectVisibility.COMPANY.name())
 			.addValue("scope", executiveScope.isEmpty() ? Set.of(-1L) : executiveScope)
 			.addValue("today", today).addValue("soon", today.plusDays(dueSoonDays))

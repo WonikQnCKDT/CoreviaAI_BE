@@ -176,6 +176,33 @@ class PersonalTodoApiIntegrationTest extends ProjectApiTestSupport {
 		assertThat(items(cookie,false)).isEmpty();
 	}
 
+	@Test void taskFeedExcludesCancelledOrFullyDisabledProjectsAndAllowsEitherTaskFeature() throws Exception {
+		final long projectId=createProject(validCreateBody("TODOFILTER"));
+		final Cookie cookie=loginAs(developer);
+		saveTask(projectId,developer.getId(),"Assigned",TODAY);
+		createTodo(cookie,"Personal",null,UUID.randomUUID());
+		assertThat(items(cookie,false)).extracting(item -> item.get("source").asString())
+			.containsExactly("TASK","PERSONAL");
+
+		jdbc.update("update projects set status='CANCELLED' where id=?",projectId);
+		assertThat(items(cookie,false)).extracting(item -> item.get("source").asString())
+			.containsExactly("PERSONAL");
+
+		jdbc.update("update projects set status='PLANNED' where id=?",projectId);
+		jdbc.update("delete from project_features where project_id=?",projectId);
+		assertThat(items(cookie,false)).extracting(item -> item.get("source").asString())
+			.containsExactly("PERSONAL");
+
+		jdbc.update("insert into project_features(project_id,feature,created_at,updated_at) values (?, 'WBS', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",projectId);
+		assertThat(items(cookie,false)).extracting(item -> item.get("source").asString())
+			.containsExactly("TASK","PERSONAL");
+
+		jdbc.update("delete from project_features where project_id=?",projectId);
+		jdbc.update("insert into project_features(project_id,feature,created_at,updated_at) values (?, 'KANBAN', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",projectId);
+		assertThat(items(cookie,false)).extracting(item -> item.get("source").asString())
+			.containsExactly("TASK","PERSONAL");
+	}
+
 	@Test void promotionToSystemAdminDoesNotBypassProjectDataBoundary() throws Exception {
 		final long projectId=createProject(validCreateBody("TODOROLE"));
 		final Cookie cookie=loginAs(developer);
