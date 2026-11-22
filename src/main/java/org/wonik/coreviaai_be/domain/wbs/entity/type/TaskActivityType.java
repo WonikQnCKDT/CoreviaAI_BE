@@ -19,6 +19,10 @@ public enum TaskActivityType {
 	MOVED,
 	/** 삭제. before = 삭제 직전 값. 작업 행이 지워진 뒤에도 이력은 남는다 */
 	DELETED,
-	/** 상태 변경. FR-TSK-02(SCRUM-110)에서 기록한다 */
-	STATUS_CHANGED
+	/** 상태 변경(칸반 카드 이동, FR-TSK-02). before·after = status, boardColumnId */
+	STATUS_CHANGED,
+	/** 같은 상태의 다른 칸반 컬럼으로 이동(상태는 그대로). before·after = boardColumnId */
+	BOARD_COLUMN_CHANGED,
+	/** 진척률 변경(완료 전환 시 100 자동 반영 등, FR-TSK-04). before·after = progress */
+	PROGRESS_CHANGED
 }

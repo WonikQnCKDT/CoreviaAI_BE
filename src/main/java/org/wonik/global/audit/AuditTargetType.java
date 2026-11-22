@@ -14,5 +14,7 @@ public enum AuditTargetType {
 	/** WBS 작업·하위작업(wbs_tasks.id) */
 	WBS_TASK,
 	/** 마일스톤(milestones.id) */
-	MILESTONE
+	MILESTONE,
+	/** 칸반 보드 컬럼(board_columns.id) */
+	BOARD_COLUMN
 }

@@ -212,9 +212,15 @@ org.wonik
 | PATCH | `/api/projects/{projectId}/wbs/tasks/{taskId}` | PM · 개발자·QA(본인 담당) | 이름·설명·담당자(PM만)·기간·예상 공수 덮어쓰기. `version` 불일치 409 |
 | PUT | `/api/projects/{projectId}/wbs/tasks/{taskId}/position` | PM | 드래그 이동: `parentTaskId`(null=최상위), `index`(0부터), `version` |
 | DELETE | `/api/projects/{projectId}/wbs/tasks/{taskId}` | PM | 삭제. 하위작업·선후행·마일스톤 연결이 있으면 409 `WBS_TASK_IN_USE`. 변경 이력은 남고 `DELETED` 이력 추가 |
-| GET | `/api/projects/{projectId}/tasks/{taskId}` | USER·EXECUTIVE | 업무 상세(WBS 항목 필드 + 유형·우선순위·완료 조건·완료 시각·등록자). 공개 범위는 WBS와 같음 |
+| GET | `/api/projects/{projectId}/tasks/{taskId}` | USER·EXECUTIVE | 업무 상세(WBS 항목 필드 + 유형·우선순위·완료 조건·완료 시각·칸반 컬럼·상태 변경 시각·등록자). 공개 범위는 WBS와 같음, WBS·칸반 둘 다 꺼야 404 `FEATURE_DISABLED` |
 | PATCH | `/api/projects/{projectId}/tasks/{taskId}` | PM · 개발자·QA(본인 담당) | 유형·우선순위·완료 조건 덮어쓰기. `version`(WBS 수정과 공유) 불일치 409 |
 | GET | `/api/projects/{projectId}/tasks/{taskId}/histories` | USER·EXECUTIVE | 업무 변경 이력(커서, id 오름차순 = 시간순). `activityType`, `before`·`after`(JSON), `actor`, `occurredAt` |
+| GET | `/api/projects/{projectId}/board` | USER·EXECUTIVE | 칸반 보드: 컬럼(표시 순서)과 컬럼별 카드(작업·하위작업, 종료일·ID 순). `assigneeUserId`로 담당자 필터(카드만 줄고 `cardCount`·`wipExceeded`는 전체 기준). 칸반 기능 꺼짐 404 |
+| PUT | `/api/projects/{projectId}/board/cards/{taskId}/column` | PM · 개발자·QA(본인 카드) | 카드 이동 `{columnId, version}` → 상태 = 컬럼 상태, DONE이면 완료 시각·진척률 100. 응답 `card`·`column`·`wipWarning`(한도 초과 경고, 이동은 반영) |
+| POST | `/api/projects/{projectId}/board/columns` | PM | 컬럼 추가 `{name(비우면 기본 이름), statusCategory, wipLimit}`. 맨 뒤, 프로젝트당 20개 |
+| PATCH | `/api/projects/{projectId}/board/columns/{columnId}` | PM | 이름·WIP 한도 덮어쓰기(null = 기본 이름·한도 없음) |
+| PUT | `/api/projects/{projectId}/board/columns/order` | PM | 컬럼 순서 `{columnIds}`(모든 컬럼을 한 번씩) |
+| DELETE | `/api/projects/{projectId}/board/columns/{columnId}` | PM | 컬럼 삭제. 카드가 있으면 409 `BOARD_COLUMN_NOT_EMPTY`, 상태별 마지막 컬럼이면 409 `BOARD_COLUMN_LAST_OF_STATUS` |
 | GET | `/api/projects/{projectId}/wbs/milestones` | USER·EXECUTIVE | 마일스톤 전체(목표일·ID 순, 페이지 없음, 최대 200개). 항목마다 `dDay`·`delayed`·연결/미완료 작업 수·연결 작업 요약 |
 | GET | `/api/projects/{projectId}/wbs/milestones/{milestoneId}` | USER·EXECUTIVE | 마일스톤 상세(목록 항목과 같은 형식) |
 | POST | `/api/projects/{projectId}/wbs/milestones` | PM | 등록: `name`, `targetDate`(프로젝트 기간 안), `taskIds`(선택, 같은 프로젝트 작업, 최대 200). 출처 MANUAL |
@@ -295,16 +301,31 @@ org.wonik
 - 이동: `index`는 옮길 곳 형제 목록(옮기는 항목 제외)에서 0부터 센 위치, 형제 수보다 크면 400 `INVALID_WBS_POSITION`. 옛·새 부모의 형제 순서를 1부터 다시 매긴다.
 - 삭제: PM만. 삭제 정책 미정(ERD 04 3절)이라 하위작업·선후행·마일스톤 연결이 하나라도 있으면 409 `WBS_TASK_IN_USE`(연쇄 삭제 없음). 감사 로그 `WBS_TASK_DELETED`(대상 `WBS_TASK`, 프로젝트·상위 작업·이름). 등록·수정·이동은 감사 로그 대상이 아니다(업무 변경 이력은 FR-TSK-01).
 - 트리는 페이지로 나누지 않는다(드래그 편집에 전체가 필요). 대신 프로젝트당 항목(작업+하위작업) 2,000개 상한(409 `WBS_TASK_LIMIT_EXCEEDED`, NFR-02 1,000건의 2배). 조회는 쿼리 2회(항목 전체, 담당자 이름)로 조립한다.
-- 범위 밖: 상태 변경(칸반 FR-TSK-02). 업무 상세 필드·변경 이력은 아래 FR-TSK-01.
+- 범위 밖: 상태 변경(칸반 FR-TSK-02, 아래). 업무 상세 필드·변경 이력은 아래 FR-TSK-01. 새 작업은 칸반 대기(TODO) 첫 컬럼에 놓인다.
 
 ### 업무 상세·변경 이력 규칙 (FR-TSK-01)
 
 - 업무 = WBS 작업·하위작업(`wbs_tasks`)이라 ID가 같다. 등록·기본 필드·담당자 배정/해제(PM만)·이동·삭제는 FR-WBS-01 API, 상세 필드(`taskType`·`priority`·`completionCriteria`)는 `/api/projects/{projectId}/tasks/{taskId}`. WBS 등록 요청에도 세 필드를 선택으로 넣을 수 있다(비우면 TASK·MEDIUM·없음). 트리 항목에는 `taskType`·`priority`가 더해졌다(추가 필드, 기존 계약 유지).
 - 권한(3.3 TSK-01): 조회·이력 조회는 프로젝트를 볼 수 있는 사용자 전원(현업 담당자·경영진 R 포함). 상세 필드 수정은 PM, 그 업무를 담당한 개발자·QA(그 밖 403 `WBS_TASK_ASSIGNEE_ONLY`). 판정 순서·프로젝트 행 잠금·같은 값 멱등·`version` 409는 WBS와 같다. 다른 프로젝트의 업무 ID는 404 `WBS_TASK_NOT_FOUND`.
-- 변경 이력(`task_histories`, append-only): `TaskHistoryRecorder`가 변경과 같은 트랜잭션에서(MANDATORY) 남긴다. `CREATED`(직접 등록·AI 초안 반영), `ASSIGNED`·`UNASSIGNED`(담당자), `DATE_CHANGED`(직접 수정과 하위작업 변경에 따른 상위 기간 산출), `DETAILS_CHANGED`(이름·설명·예상 공수·유형·우선순위·완료 조건 중 바뀐 필드만), `MOVED`(부모·순서, 형제 재정렬은 기록 안 함), `DELETED`(삭제 직전 값). `STATUS_CHANGED`는 FR-TSK-02가 쓴다. 전·후 값은 서버가 정한 필드만 JSONB로 저장하고, 화면은 문자열 값을 텍스트로만 표시한다.
+- 변경 이력(`task_histories`, append-only): `TaskHistoryRecorder`가 변경과 같은 트랜잭션에서(MANDATORY) 남긴다. `CREATED`(직접 등록·AI 초안 반영), `ASSIGNED`·`UNASSIGNED`(담당자), `DATE_CHANGED`(직접 수정과 하위작업 변경에 따른 상위 기간 산출), `DETAILS_CHANGED`(이름·설명·예상 공수·유형·우선순위·완료 조건 중 바뀐 필드만), `MOVED`(부모·순서, 형제 재정렬은 기록 안 함), `DELETED`(삭제 직전 값), 칸반 카드 이동의 `STATUS_CHANGED`(status·boardColumnId)·`BOARD_COLUMN_CHANGED`(같은 상태 다른 컬럼)·`PROGRESS_CHANGED`(완료 전환 시 100). 전·후 값은 서버가 정한 필드만 JSONB로 저장하고, 화면은 문자열 값을 텍스트로만 표시한다.
 - 삭제와 이력(결정·미결): `task_histories.task_id`에는 FK를 두지 않는다(ERD 05의 FK와 다름). 이력은 지우지 않으므로 FK(NO ACTION)를 두면 이력이 있는 작업을 지울 수 없게 된다. 작업 삭제는 막지 않고 이력(삭제 이력 포함)을 남긴다. 지운 업무의 이력은 API로 조회할 수 없다(업무 404). 삭제 정책이 정해지면 FK 추가 여부를 다시 정한다.
 - 담당자 TODO·일정 반영(FR-PSN-01·02): 별도 저장 없이 FR-PSN-01(SCRUM-111)이 조회 시점에 `wbs_tasks.assignee_user_id`로 합친다. 일정은 Sprint 3.
-- 완료 시각(`completed_at`): 상태 변경(FR-TSK-02, SCRUM-110)이 DONE으로 바꿀 때 `WbsTask.markCompleted`, 되돌릴 때 `clearCompleted`로 기록한다. 이 API는 바꾸지 않는다.
+- 완료 시각(`completed_at`): 칸반 카드 이동(FR-TSK-02)이 DONE으로 바꿀 때 `WbsTask.markCompleted`, 되돌릴 때 `clearCompleted`로 기록한다. 이 API는 바꾸지 않는다.
+- 기능 모듈: 업무 상세·수정·이력 API는 WBS·칸반 중 하나만 켜져 있어도 쓸 수 있다(칸반 카드에서도 같은 업무를 연다). 등록·담당자·기간은 WBS API라 WBS 모듈이 필요하다.
+
+### 칸반 보드 규칙 (FR-TSK-02)
+
+- 카드 = 업무 = WBS 작업·하위작업 전부(업무 CRUD와 같은 단위). 하위작업 카드에는 상위 작업 이름을 같이 준다. 컬럼 안 카드 순서는 저장하지 않고 종료일·ID 순으로 보여 준다(같은 컬럼 안 순서 변경은 범위 밖).
+- 컬럼(`board_columns`, V12): 프로젝트를 만들면 운영 방식·템플릿·칸반 모듈 사용 여부와 관계없이 기본 4개(대기·진행·검토·완료 = `TODO`·`IN_PROGRESS`·`REVIEW`·`DONE`)를 같은 트랜잭션에서 만든다(`ProjectDefaultDataInitializer` → `DefaultBoardColumnsInitializer`). 컬럼마다 매핑 상태(`statusCategory`, TASK_STATUS 코드)가 있고 만든 뒤 바꾸지 않는다.
+- 컬럼 이름과 다국어: 기본 컬럼은 이름을 저장하지 않고(`name` NULL) 응답 `labelKey`(`code.TASK_STATUS.<상태>`)의 다국어 문구로 보여 준다. 사용자가 붙인 이름은 사용자 입력이라 라벨 키가 아니며 입력한 그대로 보여 준다(50자, 줄바꿈·탭 등 제어 문자 불가, 비우면 기본 이름으로 되돌림).
+- 카드 이동: 상태는 옮긴 컬럼의 상태가 된다. 상태가 바뀔 때만 `status_changed_at`(FR-AIR-02 상태 체류, NULL = 등록 이후 변경 없음 → 기준 `created_at`)을 남기고, DONE이 되면 `completed_at`과 진척률 100(FR-TSK-04 '완료 상태 전환 시 100% 자동 반영'), DONE에서 벗어나면 `completed_at`만 지운다(진척률 유지, 진척 입력은 FR-TSK-04). 같은 상태의 다른 컬럼으로 옮기면 컬럼만 바뀐다. 이력은 같은 트랜잭션.
+- 권한(3.3 TSK-02): 조회는 프로젝트를 볼 수 있는 사용자 전원. 카드 이동은 PM(전체)·개발자·QA(본인 담당 카드, 그 밖 403 `WBS_TASK_ASSIGNEE_ONLY`). 현업 담당자(담당이어도)·경영진·비멤버는 조회만. 컬럼 관리는 PM만(403 `PROJECT_PM_ONLY`). 판정 순서: 404 `PROJECT_NOT_FOUND` → 404 `FEATURE_DISABLED`(KANBAN) → 404 `WBS_TASK_NOT_FOUND` → 403 → 404 `BOARD_COLUMN_NOT_FOUND` → 같은 컬럼 200(멱등) → 409 `CONCURRENT_MODIFICATION`(업무 `version`, WBS·업무 API와 공유).
+- WIP: `wipLimit`(1~999, NULL = 없음)보다 카드 수가 많으면 `wipExceeded`·이동 응답 `wipWarning`이 true. 경고만 하고 이동은 막지 않는다(인수 기준). 카드 수는 필터와 무관한 컬럼 전체 기준.
+- 컬럼 불변식: 상태마다 컬럼 1개 이상(마지막이면 삭제 409 `BOARD_COLUMN_LAST_OF_STATUS`), 카드가 있는 컬럼 삭제 409 `BOARD_COLUMN_NOT_EMPTY`(카드 연쇄 이동 없음), 프로젝트당 20개(409 `BOARD_COLUMN_LIMIT_EXCEEDED`), 순서 변경은 모든 컬럼 ID를 한 번씩(400 `INVALID_BOARD_COLUMN_ORDER`). 새 작업(WBS 등록·AI 초안 반영)은 대기 상태 첫 컬럼에 놓인다. 컬럼이 비어 있는 작업은 같은 상태의 첫 컬럼에 보인다.
+- 동시성: 카드 이동·컬럼 관리도 WBS 변경과 같은 프로젝트 행 잠금으로 직렬화한다(컬럼 삭제와 카드 이동·작업 등록 경쟁 방지). `board_columns`에는 version이 없어(ERD 05) 같은 컬럼을 두 PM이 고치면 나중 요청이 이긴다.
+- 감사 로그(설정 변경·삭제): `BOARD_COLUMN_CREATED`·`BOARD_COLUMN_CHANGED`·`BOARD_COLUMN_DELETED`(대상 `BOARD_COLUMN`), `BOARD_COLUMNS_REORDERED`(대상 `PROJECT`). 카드 이동은 업무 이력으로 남긴다.
+- 조회 비용: 컬럼 1회 + 업무 1회 + 담당자 이름 1회(N+1 없음). 업무는 프로젝트당 최대 2,000개라 WBS 트리처럼 페이지 없이 한 번에 준다. 카드 이동의 WIP 판정과 컬럼 삭제의 카드 유무는 보드 전체를 읽지 않고 COUNT 쿼리로 센다(그 컬럼에 놓인 카드 + 그 상태의 첫 컬럼이면 컬럼이 비어 있는 같은 상태 카드, 조회 배치 규칙과 같음).
+- 범위 밖·미결: 단계 필터(작업과 단계 연결이 없어 구현 불가, WBS '단계' 레벨 미결), 같은 컬럼 안 카드 순서, 상위 작업 상태의 하위작업 연동. 칸반 모듈을 끈 프로젝트는 상태를 바꿀 API가 없다.
 
 ### 마일스톤 규칙 (FR-WBS-04)
 
@@ -348,7 +369,7 @@ org.wonik
 
 ## 7. Database와 Migration
 
-- 저장소: PostgreSQL (`users`, `local_credentials`, `login_history`, `departments`, `audit_logs`, `projects`, `project_departments`, `project_actors`, `project_features`, `project_members`, `project_phases`, `project_member_histories`, `wbs_tasks`, `wbs_dependencies`, `milestones`, `milestone_tasks`, `ai_drafts`, `code_groups`, `codes`, `i18n_labels`, `error_logs`), Redis (세션, AI 초안 토큰). 테이블 정의는 Confluence [BE_ERD](https://jnu-team-aaptc1y6.atlassian.net/wiki/spaces/CoreviaAI/folder/12878096) 도메인 페이지 참고. ERD 원본은 `docs/erd/`(draw.io, 현재 `02-admin.drawio`).
+- 저장소: PostgreSQL (`users`, `local_credentials`, `login_history`, `departments`, `audit_logs`, `projects`, `project_departments`, `project_actors`, `project_features`, `project_members`, `project_phases`, `project_member_histories`, `wbs_tasks`, `wbs_dependencies`, `milestones`, `milestone_tasks`, `task_histories`, `board_columns`, `ai_drafts`, `code_groups`, `codes`, `i18n_labels`, `error_logs`), Redis (세션, AI 초안 토큰). 테이블 정의는 Confluence [BE_ERD](https://jnu-team-aaptc1y6.atlassian.net/wiki/spaces/CoreviaAI/folder/12878096) 도메인 페이지 참고. ERD 원본은 `docs/erd/`(draw.io: `01-user-auth`, `02-admin`, `04-wbs`, `05-task-board`), 시퀀스 원본은 `docs/sequence/`.
 - 시각은 모두 UTC instant(`timestamptz`)로 저장한다. KST 표시는 응답·화면 경계에서 변환한다.
 - 동시성: 로그인 시 `users` → `local_credentials` 순서로 `SELECT … FOR UPDATE`해 같은 계정의 동시 로그인과 실패 횟수 갱신을 순서대로 처리한다. 비밀번호 변경·초기화는 `local_credentials`만 잠근다. 두 테이블 모두 `version`으로 낙관적 잠금도 건다.
 - 동시성(관리자 기능): `users`·`departments`는 `version` 낙관적 잠금으로 동시 수정을 막고 충돌 시 409 `CONCURRENT_MODIFICATION`. 마지막 관리자 보호는 활성 관리자 행을 `FOR UPDATE`로 잠근 뒤 확인한다. 아이디·부서 이름 중복은 사전 검사 + DB 유니크 제약으로 막는다(최상위 부서 이름은 NULL 특성상 사전 검사만).
@@ -363,6 +384,7 @@ org.wonik
 - V9(`V9__create_i18n_labels.sql`): `i18n_labels`만 새로 만들고 V8 공통 코드의 라벨 키 18개(그룹 4 + 코드 14)를 한국어·영어·번체 중국어로 시드한다(기존 테이블 변경 없음). 되돌릴 때는 테이블을 지우는 새 버전을 추가한다.
 - V10(`V10__create_error_logs.sql`): `error_logs`와 인덱스 `idx_error_logs_occurred_at`, `idx_error_logs_error_type_occurred_at`만 새로 만든다(기존 테이블 변경 없음). 되돌릴 때는 테이블을 지우는 새 버전을 추가한다.
 - V11(`V11__add_task_details_and_histories.sql`): `wbs_tasks`에 `task_type`(NOT NULL 기본 'TASK', CHECK TASK·DEFECT)·`priority`(NOT NULL 기본 'MEDIUM', CHECK HIGH·MEDIUM·LOW)·`completion_criteria`·`completed_at`을 추가(expand, 기존 행은 기본값)하고 `task_histories`(JSONB 전·후 값, `actor_user_id` FK, `task_id` FK 없음, `idx_task_histories_task_id_id`)를 만든다. `activity_type`은 코드 enum 기준이라 CHECK 없음. 기존 작업의 과거 이력은 만들지 않는다. 되돌릴 때는 이력 테이블을 지우고 네 컬럼을 삭제하는 새 버전을 추가한다(코드 배포 뒤 contract).
+- V12(`V12__create_board_columns.sql`): `board_columns`(CHECK 상태·이름 공백 불가·순서 > 0·WIP > 0, `idx_board_columns_project_id`)를 만들고 `wbs_tasks`에 `board_column_id`(FK, NULL 허용, `idx_wbs_tasks_board_column_id`)·`status_changed_at`을 추가한다. 백필: 모든 기존 프로젝트에 기본 컬럼 4개, 기존 작업은 자기 상태의 기본 컬럼(이전에는 모두 TODO), `status_changed_at`은 NULL. 새 상태 코드를 추가하면 CHECK·`WbsTaskStatus`·V8 시드를 함께 바꾼다. 되돌릴 때는 FK·컬럼·테이블을 지우는 새 버전(코드 배포 뒤 contract).
 - 다국어 라벨 규칙(FR-ADM-06, NFR-19·20): 화면 코드는 문구를 하드코딩하지 않고 라벨 키만 쓴다. 문구는 `GET /api/i18n/labels`로 언어별로 받아 표시하고(번역 누락은 한국어), 관리자가 `/api/admin/i18n/labels`에서 바꾸면 다음 조회부터 반영된다(서버 캐시 없음, 재배포 불필요). 라벨 키 형식은 영문자로 시작하고 점으로 구분한 영문·숫자·밑줄·하이픈 100자 이하(예: `menu.project.list`), 문구는 500자 이하·제어 문자(줄바꿈 등) 불가. 빈 번역은 NULL(누락)로 저장한다. 새 화면 문구의 라벨은 관리자 API로 등록하거나 마이그레이션으로 시드한다. 공통 코드는 마이그레이션으로만 추가하므로(FR-ADM-07) 코드 그룹·코드를 추가할 때는 라벨 시드도 함께 넣는다(`LabelSeedConsistencyTest`가 1:1을 검증). 라벨은 화면에 텍스트로만 출력한다(HTML로 해석하지 않음).
 - Migration: `src/main/resources/db/migration/V{n}__설명.sql`, 기동 시 Flyway 자동 적용. 이미 적용된 파일은 수정하지 않고 새 버전을 추가한다(roll-forward).
 - backup·보존: DB 백업은 NFR-13(일 1회) 기준으로 회사 DB 측 운영. `login_history`·`audit_logs` 1년 보관(NFR-07) 정리 작업은 FR-ADM-04에서 구현 예정. `audit_logs`는 추가만 하고 수정·삭제 API가 없다.
@@ -416,6 +438,8 @@ org.wonik
 - integration(FR-WBS-01): `WbsTaskApiIntegrationTest`(3레벨 등록 후 재조회 유지, 조회 권한·404·기능 꺼짐·관리자, 쓰기 권한 매트릭스, 3단계 중첩 거부, 이동·승격·재조회·상위 기간 재산출·형제 version 유지, 같은 위치 재전송 멱등·낡은 version 409·위치 경계, 수정 409·상위 기간 직접 변경 400, 값 검증 경계·다른 프로젝트 작업 404, 항목 수 상한, 삭제 거부·재산출·감사 로그)
 - unit(FR-TSK-01): `WbsTaskTest`(상세 기본값·수정·같은 값 판정, 완료 시각 기록·유지·취소, 유형·우선순위 필수), `TaskHistoryRecorderTest`(변경 없음·공수 scale 무시, 배정·해제, 여러 종류 동시 변경 순서·바뀐 필드만, 이동·상태, 삭제 전 값)
 - integration(FR-TSK-01): `TaskApiIntegrationTest`(기본값·지정값 등록과 상세·트리·CREATED 이력, 조회 권한·비공개 404·다른 프로젝트 업무 404·기능 꺼짐·관리자, 수정 권한 매트릭스, DETAILS_CHANGED 전·후 값·같은 값 멱등·낡은 version 409·WBS와 version 공유, 경계값 2000/2001자·누락·허용 밖 값, 배정·변경·해제 이력·개발자 배정 403, 일정·상위 기간 산출·상세 이력·실패 시 이력 없음, 이동·삭제 후 이력 보존·JSONB 객체 저장, 커서 페이지·size 경계·잘못된 커서, V11 기본값·CHECK), `WbsAiDraftApiIntegrationTest.applyDerivesParentSchedule`(AI 반영 CREATED 이력)
+- unit(FR-TSK-02): `BoardColumnTest`(기본 4개·라벨 키, WIP 경계: 한도와 같음/+1/없음/1), `BoardLayoutTest`(저장 컬럼·빈 컬럼·없는 컬럼 → 같은 상태 첫 컬럼, 카드 순서, 빈 보드), `WbsTaskTest`(컬럼 이동: 상태·변경 시각, 완료 시각·진척률 100, 같은 상태 컬럼, 완료 이탈), `TaskHistoryRecorderTest`(STATUS_CHANGED 상태·컬럼, BOARD_COLUMN_CHANGED, PROGRESS_CHANGED)
+- integration(FR-TSK-02): `BoardApiIntegrationTest`(생성 시 기본 컬럼·단계 없음 프로젝트, 새 작업 배치, 조회·담당자 필터·카드 수, 조회 권한·비공개 404·칸반 꺼짐·관리자, 칸반만 켠 프로젝트(업무 상세 허용·WBS 404·빈 컬럼 작업), 이동 상태 동기화·완료·이력, 멱등·낡은 version 409·WBS와 version 공유, 이동 권한 매트릭스·IDOR 404·입력 400, WIP 경고 경계·필터 무관, 컬럼이 비어 있는 카드의 카드 수(첫 컬럼만)·WIP·삭제 판정, 컬럼 추가·변경·경계값(제어 문자 포함)·감사 로그, 컬럼 20개 상한, 순서 변경·잘못된 순서, 삭제 불변식, 관리 권한, 마일스톤 지연 경고 해제), `migration.V12BoardColumnsMigrationTest`(V11 데이터에 V12 적용: 백필·CHECK), `WbsAiDraftApiIntegrationTest.apply`(AI 반영 작업의 컬럼)
 - integration(FR-PRJ-04): `ProjectMemberApiIntegrationTest`(초대·역할 변경·제외·이력), `ProjectMultiPmApiIntegrationTest`(PM 추가·동일 권한·해제·최소 1명·PM 제외·추가 규칙·위임 API 폐지·동시 해제 경쟁), `AdminProjectPmApiIntegrationTest`(재지정, 비활성 PM 전원 제외, 활성 PM 있으면 409, 새 PM 규칙, 관리자 전용), `common.web.CoreviaExceptionHandlerTest`(동시 수정 409)
 - unit(FR-ADM-07): `CommonCodeTest`(라벨 키 규칙·최대 길이, 코드·그룹 코드 형식과 길이 경계)
 - integration(FR-ADM-07): `AdminCodeApiIntegrationTest`(관리자 전용 404·401, 그룹·코드 목록, 코드 추가·수정·삭제 404, 정렬 순서 변경과 감사 로그 전·후, 본문의 코드 값·라벨 키·사용 여부 무시, 경계값 0/9999, 범위·누락 400, 없는 그룹·코드 404, 같은 값 재전송 무변경), `CodeApiIntegrationTest`(로그인 사용자 조회, 사용 중 코드만·정렬, 관리자 정렬 변경 즉시 반영, 빈 그룹·없는 그룹·형식 오류·비로그인), `code.CodeSeedConsistencyTest`(TASK_STATUS·PROJECT_STATUS 시드 = enum 값·순서, 라벨 키 규칙)

@@ -76,7 +76,7 @@ class TaskHistoryRecorderTest {
 		final TaskSnapshot before = snapshot(10L, "2026-12-01", "2026-12-05", null);
 		final TaskSnapshot after = new TaskSnapshot(1L, null, 1, "새 이름", null, 11L, LocalDate.parse("2026-12-01"),
 			LocalDate.parse("2026-12-09"), new BigDecimal("2.5"), TaskType.TASK, TaskPriority.HIGH, null,
-			WbsTaskStatus.TODO, WbsItemSource.MANUAL);
+			WbsTaskStatus.TODO, WbsItemSource.MANUAL, null, 0);
 
 		final List<TaskHistory> histories = recorded(before, after);
 
@@ -91,20 +91,41 @@ class TaskHistoryRecorderTest {
 	}
 
 	@Test
-	@DisplayName("부모·순서가 바뀌면 MOVED, 상태가 바뀌면 STATUS_CHANGED")
+	@DisplayName("부모·순서가 바뀌면 MOVED, 상태가 바뀌면 STATUS_CHANGED(상태·컬럼), 진척률이 바뀌면 PROGRESS_CHANGED")
 	void moveAndStatus() {
 		final TaskSnapshot before = snapshot(null, "2026-12-01", "2026-12-05", null);
 		final TaskSnapshot after = new TaskSnapshot(1L, 3L, 2, "작업", null, null, LocalDate.parse("2026-12-01"),
 			LocalDate.parse("2026-12-05"), null, TaskType.TASK, TaskPriority.MEDIUM, null, WbsTaskStatus.DONE,
-			WbsItemSource.MANUAL);
+			WbsItemSource.MANUAL, 40L, 100);
 
 		final List<TaskHistory> histories = recorded(before, after);
 
 		assertThat(histories).extracting(TaskHistory::getActivityType)
-			.containsExactly(TaskActivityType.MOVED, TaskActivityType.STATUS_CHANGED);
+			.containsExactly(TaskActivityType.MOVED, TaskActivityType.STATUS_CHANGED, TaskActivityType.PROGRESS_CHANGED);
 		assertThat(histories.get(0).getBeforeValue()).isEqualTo("{\"parentTaskId\":null,\"sortOrder\":1}");
 		assertThat(histories.get(0).getAfterValue()).isEqualTo("{\"parentTaskId\":3,\"sortOrder\":2}");
-		assertThat(histories.get(1).getAfterValue()).isEqualTo("{\"status\":\"DONE\"}");
+		assertThat(histories.get(1).getBeforeValue()).isEqualTo("{\"status\":\"TODO\",\"boardColumnId\":null}");
+		assertThat(histories.get(1).getAfterValue()).isEqualTo("{\"status\":\"DONE\",\"boardColumnId\":40}");
+		assertThat(histories.get(2).getBeforeValue()).isEqualTo("{\"progress\":0}");
+		assertThat(histories.get(2).getAfterValue()).isEqualTo("{\"progress\":100}");
+	}
+
+	@Test
+	@DisplayName("상태가 같은 다른 컬럼으로 옮기면 STATUS_CHANGED 대신 BOARD_COLUMN_CHANGED 하나만 남긴다")
+	void boardColumnOnly() {
+		final TaskSnapshot before = new TaskSnapshot(1L, null, 1, "작업", null, null, LocalDate.parse("2026-12-01"),
+			LocalDate.parse("2026-12-05"), null, TaskType.TASK, TaskPriority.MEDIUM, null, WbsTaskStatus.IN_PROGRESS,
+			WbsItemSource.MANUAL, 41L, 30);
+		final TaskSnapshot after = new TaskSnapshot(1L, null, 1, "작업", null, null, LocalDate.parse("2026-12-01"),
+			LocalDate.parse("2026-12-05"), null, TaskType.TASK, TaskPriority.MEDIUM, null, WbsTaskStatus.IN_PROGRESS,
+			WbsItemSource.MANUAL, 42L, 30);
+
+		final List<TaskHistory> histories = recorded(before, after);
+
+		assertThat(histories).extracting(TaskHistory::getActivityType)
+			.containsExactly(TaskActivityType.BOARD_COLUMN_CHANGED);
+		assertThat(histories.get(0).getBeforeValue()).isEqualTo("{\"boardColumnId\":41}");
+		assertThat(histories.get(0).getAfterValue()).isEqualTo("{\"boardColumnId\":42}");
 	}
 
 	@Test
@@ -136,6 +157,6 @@ class TaskHistoryRecorderTest {
 	private static TaskSnapshot snapshot(final Long assignee, final String start, final String end,
 		final BigDecimal effort) {
 		return new TaskSnapshot(1L, null, 1, "작업", null, assignee, LocalDate.parse(start), LocalDate.parse(end),
-			effort, TaskType.TASK, TaskPriority.MEDIUM, null, WbsTaskStatus.TODO, WbsItemSource.MANUAL);
+			effort, TaskType.TASK, TaskPriority.MEDIUM, null, WbsTaskStatus.TODO, WbsItemSource.MANUAL, null, 0);
 	}
 }

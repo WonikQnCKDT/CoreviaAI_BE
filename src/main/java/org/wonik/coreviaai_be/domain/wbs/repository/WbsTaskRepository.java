@@ -9,6 +9,7 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.wonik.coreviaai_be.domain.wbs.entity.WbsTask;
+import org.wonik.coreviaai_be.domain.wbs.entity.type.WbsTaskStatus;
 
 public interface WbsTaskRepository extends JpaRepository<WbsTask, Long> {
 
@@ -38,6 +39,12 @@ public interface WbsTaskRepository extends JpaRepository<WbsTask, Long> {
 
 	/** 주어진 ID 중 그 프로젝트의 항목 수. 마일스톤 연결 작업이 모두 같은 프로젝트에 있는지 확인한다. */
 	long countByProjectIdAndIdIn(Long projectId, Collection<Long> ids);
+
+	/** 컬럼에 놓인 카드 수(idx_wbs_tasks_board_column_id). 카드 이동 WIP 판정·컬럼 삭제 판정에 쓴다. */
+	long countByProjectIdAndBoardColumnId(Long projectId, Long boardColumnId);
+
+	/** 컬럼이 비어 있는(board_column_id NULL) 그 상태의 카드 수. 이런 카드는 같은 상태의 첫 컬럼에 보인다(BoardLayout). */
+	long countByProjectIdAndBoardColumnIdIsNullAndStatus(Long projectId, WbsTaskStatus status);
 
 	/**
 	 * 표시 순서만 바꾼다. 순서는 프로젝트 행 잠금으로 보호하는 구조 정보라 version을 올리지 않는다

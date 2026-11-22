@@ -13,6 +13,7 @@ import org.wonik.coreviaai_be.domain.wbs.entity.type.WbsItemSource;
 import org.wonik.coreviaai_be.domain.wbs.policy.WbsEditor;
 import org.wonik.coreviaai_be.domain.wbs.policy.WbsTaskAccessPolicy;
 import org.wonik.coreviaai_be.domain.wbs.policy.WbsTaskRules;
+import org.wonik.coreviaai_be.domain.wbs.repository.BoardColumnRepository;
 import org.wonik.coreviaai_be.domain.wbs.repository.MilestoneTaskRepository;
 import org.wonik.coreviaai_be.domain.wbs.repository.WbsDependencyRepository;
 import org.wonik.coreviaai_be.domain.wbs.repository.WbsTaskRepository;
@@ -41,7 +42,7 @@ import lombok.RequiredArgsConstructor;
  * 현재 값과 다르면 409 CONCURRENT_MODIFICATION으로 거부한다. 같은 결과가 이미 반영된 재전송(같은 값 수정, 같은 위치 이동)은
  * version을 보지 않고 그대로 성공한다(멱등).
  * <p>
- * 상태(status)는 등록 시 TODO이고 이 API로 바꾸지 않는다(칸반 FR-TSK-02). 업무 상세 필드 수정은 TaskDetailService(FR-TSK-01).
+ * 상태(status)는 등록 시 TODO이고 칸반 보드의 대기 상태 첫 컬럼에 놓는다. 상태는 이 API로 바꾸지 않는다(칸반 카드 이동, BoardService). 업무 상세 필드 수정은 TaskDetailService(FR-TSK-01).
  * <p>
  * 변경 이력(FR-TSK-01): 등록·기본 필드 수정·이동·삭제와 그에 따른 상위 기간 산출을 같은 트랜잭션에서
  * {@link TaskHistoryRecorder}로 남긴다(형제 순서 재정렬은 이력을 남기지 않는다).
@@ -58,6 +59,7 @@ public class WbsTaskService {
 	private final WbsTaskRepository taskRepository;
 	private final WbsDependencyRepository dependencyRepository;
 	private final MilestoneTaskRepository milestoneTaskRepository;
+	private final BoardColumnRepository boardColumnRepository;
 	private final WbsTreeReader treeReader;
 	private final TaskHistoryRecorder historyRecorder;
 	private final AuditLogger auditLogger;
@@ -96,6 +98,7 @@ public class WbsTaskService {
 			: WbsTask.subtask(parent, taskRepository.findLastSortOrderUnder(parent.getId()) + 1, details,
 			WbsItemSource.MANUAL, actor.userId());
 		task.changeAttributes(command.attributes());
+		task.placeOnBoard(boardColumnRepository.findInitialColumnId(projectId));
 		taskRepository.saveAndFlush(task);
 		historyRecorder.created(actor.userId(), List.of(task));
 		if (parent != null) {

@@ -1,12 +1,7 @@
 package org.wonik.coreviaai_be.domain.wbs.service;
 
 import java.util.Arrays;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -25,8 +20,6 @@ import org.wonik.global.common.exception.CustomException;
 import org.wonik.global.common.exception.ErrorCode;
 import org.wonik.global.common.pagination.CursorPage;
 import org.wonik.global.common.pagination.CursorPageRequest;
-import org.wonik.global.user.entity.User;
-import org.wonik.global.user.repository.UserRepository;
 
 import lombok.RequiredArgsConstructor;
 import tools.jackson.databind.JsonNode;
@@ -38,6 +31,7 @@ import tools.jackson.databind.json.JsonMapper;
  * <p>
  * 권한(3.3 TSK-01): 조회는 프로젝트를 볼 수 있는 사용자 전원(멤버, 공개 범위 열람자, 소속 범위 경영진).
  * 상세 필드 수정은 PM, 그 업무를 담당한 개발자·QA(WBS 기본 필드 수정과 같은 규칙, {@link WbsEditor#requireCanUpdate}).
+ * 기능 모듈은 WBS·칸반 중 하나만 켜져 있어도 된다(칸반 카드에서도 같은 업무 상세를 연다, SCRUM-109 미결 3 정리).
  * 판정 순서와 잠금은 WBS API와 같다(프로젝트 404 → 기능 404 → 업무 404 → 담당 403 → 같은 값이면 200 → version 409).
  */
 @Service
@@ -48,12 +42,12 @@ public class TaskDetailService {
 	private final WbsTaskRepository taskRepository;
 	private final TaskHistoryRepository historyRepository;
 	private final TaskHistoryRecorder historyRecorder;
-	private final UserRepository userRepository;
+	private final UserNameReader userNameReader;
 	private final JsonMapper jsonMapper;
 
 	@Transactional(readOnly = true)
 	public TaskDetail find(final Long userId, final Long projectId, final Long taskId) {
-		accessPolicy.getReadableProject(userId, projectId);
+		accessPolicy.getReadableProject(userId, projectId, WbsTaskAccessPolicy.TASK_FEATURES);
 		return detailOf(getTask(projectId, taskId));
 	}
 
@@ -64,7 +58,7 @@ public class TaskDetailService {
 		final Long taskId,
 		final UpdateTaskAttributesCommand command
 	) {
-		final WbsEditor editor = accessPolicy.getEditor(actor.userId(), projectId);
+		final WbsEditor editor = accessPolicy.getEditor(actor.userId(), projectId, WbsTaskAccessPolicy.TASK_FEATURES);
 		final WbsTask task = getTask(projectId, taskId);
 		editor.requireCanUpdate(task);
 		if (task.hasSameAttributes(command.attributes())) {
@@ -88,21 +82,21 @@ public class TaskDetailService {
 		final Long taskId,
 		final CursorPageRequest page
 	) {
-		accessPolicy.getReadableProject(userId, projectId);
+		accessPolicy.getReadableProject(userId, projectId, WbsTaskAccessPolicy.TASK_FEATURES);
 		getTask(projectId, taskId);
 		final CursorPage<TaskHistory> histories = CursorPage.of(
 			historyRepository.findPageByTaskId(taskId, page.cursorId(), page.fetchPageable()),
 			page.size(),
 			TaskHistory::getId
 		);
-		final Map<Long, String> actorNames = userNames(
+		final Map<Long, String> actorNames = userNameReader.namesOf(
 			histories.items().stream().map(TaskHistory::getActorUserId).toList());
 		return histories.map(history -> new TaskHistoryView(history, parse(history.getBeforeValue()),
 			parse(history.getAfterValue()), actorNames.get(history.getActorUserId())));
 	}
 
 	private TaskDetail detailOf(final WbsTask task) {
-		final Map<Long, String> names = userNames(Arrays.asList(task.getAssigneeUserId(), task.getCreatedBy()));
+		final Map<Long, String> names = userNameReader.namesOf(Arrays.asList(task.getAssigneeUserId(), task.getCreatedBy()));
 		return new TaskDetail(task, names.get(task.getAssigneeUserId()), names.get(task.getCreatedBy()),
 			taskRepository.existsByParentTaskId(task.getId()));
 	}
@@ -110,20 +104,6 @@ public class TaskDetailService {
 	private WbsTask getTask(final Long projectId, final Long taskId) {
 		return taskRepository.findByIdAndProjectId(taskId, projectId)
 			.orElseThrow(() -> new CustomException(ErrorCode.WBS_TASK_NOT_FOUND));
-	}
-
-	/** 사용자 이름을 한 번에 읽는다(N+1 없음). null ID는 건너뛰고, null 키 조회를 허용하는 HashMap을 돌려준다. */
-	private Map<Long, String> userNames(final Collection<Long> userIds) {
-		final Set<Long> ids = new HashSet<>();
-		userIds.stream().filter(Objects::nonNull).forEach(ids::add);
-		final Map<Long, String> names = new HashMap<>();
-		if (ids.isEmpty()) {
-			return names;
-		}
-		for (final User user : userRepository.findAllById(ids)) {
-			names.put(user.getId(), user.getName());
-		}
-		return names;
 	}
 
 	private JsonNode parse(final String json) {

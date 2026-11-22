@@ -143,10 +143,11 @@ class TaskApiIntegrationTest extends ProjectApiTestSupport {
 			ErrorCode.WBS_TASK_NOT_FOUND);
 		expectError(getAs(pm, TASK, projectId, 999_999L), ErrorCode.WBS_TASK_NOT_FOUND);
 
-		final Map<String, Object> noWbs = validCreateBody("NOWBS-2026");
-		noWbs.put("features", List.of("KANBAN"));
-		final long noWbsId = createProject(noWbs);
-		expectError(getAs(pm, TASK, noWbsId, taskId), ErrorCode.FEATURE_DISABLED);
+		// WBS·칸반을 모두 끈 프로젝트만 기능 404(둘 중 하나만 켜져 있어도 업무 상세를 연다, SCRUM-110)
+		final Map<String, Object> noTaskModule = validCreateBody("NOWBS-2026");
+		noTaskModule.put("features", List.of("BOARD"));
+		final long noTaskModuleId = createProject(noTaskModule);
+		expectError(getAs(pm, TASK, noTaskModuleId, taskId), ErrorCode.FEATURE_DISABLED);
 
 		saveUser("admin01", USER_PASSWORD, SystemRole.SYSTEM_ADMIN, null);
 		expectError(getAs(loginOk("admin01", USER_PASSWORD), TASK, projectId, taskId), ErrorCode.NOT_FOUND);
