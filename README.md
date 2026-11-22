@@ -2,7 +2,7 @@
 
 > 상태: Draft
 > 담당자: 미정 (팀에서 지정 필요)
-> 마지막 검토일: 2026-11-21
+> 마지막 검토일: 2026-11-22
 > 적용 범위: `CoreviaAI_BE/` 백엔드 (Spring Boot)
 
 ## 1. 프로젝트 개요
@@ -473,3 +473,17 @@ org.wonik
 ## 13. License
 
 - 미정 (사내 프로젝트).
+
+## 14. 개인 TODO (SCRUM-111)
+
+- 기준: FR-PSN-01·권한 매트릭스 3.3. 최초 구현은 원격 `develop`의 `6d39260`, 이후 `14b1322` 병합 검증은 [기록](docs/reviews/SCRUM-111-develop-merge-review.md)을 따른다.
+- 개인 TODO 등록·상세·제목/마감/완료 변경·소프트 삭제와 배정 WBS 실시간 통합 조회를 구현했다. 사용자 결정에 따라 승인 요청 원천은 후속 연결, 삭제는 소프트 삭제, 마감 임박 기본값은3일이다. 이 BE 변경이 승인 원천 기능·FE 화면까지 구현한 것은 아니다.
+- API 계약(PR 전): [06. 개인 업무](docs/api/06-personal-todos-draft.md) · [Confluence API](https://jnu-team-aaptc1y6.atlassian.net/wiki/spaces/CoreviaAI/pages/21561547). ERD 보완: [개인 TODO](docs/erd/06-personal-todos-draft.md), 시퀀스: [생성·조회·소프트 삭제](docs/sequence/06-personal-todos-draft.md), [최신 보안·검수·검증 한계](docs/reviews/SCRUM-111-soft-delete-review.md). 이전 초안 검수 기록은 당시 결과를 보존한다.
+- 경로: `GET/POST /api/me/todos`, `GET/PATCH/DELETE /api/me/todos/{todoId}`. 소유자는 로그인 주체에서만 정한다. 기본 목록은 미삭제·미완료 개인 TODO·현재 담당 업무, 완료 개인은 `done=true`. `dueSoonDays` 기본3·명시1~365, `size` 기본20·최대100, 불투명 cursor를 사용한다.
+- 날짜: `Asia/Seoul`의 오늘을 기준으로 오늘→임박→지연→이후→마감없음 정렬, 지연은 `overdue`로 표시한다. 커서를 이어가는 동안 정렬 날짜를 고정하고 권한·행 상태는 매번 새로 확인한다.
+- 등록은 클라이언트 UUID `requestId`가 필수다. 본인 범위 같은 키·같은 입력의 재전송은 처음 응답, 다른 입력은409. 현재 할 일 내용을 바꿔도 최초 요청 해시를 보존한다.
+- DELETE는 본인 항목에 `deleted_at`을 기록하고 최소 정보의 `PERSONAL_TODO_DELETED` 감사 로그를 같은 트랜잭션에 남긴다. 최초·재요청 모두204, 감사는 최초1건이다. 타인·없는 항목과 삭제 후 GET/PATCH는404다. 삭제행의 생성 키는 보존하며 같은 생성 요청 재전송은409 `TODO_DELETED`로 부활·복제를 막는다.
+- 삭제행·멱등키의 보존 기간·물리 purge·복구는 운영 결정 미정이며 자동 작업을 도입하지 않았다. 승인 원천은 사용자 승인 후속 범위다. FE는 배정 후1분 이내 표시를 위해1분 이내 재조회해야 한다.
+- Migration V13은 `personal_todos`만 추가한다. **운영 V8~V12 예약 작업을 통합·승인하고 순서대로 적용한 뒤 V13을 migrate해야 한다. V13 단독 선적용 금지.** 기본 Flyway outOfOrder=false에서 뒤늦은 V8~V12는 적용에 실패하므로 번호 변경·outOfOrder 임의 활성화로 우회하지 않는다.
+- V14는 V13을 수정하지 않고 nullable `deleted_at`·조회 인덱스를 추가한다. V8~V12 → V13 → V14 → 새 API 순서로 배포한다. 구 API는 삭제행을 필터하지 않으므로 삭제 활성화 후 구/신 API 혼용·구 리더로 rollback하지 않는다. [소프트 삭제 보안·검수 기록](docs/reviews/SCRUM-111-soft-delete-review.md) 참고.
+- 기존 표준 테스트 명령은 그대로다. 현재 오프라인 환경에는 JaCoCo agent0.8.15가 없어 표준 test/check·커버리지 증거를 확보하지 못했다. 별도 작업 공간 init으로 instrumentation만 끈 대체 테스트·빌드 증거와 기존 formatter/lint/lock/security-scan 미구축 한계는 검수 문서에 기록한다.
