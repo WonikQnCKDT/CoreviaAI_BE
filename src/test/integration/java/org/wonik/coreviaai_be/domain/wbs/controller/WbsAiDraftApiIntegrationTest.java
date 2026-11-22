@@ -44,6 +44,7 @@ import org.wonik.coreviaai_be.domain.wbs.repository.MilestoneRepository;
 import org.wonik.coreviaai_be.domain.wbs.repository.MilestoneTaskRepository;
 import org.wonik.coreviaai_be.domain.wbs.repository.WbsDependencyRepository;
 import org.wonik.coreviaai_be.domain.wbs.repository.WbsTaskRepository;
+import org.wonik.coreviaai_be.domain.wbs.service.MilestoneService;
 import org.wonik.coreviaai_be.domain.wbs.service.WbsTaskService;
 import org.wonik.coreviaai_be.domain.wbs.service.command.DraftTeamMember;
 import org.wonik.coreviaai_be.domain.wbs.service.command.WbsDraftContext;
@@ -254,6 +255,24 @@ class WbsAiDraftApiIntegrationTest extends ProjectApiTestSupport {
 		// 작업 2 + 하위작업 1 = 3개 추가 → 2,001개
 		expectError(apply(pm, validApplyBody(generateToken())), ErrorCode.WBS_TASK_LIMIT_EXCEEDED);
 		assertThat(taskRepository.count()).isEqualTo(WbsTaskService.MAX_ITEMS_PER_PROJECT - 2);
+	}
+
+	@Test
+	@DisplayName("반영: 반영 후 프로젝트 마일스톤이 200개를 넘으면 409 MILESTONE_LIMIT_EXCEEDED이고 아무것도 저장하지 않는다(SCRUM-108)")
+	void applyOverMilestoneLimit() throws Exception {
+		final List<Object[]> rows = new ArrayList<>();
+		for (int i = 1; i <= MilestoneService.MAX_MILESTONES_PER_PROJECT; i++) {
+			rows.add(new Object[] {projectId, creator.getId()});
+		}
+		jdbcTemplate.batchUpdate("""
+			INSERT INTO milestones (project_id, name, target_date, source, created_by, created_at, updated_at)
+			VALUES (?, '마일스톤', DATE '2026-12-20', 'MANUAL', ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+			""", rows);
+
+		// 마일스톤 1개 추가 → 201개
+		expectError(apply(pm, validApplyBody(generateToken())), ErrorCode.MILESTONE_LIMIT_EXCEEDED);
+		assertThat(milestoneRepository.count()).isEqualTo(MilestoneService.MAX_MILESTONES_PER_PROJECT);
+		assertThat(taskRepository.count()).isZero();
 	}
 
 	@Test

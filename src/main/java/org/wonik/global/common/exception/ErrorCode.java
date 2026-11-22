@@ -42,6 +42,8 @@ public enum ErrorCode {
 	WBS_SCHEDULE_DERIVED(400, "하위작업이 있는 작업의 기간은 하위작업 기간으로 정해져 직접 바꿀 수 없습니다"),
 	INVALID_WBS_HIERARCHY(400, "WBS는 작업과 하위작업 2단계까지만 만들 수 있습니다. 하위작업 아래나 하위작업이 있는 작업을 다른 작업 아래로 둘 수 없습니다"),
 	INVALID_WBS_POSITION(400, "옮길 위치가 올바르지 않습니다. 새로고침한 뒤 다시 시도해 주세요"),
+	INVALID_MILESTONE_TARGET_DATE(400, "마일스톤 목표일을 확인해 주세요. 프로젝트 기간이 있으면 그 안이어야 합니다"),
+	INVALID_MILESTONE_TASK(400, "마일스톤에는 같은 프로젝트의 WBS 작업만 연결할 수 있습니다"),
 
 	EXPIRED_TOKEN(401, "인증 토큰이 만료되었습니다"),
 	INVALID_TOKEN(401, "유효하지 않은 토큰입니다"),
@@ -69,6 +71,7 @@ public enum ErrorCode {
 	LABEL_NOT_FOUND(404, "다국어 라벨을 찾을 수 없습니다"),
 	ERROR_LOG_NOT_FOUND(404, "에러 로그를 찾을 수 없습니다"),
 	WBS_TASK_NOT_FOUND(404, "WBS 작업을 찾을 수 없습니다"),
+	MILESTONE_NOT_FOUND(404, "마일스톤을 찾을 수 없습니다"),
 
 	DUPLICATE_LOGIN_ID(409, "이미 사용 중인 아이디입니다"),
 	DUPLICATE_PROJECT_CODE(409, "이미 사용 중인 프로젝트 코드입니다"),
@@ -84,6 +87,7 @@ public enum ErrorCode {
 	DUPLICATE_LABEL_KEY(409, "이미 등록된 라벨 키입니다"),
 	WBS_TASK_IN_USE(409, "하위작업·선후행 관계·마일스톤 연결이 있는 작업은 삭제할 수 없습니다. 연결을 먼저 정리해 주세요"),
 	WBS_TASK_LIMIT_EXCEEDED(409, "프로젝트 WBS 항목은 최대 2,000개까지 등록할 수 있습니다"),
+	MILESTONE_LIMIT_EXCEEDED(409, "프로젝트 마일스톤은 최대 200개까지 등록할 수 있습니다"),
 
 	ACCOUNT_LOCKED(423, "로그인에 5회 연속 실패해 계정이 잠겼습니다. 시스템 관리자에게 비밀번호 초기화를 요청해 주세요"),
 

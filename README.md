@@ -17,6 +17,7 @@
   - FR-ADM-06 다국어 라벨 관리 (Jira SCRUM-169): 한국어·영어·번체 중국어 라벨 테이블(`i18n_labels`, 라벨 키 + 언어별 컬럼), 화면용 언어별 라벨 묶음 조회(로그인 전 공개, 번역 누락은 한국어), 관리자 라벨 등록·문구 수정(낙관적 잠금)·키/문구 검색·번역 누락 필터, 문구 변경 이력(감사 로그). 표시 언어는 `lang` 파라미터 → `Accept-Language` → 한국어(사용자별 언어 저장 없음)
   - FR-ADM-09 에러 로그 관리 (Jira SCRUM-170) + NFR-06 패턴 마스킹 일부 (Jira SCRUM-114): 전역 예외 처리기에 도달한 미처리 예외(500)를 `error_logs`에 별도 트랜잭션으로 기록(발생 시각·메서드·경로·사용자 ID·예외 클래스·마스킹한 메시지·원인 포함 스택), 사용자에게는 공통 500만 응답, 시스템 관리자 조회(기간·유형·경로 필터, 커서, 상세). 1년 보관 정리는 미구현
   - FR-WBS-01 계층형 WBS (Jira SCRUM-107): 작업 > 하위작업 2단계 트리 조회(한 번에, 담당자 이름 포함), 작업·하위작업 등록·수정(낙관적 잠금)·삭제(연결 있으면 거부)·드래그 이동(순서·계층 변경), 상위 작업 기간을 하위작업 기간으로 자동 산출(저장값 갱신). 권한은 3.3 WBS-01(PM 전체, 개발자·QA 본인 담당 작업 수정·그 아래 하위작업 추가). '단계' 레벨 표현은 미결
+  - FR-WBS-04 마일스톤 (Jira SCRUM-108): 마일스톤 목록(목표일 순)·상세, 등록(출처 MANUAL)·이름·목표일 수정(낙관적 잠금)·삭제(연결 정보 함께 삭제, 감사 로그), 연결 작업 전체 교체(같은 프로젝트 작업만). D-day와 지연 경고(목표일 당일부터, 연결 작업 중 미완료가 있으면)를 조회 때 한국 시간 기준으로 계산(저장 안 함). 권한은 3.3 WBS-04(PM C·U·D, 그 밖 조회). 알림(FR-NTF-01)은 Sprint 3
   - FR-PRJ-04 멤버·역할 관리 (Jira SCRUM-106): 멤버 초대·역할 변경·제외(PM만), 복수 PM(역할 변경으로 추가·해제, 최소 1명), 멤버 이력, PM 재지정(활성 PM이 없을 때 시스템 관리자). 담당 업무 수는 업무(FR-TSK-01) 구현 전이라 0
 - 기술 stack: Java 17, Spring Boot 4.1.2 (Web MVC, Security, Data JPA, Data Redis, Validation, Flyway), jjwt 0.13, PostgreSQL, Redis 7.4
 
@@ -143,6 +144,7 @@ org.wonik
    ├─ common/masking                 SensitiveValueMasker: 비밀 키 값·JWT·Bearer·DB 상세 값·이메일·전화·주민번호 패턴 마스킹(NFR-06)
    ├─ common/response                ApiResponse
    ├─ common/pagination              CursorCodec, CursorPageRequest, CursorPage (커서 목록)
+   ├─ common/time                    BusinessCalendar: 업무 날짜 기준 시간대(Asia/Seoul)와 Clock 기준 '오늘'
    └─ config                         Clock, JPA auditing, PasswordEncoder, 401/403 JSON 응답, AuditActor 인자 주입(web)
 ```
 
@@ -209,6 +211,12 @@ org.wonik
 | PATCH | `/api/projects/{projectId}/wbs/tasks/{taskId}` | PM · 개발자·QA(본인 담당) | 이름·설명·담당자(PM만)·기간·예상 공수 덮어쓰기. `version` 불일치 409 |
 | PUT | `/api/projects/{projectId}/wbs/tasks/{taskId}/position` | PM | 드래그 이동: `parentTaskId`(null=최상위), `index`(0부터), `version` |
 | DELETE | `/api/projects/{projectId}/wbs/tasks/{taskId}` | PM | 삭제. 하위작업·선후행·마일스톤 연결이 있으면 409 `WBS_TASK_IN_USE` |
+| GET | `/api/projects/{projectId}/wbs/milestones` | USER·EXECUTIVE | 마일스톤 전체(목표일·ID 순, 페이지 없음, 최대 200개). 항목마다 `dDay`·`delayed`·연결/미완료 작업 수·연결 작업 요약 |
+| GET | `/api/projects/{projectId}/wbs/milestones/{milestoneId}` | USER·EXECUTIVE | 마일스톤 상세(목록 항목과 같은 형식) |
+| POST | `/api/projects/{projectId}/wbs/milestones` | PM | 등록: `name`, `targetDate`(프로젝트 기간 안), `taskIds`(선택, 같은 프로젝트 작업, 최대 200). 출처 MANUAL |
+| PATCH | `/api/projects/{projectId}/wbs/milestones/{milestoneId}` | PM | 이름·목표일 덮어쓰기. `version` 불일치 409 |
+| PUT | `/api/projects/{projectId}/wbs/milestones/{milestoneId}/tasks` | PM | 연결 작업 전체 교체(`taskIds`, 빈 배열=모두 해제, `version`). 바뀌면 version +1 |
+| DELETE | `/api/projects/{projectId}/wbs/milestones/{milestoneId}` | PM | 삭제(연결 정보 함께 삭제, 작업은 남음). 감사 로그 `MILESTONE_DELETED` |
 | POST | `/api/projects/{projectId}/wbs/ai-draft` | PM | AI WBS 초안 생성(저장 없음). 응답에 초안과 1회용 `draftToken`(1시간) |
 | POST | `/api/projects/{projectId}/wbs/ai-draft/apply` | PM | PM이 승인·수정한 항목만 WBS에 반영. 응답은 tempId → 정식 ID |
 
@@ -284,6 +292,18 @@ org.wonik
 - 삭제: PM만. 삭제 정책 미정(ERD 04 3절)이라 하위작업·선후행·마일스톤 연결이 하나라도 있으면 409 `WBS_TASK_IN_USE`(연쇄 삭제 없음). 감사 로그 `WBS_TASK_DELETED`(대상 `WBS_TASK`, 프로젝트·상위 작업·이름). 등록·수정·이동은 감사 로그 대상이 아니다(업무 변경 이력은 FR-TSK-01).
 - 트리는 페이지로 나누지 않는다(드래그 편집에 전체가 필요). 대신 프로젝트당 항목(작업+하위작업) 2,000개 상한(409 `WBS_TASK_LIMIT_EXCEEDED`, NFR-02 1,000건의 2배). 조회는 쿼리 2회(항목 전체, 담당자 이름)로 조립한다.
 - 범위 밖: 상태 변경(칸반 FR-TSK-02), 업무 상세 필드·변경 이력·담당자 TODO 반영(FR-TSK-01).
+
+### 마일스톤 규칙 (FR-WBS-04)
+
+- 권한(3.3 WBS-04): 조회는 프로젝트를 볼 수 있는 사용자 전원(멤버, 공개 범위 열람자, 소속 범위 경영진). 등록·수정·연결·삭제는 PM만(403 `PROJECT_PM_ONLY`). 판정 순서와 프로젝트 행 잠금은 계층형 WBS와 같다. 다른 프로젝트의 마일스톤 ID는 404 `MILESTONE_NOT_FOUND`.
+- '오늘'(업무 날짜): 주입한 `Clock`의 시점을 `BusinessCalendar.ZONE`(Asia/Seoul) 날짜로 바꾼다. 서버·JVM 기본 시간대는 쓰지 않는다. 근거: 프로젝트·작업 기간과 목표일은 회사 달력 날짜(DATE)이고 본사·MVP 사용 조직이 한국에 있다. 거점 시간대별 마감 표시는 NFR-19에서 후속(C).
+- D-day: `dDay = 목표일 - 오늘`(일). 양수 D-n, 0 D-day, 음수 D+n(지남). 화면 표기는 FE가 한다.
+- 지연 경고(`delayed`): 오늘 ≥ 목표일(당일 포함, 인수 기준의 '기한 도래')이고 연결 작업 중 상태가 `DONE`이 아닌 것이 하나 이상. 연결 작업이 없으면 경고하지 않는다(`linkedTaskCount` 0). 미완료 수(`incompleteTaskCount`)는 경고 전에도 돌려준다. 조회 때마다 규칙으로 계산하고 저장하지 않는다. 연결 작업이 상위 작업이면 그 작업 자신의 상태만 본다.
+- 목표일: 프로젝트 기간이 있으면 그 안(있는 쪽만, 400 `INVALID_MILESTONE_TARGET_DATE`). 지난 날짜도 등록 가능.
+- 연결 작업: 같은 프로젝트의 작업·하위작업만(없는 ID·다른 프로젝트 ID 모두 400 `INVALID_MILESTONE_TASK`, 존재 여부를 구분하지 않음). 중복 ID는 한 번만 연결. 교체는 빠진 연결 삭제 + 새 연결 추가(남는 연결 행은 유지). 같은 목록 재전송은 version을 보지 않고 200(멱등). 연결이 바뀌면 마일스톤 `version`을 올려 이름 수정과 같은 낙관적 잠금으로 보호한다.
+- 삭제: PM만. 연결 정보(`milestone_tasks`)는 마일스톤에 딸린 데이터라 함께 지우고 작업은 남는다(작업 삭제는 마일스톤 연결이 있으면 409로 막는 것과 짝). 감사 로그 `MILESTONE_DELETED`(대상 `MILESTONE`, 프로젝트·이름·목표일·해제한 연결 수).
+- 목록은 페이지로 나누지 않는다(간트·대시보드가 전체를 그림). 대신 프로젝트당 200개 상한(409 `MILESTONE_LIMIT_EXCEEDED`, AI 초안 반영에도 적용), 마일스톤당 연결 작업 200개. 연결 작업은 조인 쿼리 한 번으로 읽는다(N+1 없음).
+- 범위 밖: 마감 알림(FR-NTF-01, Sprint 3), 마일스톤 지연 예상(FR-AIR-01).
 
 ### AI WBS 초안 규칙 (FR-PRJ-07)
 
