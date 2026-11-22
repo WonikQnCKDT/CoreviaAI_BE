@@ -366,7 +366,7 @@ org.wonik
 
 - 기준: FR-PSN-01·권한 매트릭스 3.3, 원격 `develop`의 `6d39260`.
 - 개인 TODO 등록·상세·제목/마감/완료 변경·소프트 삭제와 배정 WBS 실시간 통합 조회를 구현했다. 사용자 결정에 따라 승인 요청 원천은 후속 연결, 삭제는 소프트 삭제, 마감 임박 기본값은3일이다. 이 BE 변경이 승인 원천 기능·FE 화면까지 구현한 것은 아니다.
-- API 초안: [06. 개인 업무](docs/api/06-personal-todos-draft.md), ERD 보완: [개인 TODO](docs/erd/06-personal-todos-draft.md), 시퀀스: [생성 멱등·통합 조회](docs/sequence/06-personal-todos-draft.md), [보안·검수·검증 한계](docs/reviews/SCRUM-111-draft-review.md).
+- API 계약(PR 전): [06. 개인 업무](docs/api/06-personal-todos-draft.md) · [Confluence API](https://jnu-team-aaptc1y6.atlassian.net/wiki/spaces/CoreviaAI/pages/21561547). ERD 보완: [개인 TODO](docs/erd/06-personal-todos-draft.md), 시퀀스: [생성·조회·소프트 삭제](docs/sequence/06-personal-todos-draft.md), [최신 보안·검수·검증 한계](docs/reviews/SCRUM-111-soft-delete-review.md). 이전 초안 검수 기록은 당시 결과를 보존한다.
 - 경로: `GET/POST /api/me/todos`, `GET/PATCH/DELETE /api/me/todos/{todoId}`. 소유자는 로그인 주체에서만 정한다. 기본 목록은 미삭제·미완료 개인 TODO·현재 담당 업무, 완료 개인은 `done=true`. `dueSoonDays` 기본3·명시1~365, `size` 기본20·최대100, 불투명 cursor를 사용한다.
 - 날짜: `Asia/Seoul`의 오늘을 기준으로 오늘→임박→지연→이후→마감없음 정렬, 지연은 `overdue`로 표시한다. 커서를 이어가는 동안 정렬 날짜를 고정하고 권한·행 상태는 매번 새로 확인한다.
 - 등록은 클라이언트 UUID `requestId`가 필수다. 본인 범위 같은 키·같은 입력의 재전송은 처음 응답, 다른 입력은409. 현재 할 일 내용을 바꿔도 최초 요청 해시를 보존한다.

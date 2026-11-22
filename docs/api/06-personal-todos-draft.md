@@ -2,7 +2,7 @@
 
 > 상태: Draft · 담당자: 미정 · 마지막 검토일: 2026-11-22
 > 기준: FR-PSN-01, 요구사항 명세서 3.3 PSN-01·02, ERD 06
-> Confluence 정식 게시 전 검토용. 사용자 결정: 승인 요청 원천은 후속 연결, 개인 TODO는 소프트 삭제, 마감 임박 기본3일.
+> 사용자 확정 범위: 승인 요청 원천은 후속 연결, 개인 TODO는 소프트 삭제, 마감 임박 기본3일.
 
 - 관련: [SCRUM-111](https://jnu-team-aaptc1y6.atlassian.net/browse/SCRUM-111), [전사관리 요구사항](https://jnu-team-aaptc1y6.atlassian.net/wiki/spaces/CoreviaAI/pages/8126909), [06. 개인 업무 ERD](https://jnu-team-aaptc1y6.atlassian.net/wiki/spaces/CoreviaAI/pages/20414469).
 - 공식 API 명세서 템플릿과 [00. 공통 규약 (API)](https://jnu-team-aaptc1y6.atlassian.net/wiki/spaces/CoreviaAI/pages/12877846)을 따른다.

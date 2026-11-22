@@ -69,3 +69,13 @@ gradle.projectsEvaluated {
 - 적용됐을 수 있는 migration 수정 금지(V13 불변), V14 expand·배포 순서·구 리더 노출 위험·roll-forward를 문서화했다. 운영 전 실제 PostgreSQL 실행 계획·잠금 동작·배포 검증은 별도 필요하다.
 - API/ERD/보완 drawio/생성·삭제 시퀀스/README는 사용자3결정을 반영했다. 기존 검수 기록은 역사적 결과로 보존했다. 원격 Confluence/Jira 게시·댓글은 root가 수행하며 이 에이전트는 원격 push·상태 변경을 하지 않았다.
 - 승인 원천 연결은 사용자 승인 후속 범위다. 삭제행·키 보존 기간·물리 purge·복구 정책은 운영 미정이므로 자동 작업을 추가하지 않았다. ERD 기존 원본 다운로드·PNG export는 도구 환경에서 불가해 기존 원격 그림을 보존하고 로컬 보완 drawio를 유지한다.
+
+## 5. 통합·문서 반영 결과
+
+- 통합 브랜치: `feature/SCRUM-111-171-integration`. 기능 커밋 `d1b4102`는 검증한 에이전트 커밋 `28a8ddb`와 `src`·빌드 설정이 동일하다. 이후 변경은 문서 게시 상태와 링크뿐이다.
+- 독립 XML 확인: 단위 27 suite/303건, 통합 14 suite/146건, 실패·오류·건너뜀 0. 최종 실행의 단위·bootJar는 동일 소스의 직전 산출물을 UP-TO-DATE로 재사용했다.
+- [06. 개인 업무 API](https://jnu-team-aaptc1y6.atlassian.net/wiki/spaces/CoreviaAI/pages/21561547), [06. 개인 업무 ERD](https://jnu-team-aaptc1y6.atlassian.net/wiki/spaces/CoreviaAI/pages/20414469), [06. 개인 업무 Sequence](https://jnu-team-aaptc1y6.atlassian.net/wiki/spaces/CoreviaAI/pages/21561565)를 게시·재조회했다. 공식 템플릿 구조와 기존 첨부·표 형식을 보존했다.
+- [공통 API 규약](https://jnu-team-aaptc1y6.atlassian.net/wiki/spaces/CoreviaAI/pages/12877846)에 TODO 오류 코드와 본문 없는 204 규칙을, [ERD 개요·규칙](https://jnu-team-aaptc1y6.atlassian.net/wiki/spaces/CoreviaAI/pages/12845101)에 테이블 소유·소프트 삭제·감사 행위를 반영했다. 오래된 초안에 없던 최신 게시본의 V12 칸반·마일스톤 내용을 보존해 통합했다.
+- ERD 본문 표·정책은 갱신했고 기존 이미지·첨부 두 개는 보존했다. 원본 다운로드 재시도도 WebException으로 실패해 최신 PNG·첨부 교체는 미수행이다. 허용된 fallback으로 최신 보완 drawio를 `docs/erd/`에 저장했으며 페이지에 이미지가 기존 계획본임을 명시했다.
+- 확인·보안 설계·구현·성공/실패/경계 테스트·독립 검수·로컬 commit을 수행했다. Agensi와 표준 check/coverage·미구축 정적/공급망 gate는 위 환경 제약에 따른 대체·미수행 항목이다. 원격 push·PR 생성·Jira 상태 변경은 하지 않는다.
+- Jira 기록 대상: [SCRUM-111](https://jnu-team-aaptc1y6.atlassian.net/browse/SCRUM-111). 승인된 후속 범위와 테스트·문서·배포 제약을 댓글로 인계하며 상태 전환은 사용자에게 남긴다.
