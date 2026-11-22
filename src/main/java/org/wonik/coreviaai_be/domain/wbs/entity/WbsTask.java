@@ -1,12 +1,15 @@
 package org.wonik.coreviaai_be.domain.wbs.entity;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Objects;
 
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
+import org.wonik.coreviaai_be.domain.wbs.entity.type.TaskPriority;
+import org.wonik.coreviaai_be.domain.wbs.entity.type.TaskType;
 import org.wonik.coreviaai_be.domain.wbs.entity.type.WbsItemSource;
 import org.wonik.coreviaai_be.domain.wbs.entity.type.WbsTaskStatus;
 import org.wonik.global.common.entity.BaseTimeEntity;
@@ -36,6 +39,9 @@ import lombok.NoArgsConstructor;
  * <p>
  * 다른 모듈(프로젝트·사용자)과는 JPA 연관관계 없이 ID만 가진다(Project와 같은 방식).
  * 기간은 달력 의미를 갖는 날짜라 LocalDate, 예상 공수는 인일 단위(소수 첫째 자리)다.
+ * <p>
+ * 업무 상세(FR-TSK-01, V11): 유형·우선순위·완료 조건은 {@link TaskAttributes}로 바꾼다. 완료 시각(completed_at)은
+ * 상태가 DONE이 되는 시점에 칸반(FR-TSK-02)이 {@link #markCompleted(Instant)}로 기록한다.
  */
 @Getter
 @Entity
@@ -45,6 +51,7 @@ public class WbsTask extends BaseTimeEntity {
 
 	public static final int NAME_MAX_LENGTH = 200;
 	public static final int DESCRIPTION_MAX_LENGTH = 2000;
+	public static final int COMPLETION_CRITERIA_MAX_LENGTH = 2000;
 
 	@Id
 	@GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -94,6 +101,23 @@ public class WbsTask extends BaseTimeEntity {
 	@Column(name = "created_by", nullable = false)
 	private Long createdBy;
 
+	@Enumerated(EnumType.STRING)
+	@JdbcTypeCode(SqlTypes.VARCHAR)
+	@Column(name = "task_type", nullable = false, length = 20)
+	private TaskType taskType;
+
+	@Enumerated(EnumType.STRING)
+	@JdbcTypeCode(SqlTypes.VARCHAR)
+	@Column(name = "priority", nullable = false, length = 20)
+	private TaskPriority priority;
+
+	@Column(name = "completion_criteria", length = COMPLETION_CRITERIA_MAX_LENGTH)
+	private String completionCriteria;
+
+	/** 완료 처리 시각(UTC). 완료되지 않았으면 null. */
+	@Column(name = "completed_at")
+	private Instant completedAt;
+
 	@Version
 	@Column(name = "version", nullable = false)
 	private long version;
@@ -119,6 +143,9 @@ public class WbsTask extends BaseTimeEntity {
 		this.status = WbsTaskStatus.TODO;
 		this.source = source;
 		this.createdBy = createdBy;
+		this.taskType = TaskAttributes.DEFAULT.taskType();
+		this.priority = TaskAttributes.DEFAULT.priority();
+		this.completionCriteria = TaskAttributes.DEFAULT.completionCriteria();
 	}
 
 	/** 최상위 작업. */
@@ -172,6 +199,34 @@ public class WbsTask extends BaseTimeEntity {
 		this.startDate = details.startDate();
 		this.endDate = details.endDate();
 		this.estimatedEffort = details.estimatedEffort();
+	}
+
+	public TaskAttributes attributes() {
+		return new TaskAttributes(taskType, priority, completionCriteria);
+	}
+
+	/** 상세 필드(유형·우선순위·완료 조건)가 요청 값과 모두 같은지. */
+	public boolean hasSameAttributes(final TaskAttributes attributes) {
+		return attributes().equals(attributes);
+	}
+
+	/** 상세 필드 수정(FR-TSK-01). 권한 검증은 서비스가 먼저 한다. */
+	public void changeAttributes(final TaskAttributes attributes) {
+		this.taskType = attributes.taskType();
+		this.priority = attributes.priority();
+		this.completionCriteria = attributes.completionCriteria();
+	}
+
+	/** 완료 처리 시각을 남긴다. 상태 변경(FR-TSK-02)이 DONE으로 바꿀 때 호출한다. 이미 완료 시각이 있으면 그대로 둔다. */
+	public void markCompleted(final Instant completedAt) {
+		if (this.completedAt == null) {
+			this.completedAt = completedAt;
+		}
+	}
+
+	/** 완료 상태에서 다시 진행으로 돌아가면 완료 시각을 지운다(FR-TSK-02). */
+	public void clearCompleted() {
+		this.completedAt = null;
 	}
 
 	/** 부모와 표시 순서를 바꾼다(드래그 이동). 2단계 계층 규칙은 서비스가 먼저 확인한다. */

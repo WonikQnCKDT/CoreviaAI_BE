@@ -7,6 +7,7 @@ import java.util.Objects;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.wonik.coreviaai_be.domain.wbs.entity.TaskDetails;
+import org.wonik.coreviaai_be.domain.wbs.entity.TaskSnapshot;
 import org.wonik.coreviaai_be.domain.wbs.entity.WbsTask;
 import org.wonik.coreviaai_be.domain.wbs.entity.type.WbsItemSource;
 import org.wonik.coreviaai_be.domain.wbs.policy.WbsEditor;
@@ -40,7 +41,10 @@ import lombok.RequiredArgsConstructor;
  * 현재 값과 다르면 409 CONCURRENT_MODIFICATION으로 거부한다. 같은 결과가 이미 반영된 재전송(같은 값 수정, 같은 위치 이동)은
  * version을 보지 않고 그대로 성공한다(멱등).
  * <p>
- * 상태(status)는 등록 시 TODO이고 이 API로 바꾸지 않는다(칸반 FR-TSK-02). 업무 상세 필드·변경 이력은 FR-TSK-01이 맡는다.
+ * 상태(status)는 등록 시 TODO이고 이 API로 바꾸지 않는다(칸반 FR-TSK-02). 업무 상세 필드 수정은 TaskDetailService(FR-TSK-01).
+ * <p>
+ * 변경 이력(FR-TSK-01): 등록·기본 필드 수정·이동·삭제와 그에 따른 상위 기간 산출을 같은 트랜잭션에서
+ * {@link TaskHistoryRecorder}로 남긴다(형제 순서 재정렬은 이력을 남기지 않는다).
  */
 @Service
 @RequiredArgsConstructor
@@ -55,6 +59,7 @@ public class WbsTaskService {
 	private final WbsDependencyRepository dependencyRepository;
 	private final MilestoneTaskRepository milestoneTaskRepository;
 	private final WbsTreeReader treeReader;
+	private final TaskHistoryRecorder historyRecorder;
 	private final AuditLogger auditLogger;
 
 	@Transactional(readOnly = true)
@@ -90,9 +95,11 @@ public class WbsTaskService {
 			WbsItemSource.MANUAL, actor.userId())
 			: WbsTask.subtask(parent, taskRepository.findLastSortOrderUnder(parent.getId()) + 1, details,
 			WbsItemSource.MANUAL, actor.userId());
+		task.changeAttributes(command.attributes());
 		taskRepository.saveAndFlush(task);
+		historyRecorder.created(actor.userId(), List.of(task));
 		if (parent != null) {
-			deriveSchedule(parent);
+			deriveSchedule(actor.userId(), parent);
 		}
 		return changed(task.getId(), projectId);
 	}
@@ -129,10 +136,12 @@ public class WbsTaskService {
 			rules.validateSchedule(editor.project(), details.startDate(), details.endDate());
 		}
 
+		final TaskSnapshot before = TaskSnapshot.of(task);
 		task.changeDetails(details);
 		taskRepository.flush();
+		historyRecorder.changed(actor.userId(), before, TaskSnapshot.of(task));
 		if (scheduleChanged && task.isSubtask()) {
-			deriveSchedule(getTask(projectId, task.getParentTaskId()));
+			deriveSchedule(actor.userId(), getTask(projectId, task.getParentTaskId()));
 		}
 		return changed(taskId, projectId);
 	}
@@ -175,16 +184,18 @@ public class WbsTaskService {
 		requireVersion(task, command.version());
 
 		destination.add(command.index(), task);
+		final TaskSnapshot before = TaskSnapshot.of(task);
 		task.moveTo(newParentId, command.index() + 1);
 		taskRepository.flush();
+		historyRecorder.changed(actor.userId(), before, TaskSnapshot.of(task));
 		final List<WbsTask> source = new ArrayList<>();
 		if (!sameParent) {
 			source.addAll(siblings(projectId, oldParentId));
 			if (oldParentId != null) {
-				deriveSchedule(getTask(projectId, oldParentId));
+				deriveSchedule(actor.userId(), getTask(projectId, oldParentId));
 			}
 			if (newParent != null) {
-				deriveSchedule(newParent);
+				deriveSchedule(actor.userId(), newParent);
 			}
 			taskRepository.flush();
 		}
@@ -197,6 +208,7 @@ public class WbsTaskService {
 	/**
 	 * 삭제(PM만, 3.2 공통 규칙 '업무 삭제는 PM만'). 삭제 정책이 정해지지 않아(04. WBS·일정 ERD 3절) 되돌리기 쉬운 쪽으로,
 	 * 하위작업·선후행 관계·마일스톤 연결이 하나라도 있으면 409 WBS_TASK_IN_USE로 거부한다(연쇄 삭제 없음). 감사 로그를 남긴다.
+	 * 변경 이력(task_histories)은 삭제를 막지 않는다: 이력은 지우지 않고 DELETED 이력을 더해 남긴다(task_id FK 없음, V11).
 	 */
 	@Transactional
 	public WbsTaskChange delete(final AuditActor actor, final Long projectId, final Long taskId) {
@@ -210,10 +222,12 @@ public class WbsTaskService {
 		}
 
 		final Long parentId = task.getParentTaskId();
+		final TaskSnapshot before = TaskSnapshot.of(task);
 		taskRepository.delete(task);
 		taskRepository.flush();
+		historyRecorder.deleted(actor.userId(), before);
 		if (parentId != null) {
-			deriveSchedule(getTask(projectId, parentId));
+			deriveSchedule(actor.userId(), getTask(projectId, parentId));
 		}
 		auditLogger.record(actor, AuditAction.WBS_TASK_DELETED, AuditTargetType.WBS_TASK, taskId,
 			AuditChanges.create()
@@ -241,8 +255,11 @@ public class WbsTaskService {
 			: taskRepository.findAllByParentTaskIdOrderBySortOrderAscIdAsc(parentTaskId));
 	}
 
-	private void deriveSchedule(final WbsTask parent) {
+	/** 상위 작업 기간을 하위작업 기간으로 다시 맞추고, 바뀌었으면 상위 작업에 DATE_CHANGED 이력을 남긴다. */
+	private void deriveSchedule(final Long actorUserId, final WbsTask parent) {
+		final TaskSnapshot before = TaskSnapshot.of(parent);
 		parent.deriveScheduleFrom(taskRepository.findAllByParentTaskIdOrderBySortOrderAscIdAsc(parent.getId()));
+		historyRecorder.changed(actorUserId, before, TaskSnapshot.of(parent));
 	}
 
 	/** 목록 순서대로 1부터 다시 매긴다. 이미 맞는 항목은 건드리지 않는다. */

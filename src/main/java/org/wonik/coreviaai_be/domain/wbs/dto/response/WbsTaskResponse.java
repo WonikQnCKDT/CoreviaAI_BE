@@ -12,6 +12,8 @@ import org.wonik.coreviaai_be.domain.wbs.service.result.WbsTreeNode;
  *
  * @param assignee        담당자. 없으면 null
  * @param scheduleDerived true면 startDate·endDate가 하위작업 기간으로 산출된 값이라 직접 바꿀 수 없다
+ * @param taskType        업무 유형 TASK·DEFECT(FR-TSK-01)
+ * @param priority        우선순위 HIGH·MEDIUM·LOW(FR-TSK-01)
  * @param status          진행 상태(공통 코드 TASK_STATUS). 이 API로는 바꾸지 않는다
  * @param version         수정·이동 요청에 그대로 보내는 값(낙관적 잠금)
  */
@@ -26,6 +28,8 @@ public record WbsTaskResponse(
 	LocalDate endDate,
 	boolean scheduleDerived,
 	BigDecimal estimatedEffort,
+	String taskType,
+	String priority,
 	int progress,
 	String status,
 	String source,
@@ -40,7 +44,7 @@ public record WbsTaskResponse(
 			: new AssigneeResponse(task.getAssigneeUserId(), node.assigneeName());
 		return new WbsTaskResponse(task.getId(), task.getParentTaskId(), task.getSortOrder(), task.getName(),
 			task.getDescription(), assignee, task.getStartDate(), task.getEndDate(), node.scheduleDerived(),
-			task.getEstimatedEffort(), task.getProgress(), task.getStatus().name(), task.getSource().name(),
+			task.getEstimatedEffort(), task.getTaskType().name(), task.getPriority().name(), task.getProgress(), task.getStatus().name(), task.getSource().name(),
 			task.getVersion(), listOf(node.subtasks()));
 	}
 

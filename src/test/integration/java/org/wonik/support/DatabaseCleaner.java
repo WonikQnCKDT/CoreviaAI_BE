@@ -18,6 +18,8 @@ public class DatabaseCleaner {
 
 	public void clearAll() {
 		jdbcTemplate.update("DELETE FROM ai_drafts");
+		// 업무 이력은 운영에서 지우지 않는 기록이지만(append-only) 테스트 사이에는 비운다. task_id FK는 없고 actor_user_id만 users를 참조한다.
+		jdbcTemplate.update("DELETE FROM task_histories");
 		jdbcTemplate.update("DELETE FROM milestone_tasks");
 		jdbcTemplate.update("DELETE FROM milestones");
 		jdbcTemplate.update("DELETE FROM wbs_dependencies");
