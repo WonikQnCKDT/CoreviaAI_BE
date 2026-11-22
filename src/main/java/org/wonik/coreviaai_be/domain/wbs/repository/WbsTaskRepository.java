@@ -3,6 +3,7 @@ package org.wonik.coreviaai_be.domain.wbs.repository;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
@@ -12,6 +13,12 @@ import org.wonik.coreviaai_be.domain.wbs.entity.WbsTask;
 import org.wonik.coreviaai_be.domain.wbs.entity.type.WbsTaskStatus;
 
 public interface WbsTaskRepository extends JpaRepository<WbsTask, Long> {
+
+	interface AssigneeTaskCount {
+		Long getAssigneeUserId();
+
+		long getTaskCount();
+	}
 
 	/** 최상위 작업을 표시 순서대로. 하위작업은 제외한다. */
 	List<WbsTask> findAllByProjectIdAndParentTaskIdIsNullOrderBySortOrderAscIdAsc(Long projectId);
@@ -36,6 +43,27 @@ public interface WbsTaskRepository extends JpaRepository<WbsTask, Long> {
 
 	/** 프로젝트당 WBS 항목 수 상한 판정용. */
 	long countByProjectId(Long projectId);
+
+	/** 멤버 목록의 담당 업무 수를 한 번에 집계한다(작업·하위작업, 완료 포함). */
+	@Query("""
+		select t.assigneeUserId as assigneeUserId, count(t) as taskCount
+		from WbsTask t
+		where t.projectId = :projectId and t.assigneeUserId in :userIds
+		group by t.assigneeUserId
+		""")
+	List<AssigneeTaskCount> countAssignedTasks(
+		@Param("projectId") Long projectId,
+		@Param("userIds") Set<Long> userIds
+	);
+
+	long countByProjectIdAndAssigneeUserId(Long projectId, Long assigneeUserId);
+
+	/** 멤버 제외 전 재배정해야 하는 미완료 작업·하위작업. */
+	List<WbsTask> findAllByProjectIdAndAssigneeUserIdAndStatusNotOrderBySortOrderAscIdAsc(
+		Long projectId,
+		Long assigneeUserId,
+		WbsTaskStatus status
+	);
 
 	/** 주어진 ID 중 그 프로젝트의 항목 수. 마일스톤 연결 작업이 모두 같은 프로젝트에 있는지 확인한다. */
 	long countByProjectIdAndIdIn(Long projectId, Collection<Long> ids);

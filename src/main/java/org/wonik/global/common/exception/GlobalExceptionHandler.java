@@ -177,7 +177,7 @@ public class GlobalExceptionHandler {
 		final ErrorCode errorCode = ex.getErrorCode();
 		return ResponseEntity
 			.status(errorCode.getStatus())
-			.body(ApiResponse.error(errorCode));
+			.body(ApiResponse.error(ex.getResponse(), errorCode));
 	}
 
 	/**

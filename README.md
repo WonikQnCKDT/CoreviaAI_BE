@@ -21,7 +21,7 @@
   - FR-WBS-01 계층형 WBS (Jira SCRUM-107): 작업 > 하위작업 2단계 트리 조회(한 번에, 담당자 이름 포함), 작업·하위작업 등록·수정(낙관적 잠금)·삭제(연결 있으면 거부)·드래그 이동(순서·계층 변경), 상위 작업 기간을 하위작업 기간으로 자동 산출(저장값 갱신). 권한은 3.3 WBS-01(PM 전체, 개발자·QA 본인 담당 작업 수정·그 아래 하위작업 추가). '단계' 레벨 표현은 미결
   - FR-WBS-04 마일스톤 (Jira SCRUM-108): 마일스톤 목록(목표일 순)·상세, 등록(출처 MANUAL)·이름·목표일 수정(낙관적 잠금)·삭제(연결 정보 함께 삭제, 감사 로그), 연결 작업 전체 교체(같은 프로젝트 작업만). D-day와 지연 경고(목표일 당일부터, 연결 작업 중 미완료가 있으면)를 조회 때 한국 시간 기준으로 계산(저장 안 함). 권한은 3.3 WBS-04(PM C·U·D, 그 밖 조회). 알림(FR-NTF-01)은 Sprint 3
   - FR-TSK-01 업무 CRUD (Jira SCRUM-109): 업무 = WBS 작업·하위작업. 업무 상세 조회, 유형(TASK·DEFECT)·우선순위(HIGH·MEDIUM·LOW)·완료 조건 수정(낙관적 잠금, WBS 등록 때 선택 입력 가능), 변경 이력(`task_histories`: 등록·배정·해제·일정·상세·이동·삭제, 업무별 시간순 커서 조회). 등록·담당자 배정·기간·삭제는 FR-WBS-01 API를 그대로 쓴다. 담당자 TODO 반영은 FR-PSN-01(SCRUM-111)이 조회 때 `assignee_user_id`로 합침, 일정(FR-PSN-02)은 Sprint 3, AI 공수 추정(FR-AIR-15)은 Sprint 5
-  - FR-PRJ-04 멤버·역할 관리 (Jira SCRUM-106): 멤버 초대·역할 변경·제외(PM만), 복수 PM(역할 변경으로 추가·해제, 최소 1명), 멤버 이력, PM 재지정(활성 PM이 없을 때 시스템 관리자). 담당 업무 수는 업무(FR-TSK-01) 구현 전이라 0
+  - FR-PRJ-04 멤버·역할 관리 (Jira SCRUM-106): 멤버 초대·역할 변경·제외(PM만), 복수 PM(역할 변경으로 추가·해제, 최소 1명), 멤버 이력, PM 재지정(활성 PM이 없을 때 시스템 관리자). 담당 업무 수는 완료 여부와 관계없이 해당 프로젝트의 담당 업무·하위 업무를 집계하며, 미완료 담당 업무가 있으면 멤버를 제외할 수 없다.
 - 기술 stack: Java 17, Spring Boot 4.1.2 (Web MVC, Security, Data JPA, Data Redis, Validation, Flyway), jjwt 0.13, PostgreSQL, Redis 7.4
 
 ## 2. 개발 환경
@@ -202,7 +202,7 @@ org.wonik
 | POST | `/api/projects` | 활성 USER | 프로젝트 생성. `template`·`features`·`departmentIds`(0~N) 필수 형식, 기간 선택. 생성자 PM 자동 지정, 폭포수면 5단계·게이트 생성, 감사 로그(`PROJECT_CREATED`). 응답은 상세 |
 | GET | `/api/projects` | USER·EXECUTIVE | 프로젝트 목록(커서, id 내림차순). `cursor`, `size`, `status`, `departmentId`(주관 부서 중 하나), `pmUserId`(PM 중 한 명). 항목의 `departments`·`pms`는 배열. 공개 범위 밖은 제외 |
 | GET | `/api/projects/{projectId}` | USER·EXECUTIVE | 상세(운영 방식과 무관한 공통 정보: 기본 정보·템플릿·운영 방식·주관 부서·PM 목록·지정 액터·기능 구성). 볼 수 없으면 404 |
-| GET | `/api/projects/{projectId}/members` | USER·EXECUTIVE | 멤버 목록(커서, id 오름차순 = 등록순). `cursor`, `size`. 공개 범위는 상세와 같음. 항목에 `assignedTaskCount`(현재 항상 0) |
+| GET | `/api/projects/{projectId}/members` | USER·EXECUTIVE | 멤버 목록(커서, id 오름차순 = 등록순). `cursor`, `size`. 공개 범위는 상세와 같음. 항목에 해당 프로젝트의 완료 업무를 포함한 `assignedTaskCount` |
 | POST | `/api/projects/{projectId}/members` | PM | 멤버 초대(한 번에 최대 100명). 이미 멤버가 있으면 전체 거부(409 `ALREADY_PROJECT_MEMBER`) |
 | PATCH | `/api/projects/{projectId}/members/{userId}/role` | PM | 역할 변경. `PM`으로 바꾸면 PM 추가, PM을 다른 역할로 바꾸면 PM 해제(마지막 PM이면 409 `LAST_PM_REQUIRED`). 같은 역할이면 변경·이력 없음 |
 | DELETE | `/api/projects/{projectId}/members/{userId}` | PM | 멤버 제외. 마지막 PM·게이트 승인자는 409 |

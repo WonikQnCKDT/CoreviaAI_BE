@@ -7,7 +7,7 @@ import org.wonik.coreviaai_be.domain.project.service.result.ProjectMemberResult;
 /**
  * 프로젝트 멤버 한 명과 역할(멤버 목록·초대·역할 변경 응답 항목).
  *
- * @param assignedTaskCount 담당 업무 수. 업무(FR-TSK-01) 구현 전이라 항상 0이다
+ * @param assignedTaskCount 해당 프로젝트의 담당 작업·하위작업 수(완료 포함)
  */
 public record ProjectMemberResponse(Long userId, String name, ProjectActor actor, long assignedTaskCount) {
 

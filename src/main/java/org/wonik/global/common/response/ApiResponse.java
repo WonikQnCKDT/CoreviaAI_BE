@@ -24,6 +24,10 @@ public class ApiResponse<T> {
 		return new ApiResponse<>(false, null, new ApiError(errorCode.getMessage(), errorCode.getStatus()));
 	}
 
+	public static <T> ApiResponse<T> error(final T response, final ErrorCode errorCode) {
+		return new ApiResponse<>(false, response, new ApiError(errorCode.getMessage(), errorCode.getStatus()));
+	}
+
 	private record ApiError(String message, int status) {
 	}
 }

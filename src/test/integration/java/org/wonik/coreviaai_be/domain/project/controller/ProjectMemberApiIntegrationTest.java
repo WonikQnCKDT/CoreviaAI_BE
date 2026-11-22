@@ -4,6 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.IntStream;
@@ -11,6 +13,8 @@ import java.util.stream.IntStream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.test.context.ActiveProfiles;
@@ -20,6 +24,10 @@ import org.wonik.global.audit.AuditTargetType;
 import org.wonik.global.common.exception.ErrorCode;
 import org.wonik.global.common.type.SystemRole;
 import org.wonik.global.user.entity.User;
+import org.wonik.coreviaai_be.domain.wbs.entity.TaskDetails;
+import org.wonik.coreviaai_be.domain.wbs.entity.WbsTask;
+import org.wonik.coreviaai_be.domain.wbs.entity.type.WbsItemSource;
+import org.wonik.coreviaai_be.domain.wbs.repository.WbsTaskRepository;
 
 import jakarta.servlet.http.Cookie;
 import tools.jackson.databind.JsonNode;
@@ -43,6 +51,10 @@ class ProjectMemberApiIntegrationTest extends ProjectApiTestSupport {
 	private long projectId;
 	private User newcomer;
 	private Cookie pm;
+	@Autowired
+	private WbsTaskRepository taskRepository;
+	@Autowired
+	private JdbcTemplate jdbc;
 
 	@BeforeEach
 	void createProjectWithMembers() throws Exception {
@@ -84,6 +96,24 @@ class ProjectMemberApiIntegrationTest extends ProjectApiTestSupport {
 			assertThat(log.getTargetId()).isEqualTo(projectId);
 			assertThat(log.getActorUserId()).isEqualTo(creator.getId());
 		});
+	}
+
+	@Test
+	@DisplayName("멤버 목록은 해당 프로젝트의 완료 포함 담당 작업·하위작업 수를 표시한다")
+	void assignedTaskCount() throws Exception {
+		saveTask(projectId, developer.getId(), "작업 1", 1);
+		saveTask(projectId, developer.getId(), "작업 2", 2);
+		final WbsTask completed = saveTask(projectId, developer.getId(), "완료 작업", 3);
+		jdbc.update("update wbs_tasks set status = 'DONE' where id = ?", completed.getId());
+
+		final long otherProjectId = createProject(validCreateBody("OTHER-COUNT"));
+		saveTask(otherProjectId, developer.getId(), "다른 프로젝트 작업", 1);
+
+		final JsonNode developerMember = membersOf(pm, projectId).valueStream()
+			.filter(member -> member.get("userId").asLong() == developer.getId())
+			.findFirst()
+			.orElseThrow();
+		assertThat(developerMember.get("assignedTaskCount").asLong()).isEqualTo(3L);
 	}
 
 	@Test
@@ -186,6 +216,30 @@ class ProjectMemberApiIntegrationTest extends ProjectApiTestSupport {
 	}
 
 	@Test
+	@DisplayName("제외: DONE이 아닌 담당 업무가 있으면 정렬된 업무 목록과 409를 반환하고 아무 변경도 남기지 않는다")
+	void cannotRemoveMemberWithIncompleteTasks() throws Exception {
+		final WbsTask second = saveTask(projectId, developer.getId(), "두 번째 업무", 2);
+		final WbsTask first = saveTask(projectId, developer.getId(), "첫 번째 업무", 1);
+		final WbsTask completed = saveTask(projectId, developer.getId(), "완료 업무", 3);
+		jdbc.update("update wbs_tasks set status = 'DONE' where id = ?", completed.getId());
+
+		deleteAs(pm, MEMBER, projectId, developer.getId())
+			.andExpect(status().isConflict())
+			.andExpect(jsonPath("$.success").value(false))
+			.andExpect(jsonPath("$.error.status").value(ErrorCode.MEMBER_HAS_ASSIGNED_TASKS.getStatus()))
+			.andExpect(jsonPath("$.error.message").value(ErrorCode.MEMBER_HAS_ASSIGNED_TASKS.getMessage()))
+			.andExpect(jsonPath("$.response.length()").value(2))
+			.andExpect(jsonPath("$.response[0].taskId").value(first.getId()))
+			.andExpect(jsonPath("$.response[0].title").value("첫 번째 업무"))
+			.andExpect(jsonPath("$.response[0].status").value("TODO"))
+			.andExpect(jsonPath("$.response[1].taskId").value(second.getId()));
+
+		assertThat(memberRoles(pm, projectId)).contains(developer.getId() + ":DEVELOPER");
+		assertThat(historiesOf(pm, projectId)).isEmpty();
+		assertThat(auditLogs(AuditAction.PROJECT_MEMBER_REMOVED)).isEmpty();
+	}
+
+	@Test
 	@DisplayName("제외 규칙: 마지막 PM·게이트 승인자는 409, 멤버가 아니면 404")
 	void removeRules() throws Exception {
 		expectError(deleteAs(pm, MEMBER, projectId, creator.getId()), ErrorCode.LAST_PM_REQUIRED);
@@ -233,5 +287,17 @@ class ProjectMemberApiIntegrationTest extends ProjectApiTestSupport {
 
 	private static List<String> changeTypes(final JsonNode page) {
 		return page.get("items").valueStream().map(item -> item.get("changeType").asString()).toList();
+	}
+
+	private WbsTask saveTask(final long targetProjectId, final Long assigneeUserId, final String name,
+		final int sortOrder) {
+		final LocalDate date = LocalDate.of(2026, 12, 10);
+		return taskRepository.saveAndFlush(WbsTask.task(
+			targetProjectId,
+			sortOrder,
+			new TaskDetails(name, null, assigneeUserId, date, date, BigDecimal.ONE),
+			WbsItemSource.MANUAL,
+			creator.getId()
+		));
 	}
 }

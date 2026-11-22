@@ -87,6 +87,7 @@ public enum ErrorCode {
 	CONCURRENT_MODIFICATION(409, "다른 사용자가 먼저 수정했습니다. 새로고침한 뒤 다시 시도해 주세요"),
 	ALREADY_PROJECT_MEMBER(409, "이미 프로젝트 멤버인 사용자입니다"),
 	GATE_APPROVER_NOT_REMOVABLE(409, "게이트 승인자는 멤버에서 제외할 수 없습니다. 승인자를 먼저 변경해 주세요"),
+	MEMBER_HAS_ASSIGNED_TASKS(409, "담당 중인 업무가 있어 제외할 수 없습니다. 업무를 먼저 재배정해 주세요"),
 	LAST_PM_REQUIRED(409, "프로젝트에는 PM이 1명 이상 있어야 합니다. 다른 멤버를 PM으로 추가한 뒤 다시 시도해 주세요"),
 	PM_REASSIGN_NOT_ALLOWED(409, "PM을 재지정할 수 없는 프로젝트입니다. 프로젝트 코드와 활성 PM이 남아 있지 않은지 확인해 주세요"),
 	AI_DRAFT_ALREADY_APPLIED(409, "이미 반영한 AI 초안입니다"),
