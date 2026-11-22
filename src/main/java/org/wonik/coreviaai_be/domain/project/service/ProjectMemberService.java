@@ -27,8 +27,11 @@ import org.wonik.coreviaai_be.domain.project.repository.ProjectMemberHistoryRepo
 import org.wonik.coreviaai_be.domain.project.repository.ProjectMemberRepository;
 import org.wonik.coreviaai_be.domain.project.repository.ProjectPhaseRepository;
 import org.wonik.coreviaai_be.domain.project.service.command.InitialMember;
+import org.wonik.coreviaai_be.domain.project.service.result.AssignedTaskSummary;
 import org.wonik.coreviaai_be.domain.project.service.result.MemberHistoryResult;
 import org.wonik.coreviaai_be.domain.project.service.result.ProjectMemberResult;
+import org.wonik.coreviaai_be.domain.wbs.entity.type.WbsTaskStatus;
+import org.wonik.coreviaai_be.domain.wbs.repository.WbsTaskRepository;
 import org.wonik.global.audit.AuditAction;
 import org.wonik.global.audit.AuditActor;
 import org.wonik.global.audit.AuditChanges;
@@ -56,9 +59,6 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class ProjectMemberService {
 
-	/** 업무(FR-TSK-01)가 아직 없어 담당 업무 수는 0으로 응답한다. 업무 구현 시 실제 개수로 바꾼다. */
-	private static final long NO_ASSIGNED_TASKS = 0L;
-
 	private final ProjectAccessPolicy accessPolicy;
 	private final ProjectMemberPolicy memberPolicy;
 	private final ProjectActorAssignmentRepository actorAssignmentRepository;
@@ -66,6 +66,7 @@ public class ProjectMemberService {
 	private final ProjectMemberHistoryRepository historyRepository;
 	private final ProjectPhaseRepository phaseRepository;
 	private final UserRepository userRepository;
+	private final WbsTaskRepository taskRepository;
 	private final AuditLogger auditLogger;
 	private final Clock clock;
 
@@ -82,9 +83,14 @@ public class ProjectMemberService {
 			page.size(),
 			ProjectMember::getId
 		);
-		final Map<Long, String> userNames = userNamesOf(
-			members.items().stream().map(ProjectMember::getUserId).collect(Collectors.toSet()));
-		return members.map(member -> new ProjectMemberResult(member, userNames.get(member.getUserId()), NO_ASSIGNED_TASKS));
+		final Set<Long> userIds = members.items().stream().map(ProjectMember::getUserId).collect(Collectors.toSet());
+		final Map<Long, String> userNames = userNamesOf(userIds);
+		final Map<Long, Long> taskCounts = assignedTaskCounts(projectId, userIds);
+		return members.map(member -> new ProjectMemberResult(
+			member,
+			userNames.get(member.getUserId()),
+			taskCounts.getOrDefault(member.getUserId(), 0L)
+		));
 	}
 
 	/** 멤버 이력(커서, id 내림차순 = 최신순). 공개 범위는 상세와 같다. */
@@ -146,7 +152,7 @@ public class ProjectMemberService {
 
 		final Map<Long, String> userNames = userNamesOf(userIds);
 		return invited.stream()
-			.map(member -> new ProjectMemberResult(member, userNames.get(member.getUserId()), NO_ASSIGNED_TASKS))
+			.map(member -> new ProjectMemberResult(member, userNames.get(member.getUserId()), 0L))
 			.toList();
 	}
 
@@ -165,7 +171,7 @@ public class ProjectMemberService {
 		final ProjectMember member = getMember(projectId, userId);
 		final ProjectActor before = member.getActor();
 		if (before == newRole) {
-			return new ProjectMemberResult(member, userNamesOf(Set.of(userId)).get(userId), NO_ASSIGNED_TASKS);
+			return memberResult(member);
 		}
 		final boolean becomesPm = newRole == ProjectActor.PM;
 		memberPolicy.validateRoleChange(
@@ -182,7 +188,7 @@ public class ProjectMemberService {
 		historyRepository.save(history(project, userId, changeType, before, newRole, actor));
 		auditLogger.record(actor, auditActionOf(changeType), AuditTargetType.PROJECT, projectId,
 			AuditChanges.create().value("userId", userId).change("actor", before, newRole));
-		return new ProjectMemberResult(member, userNamesOf(Set.of(userId)).get(userId), NO_ASSIGNED_TASKS);
+		return memberResult(member);
 	}
 
 	/** 게이트 승인자는 제외할 수 없고(먼저 승인자 변경), PM은 다른 PM이 남아 있을 때만 제외할 수 있다. */
@@ -195,6 +201,15 @@ public class ProjectMemberService {
 			phaseRepository.existsByProjectIdAndGateApproverUserId(projectId, userId),
 			memberRepository.countByProjectIdAndActor(projectId, ProjectActor.PM)
 		);
+		final List<AssignedTaskSummary> assignedTasks = taskRepository
+			.findAllByProjectIdAndAssigneeUserIdAndStatusNotOrderBySortOrderAscIdAsc(
+				projectId, userId, WbsTaskStatus.DONE)
+			.stream()
+			.map(AssignedTaskSummary::from)
+			.toList();
+		if (!assignedTasks.isEmpty()) {
+			throw new CustomException(ErrorCode.MEMBER_HAS_ASSIGNED_TASKS, assignedTasks);
+		}
 		memberRepository.delete(member);
 		historyRepository.save(history(project, userId, MemberChangeType.REMOVED, member.getActor(), null, actor));
 		auditLogger.record(actor, AuditAction.PROJECT_MEMBER_REMOVED, AuditTargetType.PROJECT, projectId,
@@ -260,6 +275,26 @@ public class ProjectMemberService {
 		}
 		return userRepository.findAllById(userIds).stream()
 			.collect(Collectors.toMap(User::getId, User::getName));
+	}
+
+	private Map<Long, Long> assignedTaskCounts(final Long projectId, final Set<Long> userIds) {
+		if (userIds.isEmpty()) {
+			return Map.of();
+		}
+		return taskRepository.countAssignedTasks(projectId, userIds).stream()
+			.collect(Collectors.toMap(
+				WbsTaskRepository.AssigneeTaskCount::getAssigneeUserId,
+				WbsTaskRepository.AssigneeTaskCount::getTaskCount
+			));
+	}
+
+	private ProjectMemberResult memberResult(final ProjectMember member) {
+		final Long userId = member.getUserId();
+		return new ProjectMemberResult(
+			member,
+			userNamesOf(Set.of(userId)).get(userId),
+			taskRepository.countByProjectIdAndAssigneeUserId(member.getProjectId(), userId)
+		);
 	}
 
 	private ProjectMember getMember(final Long projectId, final Long userId) {
