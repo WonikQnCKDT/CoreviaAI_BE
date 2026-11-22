@@ -31,5 +31,20 @@ public enum AuditAction {
 	DEPARTMENT_DEACTIVATED,
 	AI_WBS_DRAFT_REQUESTED,
 	AI_WBS_DRAFT_APPLIED,
-	PERSONAL_TODO_DELETED
+	PERSONAL_TODO_DELETED,
+	CODE_CHANGED,
+	I18N_LABEL_CREATED,
+	I18N_LABEL_CHANGED,
+	/** WBS 작업·하위작업 삭제(FR-WBS-01, 데이터 삭제 감사). 생성·수정 이력은 업무 변경 이력(FR-TSK-01)이 맡는다. */
+	WBS_TASK_DELETED,
+	/** 마일스톤 삭제(FR-WBS-04, 데이터 삭제 감사). 연결 작업 정보(milestone_tasks)도 함께 지운다. */
+	MILESTONE_DELETED,
+	/** 칸반 컬럼 추가(FR-TSK-02, 프로젝트 설정 변경 감사). */
+	BOARD_COLUMN_CREATED,
+	/** 칸반 컬럼 이름·WIP 한도 변경. */
+	BOARD_COLUMN_CHANGED,
+	/** 칸반 컬럼 순서 변경. 대상은 프로젝트. */
+	BOARD_COLUMNS_REORDERED,
+	/** 칸반 컬럼 삭제(데이터 삭제 감사). 카드가 있는 컬럼은 지울 수 없다. */
+	BOARD_COLUMN_DELETED
 }
