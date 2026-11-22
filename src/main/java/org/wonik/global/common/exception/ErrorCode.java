@@ -38,6 +38,10 @@ public enum ErrorCode {
 	INVALID_TASK_ASSIGNEE(400, "담당자는 프로젝트 멤버 중에서만 지정할 수 있습니다"),
 	INVALID_MISSING_LANGUAGE(400, "번역 누락 필터는 en 또는 zh-TW만 지정할 수 있습니다"),
 	INVALID_PERIOD(400, "조회 시작 시각은 종료 시각보다 앞서야 합니다"),
+	INVALID_WBS_SCHEDULE(400, "작업 기간을 확인해 주세요. 시작일은 종료일보다 늦을 수 없고 프로젝트 기간이 있으면 그 안이어야 합니다"),
+	WBS_SCHEDULE_DERIVED(400, "하위작업이 있는 작업의 기간은 하위작업 기간으로 정해져 직접 바꿀 수 없습니다"),
+	INVALID_WBS_HIERARCHY(400, "WBS는 작업과 하위작업 2단계까지만 만들 수 있습니다. 하위작업 아래나 하위작업이 있는 작업을 다른 작업 아래로 둘 수 없습니다"),
+	INVALID_WBS_POSITION(400, "옮길 위치가 올바르지 않습니다. 새로고침한 뒤 다시 시도해 주세요"),
 
 	EXPIRED_TOKEN(401, "인증 토큰이 만료되었습니다"),
 	INVALID_TOKEN(401, "유효하지 않은 토큰입니다"),
@@ -50,6 +54,7 @@ public enum ErrorCode {
 	PASSWORD_CHANGE_REQUIRED(403, "비밀번호를 변경한 뒤 이용할 수 있습니다"),
 	PROJECT_CREATION_FORBIDDEN(403, "프로젝트는 활성 일반 사용자만 생성할 수 있습니다"),
 	PROJECT_PM_ONLY(403, "프로젝트 PM만 할 수 있는 작업입니다"),
+	WBS_TASK_ASSIGNEE_ONLY(403, "본인이 담당한 작업만 수정하거나 하위작업을 추가할 수 있습니다"),
 
 	USER_NOT_FOUND(404, "사용자를 찾을 수 없습니다"),
 	NOT_FOUND(404, "페이지를 찾을 수 없습니다"),
@@ -63,6 +68,7 @@ public enum ErrorCode {
 	CODE_NOT_FOUND(404, "코드를 찾을 수 없습니다"),
 	LABEL_NOT_FOUND(404, "다국어 라벨을 찾을 수 없습니다"),
 	ERROR_LOG_NOT_FOUND(404, "에러 로그를 찾을 수 없습니다"),
+	WBS_TASK_NOT_FOUND(404, "WBS 작업을 찾을 수 없습니다"),
 
 	DUPLICATE_LOGIN_ID(409, "이미 사용 중인 아이디입니다"),
 	DUPLICATE_PROJECT_CODE(409, "이미 사용 중인 프로젝트 코드입니다"),
@@ -76,6 +82,8 @@ public enum ErrorCode {
 	PM_REASSIGN_NOT_ALLOWED(409, "PM을 재지정할 수 없는 프로젝트입니다. 프로젝트 코드와 활성 PM이 남아 있지 않은지 확인해 주세요"),
 	AI_DRAFT_ALREADY_APPLIED(409, "이미 반영한 AI 초안입니다"),
 	DUPLICATE_LABEL_KEY(409, "이미 등록된 라벨 키입니다"),
+	WBS_TASK_IN_USE(409, "하위작업·선후행 관계·마일스톤 연결이 있는 작업은 삭제할 수 없습니다. 연결을 먼저 정리해 주세요"),
+	WBS_TASK_LIMIT_EXCEEDED(409, "프로젝트 WBS 항목은 최대 2,000개까지 등록할 수 있습니다"),
 
 	ACCOUNT_LOCKED(423, "로그인에 5회 연속 실패해 계정이 잠겼습니다. 시스템 관리자에게 비밀번호 초기화를 요청해 주세요"),
 

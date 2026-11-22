@@ -12,10 +12,12 @@ import org.wonik.coreviaai_be.domain.aidraft.service.AiDraftRecorder;
 import org.wonik.coreviaai_be.domain.project.entity.Project;
 import org.wonik.coreviaai_be.domain.project.entity.ProjectMember;
 import org.wonik.coreviaai_be.domain.project.repository.ProjectMemberRepository;
+import org.wonik.coreviaai_be.domain.project.repository.ProjectRepository;
 import org.wonik.coreviaai_be.domain.wbs.drafttoken.DraftTokenOwner;
 import org.wonik.coreviaai_be.domain.wbs.drafttoken.WbsDraftTokenStore;
 import org.wonik.coreviaai_be.domain.wbs.policy.WbsDraftAccessPolicy;
 import org.wonik.coreviaai_be.domain.wbs.policy.WbsDraftValidator;
+import org.wonik.coreviaai_be.domain.wbs.repository.WbsTaskRepository;
 import org.wonik.coreviaai_be.domain.wbs.service.command.ApplyWbsDraftCommand;
 import org.wonik.coreviaai_be.domain.wbs.service.result.AppliedWbsDraft;
 import org.wonik.global.audit.AuditAction;
@@ -49,6 +51,8 @@ public class WbsDraftApplyService {
 
 	private final WbsDraftAccessPolicy draftAccessPolicy;
 	private final ProjectMemberRepository memberRepository;
+	private final ProjectRepository projectRepository;
+	private final WbsTaskRepository taskRepository;
 	private final WbsDraftValidator validator;
 	private final WbsItemWriter itemWriter;
 	private final AiDraftRecorder aiDraftRecorder;
@@ -106,6 +110,13 @@ public class WbsDraftApplyService {
 	) {
 		// 토큰 확인 이후 PM 해제·기능 해제가 끼어들 수 있어 트랜잭션 안에서 다시 확인한다.
 		final Project project = draftAccessPolicy.getDraftableProject(actor.userId(), projectId);
+		// 직접 편집(WbsTaskService)과 같은 프로젝트 행 잠금으로 표시 순서 중복·항목 수 상한 초과를 막는다.
+		projectRepository.findByIdForUpdate(projectId);
+		final long newItemCount = command.tasks().size()
+			+ command.tasks().stream().mapToLong(task -> task.subtasks().size()).sum();
+		if (taskRepository.countByProjectId(projectId) + newItemCount > WbsTaskService.MAX_ITEMS_PER_PROJECT) {
+			throw new CustomException(ErrorCode.WBS_TASK_LIMIT_EXCEEDED);
+		}
 		final Set<Long> memberUserIds = memberRepository.findAllByProjectIdOrderById(projectId).stream()
 			.map(ProjectMember::getUserId)
 			.collect(Collectors.toSet());

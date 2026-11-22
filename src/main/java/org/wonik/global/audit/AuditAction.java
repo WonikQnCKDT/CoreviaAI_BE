@@ -33,5 +33,7 @@ public enum AuditAction {
 	AI_WBS_DRAFT_APPLIED,
 	CODE_CHANGED,
 	I18N_LABEL_CREATED,
-	I18N_LABEL_CHANGED
+	I18N_LABEL_CHANGED,
+	/** WBS 작업·하위작업 삭제(FR-WBS-01, 데이터 삭제 감사). 생성·수정 이력은 업무 변경 이력(FR-TSK-01)이 맡는다. */
+	WBS_TASK_DELETED
 }

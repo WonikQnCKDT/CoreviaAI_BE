@@ -32,6 +32,7 @@ import lombok.RequiredArgsConstructor;
  * 작업·하위작업·선후행·마일스톤이 함께 저장되거나 함께 취소되게 한다(MANDATORY).
  * <p>
  * 새 작업은 프로젝트의 기존 작업 뒤에 요청 순서대로 붙이고, 하위작업은 상위 작업 안에서 1부터 매긴다.
+ * 하위작업이 있는 작업의 기간은 하위작업 기간(최소 시작일~최대 종료일)으로 맞춘다(FR-WBS-01 상위 기간 자동 산출).
  */
 @Component
 @RequiredArgsConstructor
@@ -83,14 +84,17 @@ public class WbsItemWriter {
 		final Map<String, WbsTask> subtasks = new LinkedHashMap<>();
 		for (final DraftTaskCommand command : commands) {
 			final WbsTask parent = tasks.get(command.tempId());
+			final List<WbsTask> children = new ArrayList<>();
 			int sortOrder = 0;
 			for (final DraftSubtaskCommand subtask : command.subtasks()) {
 				final TaskDetails details = new TaskDetails(subtask.name(), subtask.description(), subtask.assigneeUserId(),
 					subtask.startDateOr(command.startDate()), subtask.endDateOr(command.endDate()),
 					subtask.estimatedPersonDays());
-				subtasks.put(subtask.tempId(),
-					WbsTask.subtask(parent, ++sortOrder, details, WbsItemSource.AI_DRAFT, userId));
+				final WbsTask child = WbsTask.subtask(parent, ++sortOrder, details, WbsItemSource.AI_DRAFT, userId);
+				subtasks.put(subtask.tempId(), child);
+				children.add(child);
 			}
+			parent.deriveScheduleFrom(children);
 		}
 		taskRepository.saveAll(subtasks.values());
 		final Map<String, Long> ids = new LinkedHashMap<>();

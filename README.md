@@ -16,6 +16,7 @@
   - FR-ADM-07 공통 코드 관리 (Jira SCRUM-168): 코드 그룹(위험 수준·업무 진행 상태·요청 처리 결과·프로젝트 상태)과 코드 테이블, 관리자 정렬 순서 변경(코드 값은 고정: 추가·수정·삭제와 사용 여부 변경은 마이그레이션으로만, 감사 로그), 화면용 그룹별 코드 조회
   - FR-ADM-06 다국어 라벨 관리 (Jira SCRUM-169): 한국어·영어·번체 중국어 라벨 테이블(`i18n_labels`, 라벨 키 + 언어별 컬럼), 화면용 언어별 라벨 묶음 조회(로그인 전 공개, 번역 누락은 한국어), 관리자 라벨 등록·문구 수정(낙관적 잠금)·키/문구 검색·번역 누락 필터, 문구 변경 이력(감사 로그). 표시 언어는 `lang` 파라미터 → `Accept-Language` → 한국어(사용자별 언어 저장 없음)
   - FR-ADM-09 에러 로그 관리 (Jira SCRUM-170) + NFR-06 패턴 마스킹 일부 (Jira SCRUM-114): 전역 예외 처리기에 도달한 미처리 예외(500)를 `error_logs`에 별도 트랜잭션으로 기록(발생 시각·메서드·경로·사용자 ID·예외 클래스·마스킹한 메시지·원인 포함 스택), 사용자에게는 공통 500만 응답, 시스템 관리자 조회(기간·유형·경로 필터, 커서, 상세). 1년 보관 정리는 미구현
+  - FR-WBS-01 계층형 WBS (Jira SCRUM-107): 작업 > 하위작업 2단계 트리 조회(한 번에, 담당자 이름 포함), 작업·하위작업 등록·수정(낙관적 잠금)·삭제(연결 있으면 거부)·드래그 이동(순서·계층 변경), 상위 작업 기간을 하위작업 기간으로 자동 산출(저장값 갱신). 권한은 3.3 WBS-01(PM 전체, 개발자·QA 본인 담당 작업 수정·그 아래 하위작업 추가). '단계' 레벨 표현은 미결
   - FR-PRJ-04 멤버·역할 관리 (Jira SCRUM-106): 멤버 초대·역할 변경·제외(PM만), 복수 PM(역할 변경으로 추가·해제, 최소 1명), 멤버 이력, PM 재지정(활성 PM이 없을 때 시스템 관리자). 담당 업무 수는 업무(FR-TSK-01) 구현 전이라 0
 - 기술 stack: Java 17, Spring Boot 4.1.2 (Web MVC, Security, Data JPA, Data Redis, Validation, Flyway), jjwt 0.13, PostgreSQL, Redis 7.4
 
@@ -115,10 +116,10 @@ org.wonik
 │  ├─ domain/code                    공통 코드(FR-ADM-07, code_groups·codes): CodeGroup, CommonCode, 화면용 조회 CodeController(/api/codes/{groupCode})·CodeQueryService
 │  ├─ domain/i18n                    다국어 라벨(FR-ADM-06, i18n_labels): I18nLabel, LabelLanguage(표시 언어 결정), 화면용 묶음 LabelController(/api/i18n/labels)·LabelBundleService
 │  ├─ domain/aidraft                 AI 초안·추정 기록(ai_drafts): AiDraft, AiDraftRecorder. 저장만 담당하고 AI 기능 로직은 각 도메인에 둔다
-│  ├─ domain/wbs                     WBS·일정 (FR-PRJ-07 AI 초안 생성·반영. 조회·수정은 FR-WBS-01부터)
-│  │  ├─ controller                  WbsAiDraftController(초안 생성·승인 반영)
-│  │  ├─ service                     WbsDraftGenerationService(AI 호출·토큰 발급), WbsDraftApplyService(토큰 소비·반영), WbsDraftContextReader, WbsItemWriter
-│  │  ├─ policy                      WbsDraftAccessPolicy(PM·폭포수·WBS 기능), WbsDraftValidator(참조·기간·순환·담당자)
+│  ├─ domain/wbs                     WBS·일정 (FR-WBS-01 계층형 WBS, FR-PRJ-07 AI 초안 생성·반영)
+│  │  ├─ controller                  WbsTaskController(트리 조회·등록·수정·이동·삭제), WbsAiDraftController(초안 생성·승인 반영)
+│  │  ├─ service                     WbsTaskService(직접 편집·상위 기간 산출), WbsTreeReader(트리 조립), WbsDraftGenerationService(AI 호출·토큰 발급), WbsDraftApplyService(토큰 소비·반영), WbsDraftContextReader, WbsItemWriter
+│  │  ├─ policy                      WbsTaskAccessPolicy(공개 범위·WBS 기능·프로젝트 행 잠금), WbsEditor(역할별 변경 권한), WbsTaskRules(기간·담당자), WbsDraftAccessPolicy(PM·폭포수·WBS 기능), WbsDraftValidator(참조·기간·순환·담당자)
 │  │  ├─ client                      WbsDraftAiClient: 도메인 입력·결과 ↔ aiserver 계약(`aiserver.domain.wbs.api`) 변환
 │  │  ├─ drafttoken                  WbsDraftTokenStore(인터페이스) + RedisWbsDraftTokenStore: 1회용 draftToken
 │  │  ├─ entity                      WbsTask, WbsDependency, Milestone, MilestoneTask, TaskDetails, type/(enum)
@@ -203,6 +204,11 @@ org.wonik
 | GET | `/api/projects/{projectId}/members/histories` | USER·EXECUTIVE | 멤버 이력(커서, id 내림차순). 공개 범위는 상세와 같음 |
 | PUT | `/api/admin/projects/pm` | SYSTEM_ADMIN | PM 재지정(활성 PM이 하나도 없을 때만). `projectCode`, `newPmUserId`. 응답은 재지정 후 PM 목록(`pms`) |
 | GET | `/api/projects/{projectId}/phases` | USER·EXECUTIVE | 폭포수 단계·게이트(단계 순서, 5개). 공개 범위는 상세와 같음. 단계 없음·애자일이면 404 `PHASES_NOT_AVAILABLE` |
+| GET | `/api/projects/{projectId}/wbs/tasks` | USER·EXECUTIVE | WBS 트리(작업 표시 순서, 각 작업 아래 하위작업). 공개 범위는 상세와 같음, WBS 기능을 끄면 404 `FEATURE_DISABLED` |
+| POST | `/api/projects/{projectId}/wbs/tasks` | PM · 개발자·QA(담당 작업 하위) | 작업(`parentTaskId` 없음)·하위작업 등록. 같은 부모의 맨 뒤, 상태 TODO, 출처 MANUAL. 응답은 `taskId`와 바뀐 뒤 트리 |
+| PATCH | `/api/projects/{projectId}/wbs/tasks/{taskId}` | PM · 개발자·QA(본인 담당) | 이름·설명·담당자(PM만)·기간·예상 공수 덮어쓰기. `version` 불일치 409 |
+| PUT | `/api/projects/{projectId}/wbs/tasks/{taskId}/position` | PM | 드래그 이동: `parentTaskId`(null=최상위), `index`(0부터), `version` |
+| DELETE | `/api/projects/{projectId}/wbs/tasks/{taskId}` | PM | 삭제. 하위작업·선후행·마일스톤 연결이 있으면 409 `WBS_TASK_IN_USE` |
 | POST | `/api/projects/{projectId}/wbs/ai-draft` | PM | AI WBS 초안 생성(저장 없음). 응답에 초안과 1회용 `draftToken`(1시간) |
 | POST | `/api/projects/{projectId}/wbs/ai-draft/apply` | PM | PM이 승인·수정한 항목만 WBS에 반영. 응답은 tempId → 정식 ID |
 
@@ -267,6 +273,18 @@ org.wonik
 - 이력: 변경마다 `project_member_histories`(업무 이력, 프로젝트와 함께 보관)와 `audit_logs`(감사 로그, 1년 보관)를 같은 트랜잭션에 남긴다. 한 행은 사람 한 명의 역할 변화이며 재지정은 새 PM 한 행과 제외된 비활성 PM마다 한 행이다. 기존 `PM_DELEGATED` 이력은 조회용으로 남는다. FR-PRJ-01 생성 시 초대한 멤버는 이력 없이 시작한다(`PROJECT_CREATED` 감사 로그에 남음).
 - 동시 수정: PM 구성이 바뀔 수 있는 변경(역할 변경·제외·재지정)은 `projects` 행을 비관적 잠금(`SELECT ... FOR UPDATE`)으로 잡고 처리해, 두 PM이 동시에 서로를 해제해도 PM이 0명이 되지 않는다. 잠금 획득 실패는 409 `CONCURRENT_MODIFICATION`. 같은 사용자를 동시에 초대하면 `uk_project_members_project_id_user_id` 위반을 409 `ALREADY_PROJECT_MEMBER`로 바꾼다.
 
+### 계층형 WBS 규칙 (FR-WBS-01)
+
+- 계층: DB는 작업(`parent_task_id` NULL) > 하위작업 2단계(ERD 04). 하위작업 아래 등록·이동, 하위작업을 가진 작업을 다른 작업 아래로 옮기기는 400 `INVALID_WBS_HIERARCHY`. 명세의 '단계' 레벨 표현은 미결이라 이 API에 없다.
+- 권한(3.3 WBS-01): 판정 순서 404 `PROJECT_NOT_FOUND`(볼 수 없음) → 404 `FEATURE_DISABLED`(WBS 기능 꺼짐) → 403. PM은 전체, 개발자·QA는 본인이 담당한 작업 아래 하위작업 추가(담당자는 비우거나 본인)·본인 담당 항목 수정만(그 밖 403 `WBS_TASK_ASSIGNEE_ONLY`), 담당자 변경·최상위 작업 등록·이동·삭제는 PM만(403 `PROJECT_PM_ONLY`). 현업 담당자·경영진·멤버 아닌 열람자는 조회만.
+- 상위 기간 자동 산출: 하위작업이 있는 작업의 `start_date`·`end_date`는 하위작업의 최소 시작일~최대 종료일로 저장한다. 하위작업 등록·기간 수정·이동·삭제와 AI 초안 반영 때 같은 트랜잭션에서 다시 맞춘다. 간트·지연 감지 등은 저장값을 그대로 읽으면 된다. 이런 작업의 기간을 직접 바꾸면 400 `WBS_SCHEDULE_DERIVED`(응답 `scheduleDerived: true`). 마지막 하위작업이 빠지면 마지막 산출값이 작업 자신의 기간으로 남는다.
+- 값 규칙: 시작일 ≤ 종료일, 프로젝트 기간이 있으면 그 안(있는 쪽만, 400 `INVALID_WBS_SCHEDULE`). 하위작업 기간은 상위 작업 기간에 묶지 않는다(상위가 하위로 산출되므로). 담당자는 프로젝트 멤버이면서 활성 계정(400 `INVALID_TASK_ASSIGNEE`), 바꿀 때만 검증.
+- 동시성: 모든 변경은 프로젝트 행을 잠그고(`SELECT ... FOR UPDATE`) 시작해 같은 프로젝트의 WBS 변경을 차례로 처리한다(AI 초안 반영 포함). 수정·이동은 `version`이 다르면 409 `CONCURRENT_MODIFICATION`. 같은 값 수정·같은 위치 이동 재전송은 version을 보지 않고 성공(멱등). 형제 순서 재정렬은 `version`을 올리지 않는다(구조 정보는 프로젝트 잠금으로 보호).
+- 이동: `index`는 옮길 곳 형제 목록(옮기는 항목 제외)에서 0부터 센 위치, 형제 수보다 크면 400 `INVALID_WBS_POSITION`. 옛·새 부모의 형제 순서를 1부터 다시 매긴다.
+- 삭제: PM만. 삭제 정책 미정(ERD 04 3절)이라 하위작업·선후행·마일스톤 연결이 하나라도 있으면 409 `WBS_TASK_IN_USE`(연쇄 삭제 없음). 감사 로그 `WBS_TASK_DELETED`(대상 `WBS_TASK`, 프로젝트·상위 작업·이름). 등록·수정·이동은 감사 로그 대상이 아니다(업무 변경 이력은 FR-TSK-01).
+- 트리는 페이지로 나누지 않는다(드래그 편집에 전체가 필요). 대신 프로젝트당 항목(작업+하위작업) 2,000개 상한(409 `WBS_TASK_LIMIT_EXCEEDED`, NFR-02 1,000건의 2배). 조회는 쿼리 2회(항목 전체, 담당자 이름)로 조립한다.
+- 범위 밖: 상태 변경(칸반 FR-TSK-02), 업무 상세 필드·변경 이력·담당자 TODO 반영(FR-TSK-01).
+
 ### AI WBS 초안 규칙 (FR-PRJ-07)
 
 - 흐름: FE → `coreviaai_be`(권한·토큰·반영) → `aiserver` 계약 `WbsDraftGenerator`(같은 프로세스 호출). LLM 호출은 aiserver만 한다. FastAPI `/generate/wbs`의 Java 이식 전까지 aiserver는 503 `AI_NOT_READY`를 돌려준다. 민감정보 마스킹은 팀 결정으로 미구현이라 요구사항 원문이 aiserver로 그대로 간다.
@@ -276,6 +294,7 @@ org.wonik
 - 반영: 토큰을 원자적으로 소비한 뒤 한 트랜잭션에서 PM·기능을 다시 확인하고, 참조·기간·순환·담당자를 서버에서 전부 검증한 뒤 작업·하위작업·선후행·마일스톤·감사 로그를 저장한다. 실패하면 토큰을 되돌려 같은 토큰으로 다시 반영할 수 있다. 이미 반영한 토큰은 409 `AI_DRAFT_ALREADY_APPLIED`.
 - 단계 미저장: ERD(04. WBS·일정)에 `wbs_tasks.phase_id`가 없어 응답의 단계 묶음은 검토 화면용이다. 반영 작업은 프로젝트 기존 작업 뒤에 요청 순서대로 붙는다.
 - 감사 로그: `AI_WBS_DRAFT_REQUESTED`(`aiDraftId`, 입력 길이·결과·제안 개수. 원문 미기록, AI 호출 뒤 별도 트랜잭션), `AI_WBS_DRAFT_APPLIED`(`aiDraftId`, 반영·제외 개수, 반영과 같은 트랜잭션).
+- 반영도 직접 편집과 같은 프로젝트 행 잠금·항목 수 상한(2,000개, 409 `WBS_TASK_LIMIT_EXCEEDED`)을 쓰고, 하위작업이 있는 작업의 기간은 하위작업 기간으로 맞춘다(FR-WBS-01).
 - AI 오류는 사용자에게 고정 메시지만 준다: 502 `AI_GENERATION_FAILED`(생성 실패·형식 오류·프로젝트에 없는 단계), 503 `AI_NOT_READY`(이식 전), 504 `AI_TIMEOUT`(이식 후 LLM 시간 초과에 사용).
 
 ### 목록 페이지네이션 (커서)
@@ -359,6 +378,8 @@ org.wonik
 - integration(FR-PRJ-01): `ProjectCreateApiIntegrationTest`(생성자 PM·5단계·승인자·기능·감사 로그, 기간·주관 부서 생략, 복수 주관 부서, 단계 없음 생성, 단계 없음 규칙·Git 비활성, 코드 정규화·중복, 필수 항목, 생성 권한 개방·경영진 403·관리자 404, 비활성 부서, 선택지), `ProjectQueryApiIntegrationTest`(공개 범위, 복수·무 주관 부서 공개 범위, 상세 404, 멤버·단계 API, 필터, 커서 경계)
 - unit(FR-PRJ-07): `AiDraftTest`(DRAFT에서 한 번만 결정, FAILED·결정된 초안은 409), `WbsDraftValidatorTest`(tempId 중복, 참조, 기간·프로젝트 기간 없음·한쪽만 있음, 순환, 담당자), `WbsDraftAiClientTest`(aiserver 계약 변환, 기간 null·기존 작업 단계 null, 없는 단계 502), `NotReadyWbsDraftGeneratorTest`
 - integration(FR-PRJ-07): `WbsAiDraftApiIntegrationTest`(ai_drafts DRAFT·FAILED·ACCEPTED·PARTIALLY_ACCEPTED 기록, 생성·반영·토큰 1회용·만료·다른 프로젝트 토큰, 검증 실패 후 같은 토큰으로 재반영, 멤버 아닌 담당자, 기간 없는 프로젝트, 단계 없음·WBS 기능 꺼짐 404, PM 아님 403, AI 사용 불가 503, 감사 로그)
+- unit(FR-WBS-01): `WbsTaskTest`(상위 기간 산출·하위작업 없음, 같은 값 판정·공수 scale, 상태 유지), `WbsEditorTest`(역할별 허용·거부: PM, 개발자·QA 본인/남의 작업, 현업 담당자, 역할 없음), `WbsTaskRulesTest`(기간 경계·프로젝트 기간 없음/한쪽, 활성 멤버 담당자)
+- integration(FR-WBS-01): `WbsTaskApiIntegrationTest`(3레벨 등록 후 재조회 유지, 조회 권한·404·기능 꺼짐·관리자, 쓰기 권한 매트릭스, 3단계 중첩 거부, 이동·승격·재조회·상위 기간 재산출·형제 version 유지, 같은 위치 재전송 멱등·낡은 version 409·위치 경계, 수정 409·상위 기간 직접 변경 400, 값 검증 경계·다른 프로젝트 작업 404, 항목 수 상한, 삭제 거부·재산출·감사 로그)
 - integration(FR-PRJ-04): `ProjectMemberApiIntegrationTest`(초대·역할 변경·제외·이력), `ProjectMultiPmApiIntegrationTest`(PM 추가·동일 권한·해제·최소 1명·PM 제외·추가 규칙·위임 API 폐지·동시 해제 경쟁), `AdminProjectPmApiIntegrationTest`(재지정, 비활성 PM 전원 제외, 활성 PM 있으면 409, 새 PM 규칙, 관리자 전용), `common.web.CoreviaExceptionHandlerTest`(동시 수정 409)
 - unit(FR-ADM-07): `CommonCodeTest`(라벨 키 규칙·최대 길이, 코드·그룹 코드 형식과 길이 경계)
 - integration(FR-ADM-07): `AdminCodeApiIntegrationTest`(관리자 전용 404·401, 그룹·코드 목록, 코드 추가·수정·삭제 404, 정렬 순서 변경과 감사 로그 전·후, 본문의 코드 값·라벨 키·사용 여부 무시, 경계값 0/9999, 범위·누락 400, 없는 그룹·코드 404, 같은 값 재전송 무변경), `CodeApiIntegrationTest`(로그인 사용자 조회, 사용 중 코드만·정렬, 관리자 정렬 변경 즉시 반영, 빈 그룹·없는 그룹·형식 오류·비로그인), `code.CodeSeedConsistencyTest`(TASK_STATUS·PROJECT_STATUS 시드 = enum 값·순서, 라벨 키 규칙)
