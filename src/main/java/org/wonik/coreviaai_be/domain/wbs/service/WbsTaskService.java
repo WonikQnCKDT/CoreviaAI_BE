@@ -110,7 +110,7 @@ public class WbsTaskService {
 		taskRepository.saveAndFlush(task);
 		historyRecorder.created(actor.userId(), List.of(task));
 		if (parent != null) {
-			deriveSchedule(actor.userId(), parent);
+			deriveParentAggregates(actor.userId(), parent);
 		}
 		return changed(task.getId(), projectId);
 	}
@@ -156,8 +156,8 @@ public class WbsTaskService {
 		}
 		taskRepository.flush();
 		historyRecorder.changed(actor.userId(), before, TaskSnapshot.of(task));
-		if (scheduleChanged && task.isSubtask()) {
-			deriveSchedule(actor.userId(), getTask(projectId, task.getParentTaskId()));
+		if (task.isSubtask()) {
+			deriveParentAggregates(actor.userId(), getTask(projectId, task.getParentTaskId()));
 		}
 		return changed(taskId, projectId);
 	}
@@ -209,10 +209,10 @@ public class WbsTaskService {
 		if (!sameParent) {
 			source.addAll(siblings(projectId, oldParentId));
 			if (oldParentId != null) {
-				deriveSchedule(actor.userId(), getTask(projectId, oldParentId));
+				deriveParentAggregates(actor.userId(), getTask(projectId, oldParentId));
 			}
 			if (newParent != null) {
-				deriveSchedule(actor.userId(), newParent);
+				deriveParentAggregates(actor.userId(), newParent);
 			}
 			taskRepository.flush();
 		}
@@ -244,7 +244,7 @@ public class WbsTaskService {
 		taskRepository.flush();
 		historyRecorder.deleted(actor.userId(), before);
 		if (parentId != null) {
-			deriveSchedule(actor.userId(), getTask(projectId, parentId));
+			deriveParentAggregates(actor.userId(), getTask(projectId, parentId));
 		}
 		auditLogger.record(actor, AuditAction.WBS_TASK_DELETED, AuditTargetType.WBS_TASK, taskId,
 			AuditChanges.create()
@@ -300,9 +300,13 @@ public class WbsTaskService {
 	}
 
 	/** 상위 작업 기간을 하위작업 기간으로 다시 맞추고, 바뀌었으면 상위 작업에 DATE_CHANGED 이력을 남긴다. */
-	private void deriveSchedule(final Long actorUserId, final WbsTask parent) {
+	private void deriveParentAggregates(final Long actorUserId, final WbsTask parent) {
 		final TaskSnapshot before = TaskSnapshot.of(parent);
-		parent.deriveScheduleFrom(taskRepository.findAllByParentTaskIdOrderBySortOrderAscIdAsc(parent.getId()));
+		final List<WbsTask> subtasks = taskRepository.findAllByParentTaskIdOrderBySortOrderAscIdAsc(parent.getId());
+		parent.deriveScheduleFrom(subtasks);
+		if (!subtasks.isEmpty()) {
+			parent.changeProgress(ProgressCalculator.weightedAverage(subtasks));
+		}
 		historyRecorder.changed(actorUserId, before, TaskSnapshot.of(parent));
 	}
 

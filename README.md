@@ -220,6 +220,7 @@ org.wonik
 | DELETE | `/api/projects/{projectId}/wbs/tasks/{taskId}` | PM | 삭제. 하위작업·선후행·마일스톤 연결이 있으면 409 `WBS_TASK_IN_USE`. 변경 이력은 남고 `DELETED` 이력 추가 |
 | GET | `/api/projects/{projectId}/tasks/{taskId}` | USER·EXECUTIVE | 업무 상세(WBS 항목 필드 + 유형·우선순위·완료 조건·완료 시각·칸반 컬럼·상태 변경 시각·등록자). 공개 범위는 WBS와 같음, WBS·칸반 둘 다 꺼야 404 `FEATURE_DISABLED` |
 | PATCH | `/api/projects/{projectId}/tasks/{taskId}` | PM · 개발자·QA(본인 담당) | 유형·우선순위·완료 조건 덮어쓰기. `version`(WBS 수정과 공유) 불일치 409 |
+| PATCH | `/api/projects/{projectId}/tasks/{taskId}/progress` | PM · 개발자·QA(본인 담당) | 진척률 0~100 수정. 하위작업이 있으면 상위 작업은 직접 수정 불가, 예상 공수 가중 평균으로 자동 갱신 |
 | GET | `/api/projects/{projectId}/tasks/{taskId}/histories` | USER·EXECUTIVE | 업무 변경 이력(커서, id 오름차순 = 시간순). `activityType`, `before`·`after`(JSON), `actor`, `occurredAt` |
 | GET | `/api/projects/{projectId}/board` | USER·EXECUTIVE | 칸반 보드: 컬럼(표시 순서)과 컬럼별 카드(작업·하위작업, 종료일·ID 순). `assigneeUserId`로 담당자 필터(카드만 줄고 `cardCount`·`wipExceeded`는 전체 기준). 칸반 기능 꺼짐 404 |
 | PUT | `/api/projects/{projectId}/board/cards/{taskId}/column` | PM · 개발자·QA(본인 카드) | 카드 이동 `{columnId, version}` → 상태 = 컬럼 상태, DONE이면 완료 시각·진척률 100. 응답 `card`·`column`·`wipWarning`(한도 초과 경고, 이동은 반영) |
@@ -314,6 +315,7 @@ org.wonik
 - 업무 = WBS 작업·하위작업(`wbs_tasks`)이라 ID가 같다. 등록·기본 필드·담당자 배정/해제(PM만)·이동·삭제는 FR-WBS-01 API, 상세 필드(`taskType`·`priority`·`completionCriteria`)는 `/api/projects/{projectId}/tasks/{taskId}`. WBS 등록 요청에도 세 필드를 선택으로 넣을 수 있다(비우면 TASK·MEDIUM·없음). 트리 항목에는 `taskType`·`priority`가 더해졌다(추가 필드, 기존 계약 유지).
 - 권한(3.3 TSK-01): 조회·이력 조회는 프로젝트를 볼 수 있는 사용자 전원(현업 담당자·경영진 R 포함). 상세 필드 수정은 PM, 그 업무를 담당한 개발자·QA(그 밖 403 `WBS_TASK_ASSIGNEE_ONLY`). 판정 순서·프로젝트 행 잠금·같은 값 멱등·`version` 409는 WBS와 같다. 다른 프로젝트의 업무 ID는 404 `WBS_TASK_NOT_FOUND`.
 - 변경 이력(`task_histories`, append-only): `TaskHistoryRecorder`가 변경과 같은 트랜잭션에서(MANDATORY) 남긴다. `CREATED`(직접 등록·AI 초안 반영), `ASSIGNED`·`UNASSIGNED`(담당자), `DATE_CHANGED`(직접 수정과 하위작업 변경에 따른 상위 기간 산출), `DETAILS_CHANGED`(이름·설명·예상 공수·유형·우선순위·완료 조건 중 바뀐 필드만), `MOVED`(부모·순서, 형제 재정렬은 기록 안 함), `DELETED`(삭제 직전 값), 칸반 카드 이동의 `STATUS_CHANGED`(status·boardColumnId)·`BOARD_COLUMN_CHANGED`(같은 상태 다른 컬럼)·`PROGRESS_CHANGED`(완료 전환 시 100). 전·후 값은 서버가 정한 필드만 JSONB로 저장하고, 화면은 문자열 값을 텍스트로만 표시한다.
+- 진척률(FR-TSK-04, SCRUM-119): 말단 작업은 0~100을 직접 입력하고 완료 상태 전환 시 100으로 자동 반영한다. 상위 작업은 하위작업, 단계와 프로젝트는 최상위 작업의 예상 공수 가중 평균(정수 반올림)이다. 예상 공수가 없으면 1인일 가중치로 포함한다. 프로젝트 상세와 단계 목록 응답에 집계 `progress`를 제공한다.
 - 삭제와 이력(결정·미결): `task_histories.task_id`에는 FK를 두지 않는다(ERD 05의 FK와 다름). 이력은 지우지 않으므로 FK(NO ACTION)를 두면 이력이 있는 작업을 지울 수 없게 된다. 작업 삭제는 막지 않고 이력(삭제 이력 포함)을 남긴다. 지운 업무의 이력은 API로 조회할 수 없다(업무 404). 삭제 정책이 정해지면 FK 추가 여부를 다시 정한다.
 - 담당자 TODO·일정 반영(FR-PSN-01·02): 별도 저장 없이 FR-PSN-01(SCRUM-111)이 조회 시점에 `wbs_tasks.assignee_user_id`로 합친다. 일정은 Sprint 3.
 - 완료 시각(`completed_at`): 칸반 카드 이동(FR-TSK-02)이 DONE으로 바꿀 때 `WbsTask.markCompleted`, 되돌릴 때 `clearCompleted`로 기록한다. 이 API는 바꾸지 않는다.

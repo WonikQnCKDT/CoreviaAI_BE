@@ -8,11 +8,13 @@ import org.springframework.transaction.annotation.Transactional;
 import org.wonik.coreviaai_be.domain.wbs.entity.TaskHistory;
 import org.wonik.coreviaai_be.domain.wbs.entity.TaskSnapshot;
 import org.wonik.coreviaai_be.domain.wbs.entity.WbsTask;
+import org.wonik.coreviaai_be.domain.wbs.entity.type.WbsTaskStatus;
 import org.wonik.coreviaai_be.domain.wbs.policy.WbsEditor;
 import org.wonik.coreviaai_be.domain.wbs.policy.WbsTaskAccessPolicy;
 import org.wonik.coreviaai_be.domain.wbs.repository.TaskHistoryRepository;
 import org.wonik.coreviaai_be.domain.wbs.repository.WbsTaskRepository;
 import org.wonik.coreviaai_be.domain.wbs.service.command.UpdateTaskAttributesCommand;
+import org.wonik.coreviaai_be.domain.wbs.service.command.UpdateTaskProgressCommand;
 import org.wonik.coreviaai_be.domain.wbs.service.result.TaskDetail;
 import org.wonik.coreviaai_be.domain.wbs.service.result.TaskHistoryView;
 import org.wonik.global.audit.AuditActor;
@@ -71,6 +73,44 @@ public class TaskDetailService {
 		task.changeAttributes(command.attributes());
 		taskRepository.flush();
 		historyRecorder.changed(actor.userId(), before, TaskSnapshot.of(task));
+		return detailOf(task);
+	}
+
+	@Transactional
+	public TaskDetail updateProgress(
+		final AuditActor actor,
+		final Long projectId,
+		final Long taskId,
+		final UpdateTaskProgressCommand command
+	) {
+		final WbsEditor editor = accessPolicy.getEditor(actor.userId(), projectId, WbsTaskAccessPolicy.TASK_FEATURES);
+		final WbsTask task = getTask(projectId, taskId);
+		editor.requireCanUpdate(task);
+		if (taskRepository.existsByParentTaskId(taskId)) {
+			throw new CustomException(ErrorCode.WBS_PROGRESS_DERIVED);
+		}
+		if (task.getProgress() == command.progress()) {
+			return detailOf(task);
+		}
+		if (task.getVersion() != command.version()) {
+			throw new CustomException(ErrorCode.CONCURRENT_MODIFICATION);
+		}
+		if (task.getStatus() == WbsTaskStatus.DONE
+			&& command.progress() != WbsTask.COMPLETED_PROGRESS) {
+			throw new CustomException(ErrorCode.WBS_COMPLETED_PROGRESS_REQUIRED);
+		}
+		final TaskSnapshot before = TaskSnapshot.of(task);
+		task.changeProgress(command.progress());
+		taskRepository.flush();
+		historyRecorder.changed(actor.userId(), before, TaskSnapshot.of(task));
+		if (task.isSubtask()) {
+			final WbsTask parent = getTask(projectId, task.getParentTaskId());
+			final TaskSnapshot parentBefore = TaskSnapshot.of(parent);
+			parent.changeProgress(ProgressCalculator.weightedAverage(
+				taskRepository.findAllByParentTaskIdOrderBySortOrderAscIdAsc(parent.getId())));
+			taskRepository.flush();
+			historyRecorder.changed(actor.userId(), parentBefore, TaskSnapshot.of(parent));
+		}
 		return detailOf(task);
 	}
 

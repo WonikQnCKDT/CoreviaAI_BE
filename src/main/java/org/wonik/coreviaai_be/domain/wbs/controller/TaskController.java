@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.wonik.coreviaai_be.domain.wbs.dto.request.UpdateTaskAttributesRequest;
+import org.wonik.coreviaai_be.domain.wbs.dto.request.UpdateTaskProgressRequest;
 import org.wonik.coreviaai_be.domain.wbs.dto.response.TaskDetailResponse;
 import org.wonik.coreviaai_be.domain.wbs.dto.response.TaskHistoryResponse;
 import org.wonik.coreviaai_be.domain.wbs.service.TaskDetailService;
@@ -55,6 +56,18 @@ public class TaskController {
 	) {
 		return ApiResponse.success(TaskDetailResponse.from(
 			taskDetailService.updateAttributes(actor, projectId, taskId, request.toCommand())));
+	}
+
+	/** 진척률 수정. 하위작업이 있는 상위 작업은 직접 수정하지 않고 하위작업의 예상 공수 가중 평균을 쓴다. */
+	@PatchMapping("/progress")
+	public ApiResponse<TaskDetailResponse> updateProgress(
+		final AuditActor actor,
+		@PathVariable @Positive final Long projectId,
+		@PathVariable @Positive final Long taskId,
+		@Valid @RequestBody final UpdateTaskProgressRequest request
+	) {
+		return ApiResponse.success(TaskDetailResponse.from(
+			taskDetailService.updateProgress(actor, projectId, taskId, request.toCommand())));
 	}
 
 	/** 변경 이력(커서, id 오름차순 = 시간순). */

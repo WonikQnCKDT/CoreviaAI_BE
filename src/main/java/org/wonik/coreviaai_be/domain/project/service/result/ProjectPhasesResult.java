@@ -10,5 +10,6 @@ import org.wonik.coreviaai_be.domain.project.entity.ProjectPhase;
  *
  * @param userNames 게이트 승인자 이름 표시용(userId → name)
  */
-public record ProjectPhasesResult(List<ProjectPhase> phases, Map<Long, String> userNames) {
+public record ProjectPhasesResult(List<ProjectPhase> phases, Map<Long, String> userNames,
+	Map<Long, Integer> progressByPhaseId) {
 }
