@@ -13,22 +13,29 @@ public record ProjectPhaseResponse(
 	Long id,
 	String name,
 	int phaseOrder,
+	int progress,
 	PhaseStatus status,
 	GateStatus gateStatus,
 	Long gateApproverUserId,
 	String gateApproverName
 ) {
 
-	public static ProjectPhaseResponse of(final ProjectPhase phase, final Map<Long, String> userNames) {
+	public static ProjectPhaseResponse of(final ProjectPhase phase, final Map<Long, String> userNames,
+		final int progress) {
 		final Long approverId = phase.getGateApproverUserId();
 		return new ProjectPhaseResponse(
 			phase.getId(),
 			phase.getName(),
 			phase.getPhaseOrder(),
+			progress,
 			phase.getStatus(),
 			phase.getGateStatus(),
 			approverId,
 			approverId == null ? null : userNames.get(approverId)
 		);
+	}
+
+	public static ProjectPhaseResponse of(final ProjectPhase phase, final Map<Long, String> userNames) {
+		return of(phase, userNames, 0);
 	}
 }

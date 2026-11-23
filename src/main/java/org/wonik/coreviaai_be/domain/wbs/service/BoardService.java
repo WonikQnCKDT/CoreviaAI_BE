@@ -97,6 +97,15 @@ public class BoardService {
 			task.moveToColumn(target, clock.instant());
 			taskRepository.flush();
 			historyRecorder.changed(actor.userId(), before, TaskSnapshot.of(task));
+			if (task.isSubtask() && before.progress() != task.getProgress()) {
+				final WbsTask parent = taskRepository.findByIdAndProjectId(task.getParentTaskId(), projectId)
+					.orElseThrow(() -> new CustomException(ErrorCode.WBS_TASK_NOT_FOUND));
+				final TaskSnapshot parentBefore = TaskSnapshot.of(parent);
+				parent.changeProgress(ProgressCalculator.weightedAverage(
+					taskRepository.findAllByParentTaskIdOrderBySortOrderAscIdAsc(parent.getId())));
+				taskRepository.flush();
+				historyRecorder.changed(actor.userId(), parentBefore, TaskSnapshot.of(parent));
+			}
 		}
 
 		final String parentTaskName = task.getParentTaskId() == null ? null

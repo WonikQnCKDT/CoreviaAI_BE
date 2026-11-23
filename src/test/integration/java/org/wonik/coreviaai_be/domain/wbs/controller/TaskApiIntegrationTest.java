@@ -47,6 +47,7 @@ class TaskApiIntegrationTest extends ProjectApiTestSupport {
 	private static final String WBS_TASK = WBS_TASKS + "/{taskId}";
 	private static final String TASK = PROJECTS + "/{projectId}/tasks/{taskId}";
 	private static final String HISTORIES = TASK + "/histories";
+	private static final String PROGRESS = TASK + "/progress";
 
 	@Autowired
 	private WbsTaskRepository taskRepository;
@@ -71,6 +72,56 @@ class TaskApiIntegrationTest extends ProjectApiTestSupport {
 	}
 
 	// ---- 등록·상세 조회 ----
+
+	@Test
+	@DisplayName("진척률: 하위작업 입력은 공수 가중 평균으로 상위·단계·프로젝트에 집계되고 이력과 낙관적 잠금을 적용한다")
+	void updateAndAggregateProgress() throws Exception {
+		final long parentId = createTask(pm, null, "상위", null);
+		final long firstId = readResponse(postJson(url(WBS_TASKS), pm,
+			body("parentTaskId", parentId, "name", "첫째", "assigneeUserId", developer.getId(),
+				"startDate", "2026-12-01", "endDate", "2026-12-03", "estimatedEffort", 1.0)))
+			.get("taskId").asLong();
+		final long secondId = readResponse(postJson(url(WBS_TASKS), pm,
+			body("parentTaskId", parentId, "name", "둘째", "assigneeUserId", qa.getId(),
+				"startDate", "2026-12-04", "endDate", "2026-12-08", "estimatedEffort", 3.0)))
+			.get("taskId").asLong();
+
+		readResponse(patchJson(pm, body("progress", 100, "version", version(firstId)),
+			PROGRESS, projectId, firstId));
+		final long staleVersion = version(secondId);
+		readResponse(patchJson(pm, body("progress", 50, "version", staleVersion),
+			PROGRESS, projectId, secondId));
+
+		assertThat(detail(pm, parentId).get("progress").asInt()).isEqualTo(63);
+		assertThat(historyItems(pm, parentId).valueStream()
+			.map(item -> item.get("activityType").asString()).toList()).contains("PROGRESS_CHANGED");
+		assertThat(historyItems(pm, firstId).get(1).get("after").get("progress").asInt()).isEqualTo(100);
+		assertThat(readResponse(getAs(pm, PROJECTS + "/{id}", projectId)).get("progress").asInt()).isEqualTo(63);
+		assertThat(phasesOf(pm, projectId).get(0).get("progress").asInt()).isEqualTo(63);
+
+		expectError(patchJson(pm, body("progress", 40, "version", staleVersion),
+			PROGRESS, projectId, secondId), ErrorCode.CONCURRENT_MODIFICATION);
+		expectError(patchJson(pm, body("progress", 80, "version", version(parentId)),
+			PROGRESS, projectId, parentId), ErrorCode.WBS_PROGRESS_DERIVED);
+		patchJson(pm, body("progress", -1, "version", version(firstId)), PROGRESS, projectId, firstId)
+			.andExpect(status().isBadRequest());
+		patchJson(pm, body("progress", 101, "version", version(firstId)), PROGRESS, projectId, firstId)
+			.andExpect(status().isBadRequest());
+	}
+
+	@Test
+	@DisplayName("진척률 권한: 담당 개발자·QA와 PM만 수정하고 비담당자·현업 담당자는 거부한다")
+	void progressPermissions() throws Exception {
+		final long taskId = createTask(pm, null, "개발", developer.getId());
+		readResponse(patchJson(loginAs(developer), body("progress", 30, "version", version(taskId)),
+			PROGRESS, projectId, taskId));
+		assertThat(detail(pm, taskId).get("progress").asInt()).isEqualTo(30);
+
+		expectError(patchJson(loginAs(qa), body("progress", 40, "version", version(taskId)),
+			PROGRESS, projectId, taskId), ErrorCode.WBS_TASK_ASSIGNEE_ONLY);
+		expectError(patchJson(loginAs(businessOwner), body("progress", 40, "version", version(taskId)),
+			PROGRESS, projectId, taskId), ErrorCode.WBS_TASK_ASSIGNEE_ONLY);
+	}
 
 	@Test
 	@DisplayName("등록·상세: 상세 필드를 비우면 TASK·MEDIUM으로, 지정하면 그 값으로 등록되고 상세·트리에 보이며 CREATED 이력이 남는다")

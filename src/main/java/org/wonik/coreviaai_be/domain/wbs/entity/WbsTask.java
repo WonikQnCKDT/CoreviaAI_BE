@@ -229,6 +229,11 @@ public class WbsTask extends BaseTimeEntity {
 		this.phaseId = phaseId;
 	}
 
+	/** 직접 입력 또는 하위작업 가중 집계로 진척률을 바꾼다. 입력 범위 검증은 API·서비스가 담당한다. */
+	public void changeProgress(final int progress) {
+		this.progress = progress;
+	}
+
 	public TaskAttributes attributes() {
 		return new TaskAttributes(taskType, priority, completionCriteria);
 	}

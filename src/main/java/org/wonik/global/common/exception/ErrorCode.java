@@ -44,6 +44,8 @@ public enum ErrorCode {
 	INVALID_PERIOD(400, "조회 시작 시각은 종료 시각보다 앞서야 합니다"),
 	INVALID_WBS_SCHEDULE(400, "작업 기간을 확인해 주세요. 시작일은 종료일보다 늦을 수 없고 프로젝트 기간이 있으면 그 안이어야 합니다"),
 	WBS_SCHEDULE_DERIVED(400, "하위작업이 있는 작업의 기간은 하위작업 기간으로 정해져 직접 바꿀 수 없습니다"),
+	WBS_PROGRESS_DERIVED(400, "하위작업이 있는 작업의 진척률은 하위작업의 예상 공수 가중 평균으로 정해져 직접 바꿀 수 없습니다"),
+	WBS_COMPLETED_PROGRESS_REQUIRED(400, "완료 상태의 작업 진척률은 100이어야 합니다"),
 	INVALID_WBS_HIERARCHY(400, "WBS는 작업과 하위작업 2단계까지만 만들 수 있습니다. 하위작업 아래나 하위작업이 있는 작업을 다른 작업 아래로 둘 수 없습니다"),
 	INVALID_WBS_POSITION(400, "옮길 위치가 올바르지 않습니다. 새로고침한 뒤 다시 시도해 주세요"),
 	INVALID_WBS_PHASE(400, "WBS 작업 단계는 같은 프로젝트의 단계여야 하며, 하위작업은 상위 작업의 단계를 따라야 합니다"),

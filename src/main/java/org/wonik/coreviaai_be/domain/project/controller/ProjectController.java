@@ -87,7 +87,8 @@ public class ProjectController {
 	) {
 		final ProjectPhasesResult result = projectQueryService.getPhases(loginUser.userId(), projectId);
 		return ApiResponse.success(
-			result.phases().stream().map(phase -> ProjectPhaseResponse.of(phase, result.userNames())).toList()
+			result.phases().stream().map(phase -> ProjectPhaseResponse.of(phase, result.userNames(),
+				result.progressByPhaseId().getOrDefault(phase.getId(), 0))).toList()
 		);
 	}
 

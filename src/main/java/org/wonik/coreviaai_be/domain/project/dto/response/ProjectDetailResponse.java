@@ -40,6 +40,7 @@ public record ProjectDetailResponse(
 	Long createdBy,
 	List<ProjectActor> actors,
 	List<ProjectFeature> features,
+	int progress,
 	Instant createdAt,
 	Instant updatedAt
 ) {
@@ -62,6 +63,7 @@ public record ProjectDetailResponse(
 			project.getCreatedBy(),
 			result.actors(),
 			result.features(),
+			result.progress(),
 			project.getCreatedAt(),
 			project.getUpdatedAt()
 		);
