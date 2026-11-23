@@ -52,6 +52,10 @@ public record CreateProjectRequest(
 	@NotNull(message = "운영 방식을 선택해 주세요")
 	Methodology methodology,
 
+	@Size(max = MAX_PHASES, message = "프로젝트 단계는 최대 20개까지 지정할 수 있습니다")
+	List<@NotBlank(message = "단계 이름을 입력해 주세요") @Size(max = MAX_PHASE_NAME_LENGTH,
+		message = "단계 이름은 100자 이하로 입력해 주세요") String> phases,
+
 	@NotNull(message = "부서 유형을 선택해 주세요")
 	DepartmentType departmentType,
 
@@ -71,6 +75,8 @@ public record CreateProjectRequest(
 	public static final String CODE_PATTERN = "^[A-Za-z0-9][A-Za-z0-9-]{1,19}$";
 	public static final int MAX_INITIAL_MEMBERS = 100;
 	public static final int MAX_DEPARTMENTS = 20;
+	public static final int MAX_PHASES = 20;
+	public static final int MAX_PHASE_NAME_LENGTH = 100;
 
 	/** departmentIds·members를 생략하면 빈 목록으로 본다(주관 부서 없음, PM만 있는 프로젝트). */
 	public CreateProjectCommand toCommand() {
@@ -83,6 +89,7 @@ public record CreateProjectRequest(
 			visibility,
 			template,
 			methodology,
+			phases == null ? template.getDefaultPhases() : phases.stream().map(String::strip).toList(),
 			departmentType,
 			Set.copyOf(actors),
 			Set.copyOf(features),

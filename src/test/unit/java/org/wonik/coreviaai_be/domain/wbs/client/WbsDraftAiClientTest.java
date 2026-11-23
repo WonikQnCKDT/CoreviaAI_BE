@@ -19,9 +19,10 @@ import org.wonik.aiserver.domain.wbs.api.AiWbsDraftTask;
 import org.wonik.aiserver.domain.wbs.api.AiWbsFeasibility;
 import org.wonik.aiserver.domain.wbs.api.AiWbsGenerateRequest;
 import org.wonik.coreviaai_be.domain.project.entity.type.ProjectActor;
-import org.wonik.coreviaai_be.domain.project.entity.type.WaterfallPhaseType;
+import org.wonik.coreviaai_be.domain.project.entity.type.Methodology;
 import org.wonik.coreviaai_be.domain.wbs.entity.type.WbsTaskStatus;
 import org.wonik.coreviaai_be.domain.wbs.service.command.DraftExistingTask;
+import org.wonik.coreviaai_be.domain.wbs.service.command.DraftProjectPhase;
 import org.wonik.coreviaai_be.domain.wbs.service.command.DraftTeamMember;
 import org.wonik.coreviaai_be.domain.wbs.service.command.GenerateWbsDraftCommand;
 import org.wonik.coreviaai_be.domain.wbs.service.command.WbsDraftContext;
@@ -34,7 +35,10 @@ import org.wonik.global.common.exception.ErrorCode;
  */
 class WbsDraftAiClientTest {
 
-	private static final List<WaterfallPhaseType> PHASES = List.of(WaterfallPhaseType.values());
+	private static final List<DraftProjectPhase> PHASES = List.of(
+		new DraftProjectPhase(101L, "분석", 1),
+		new DraftProjectPhase(102L, "설계", 2)
+	);
 
 	@Test
 	@DisplayName("요청: 프로젝트 문맥·단계 순서·기존 작업(단계 null)·멤버를 계약 필드로 옮긴다. 기간이 없으면 null")
@@ -53,11 +57,11 @@ class WbsDraftAiClientTest {
 		assertThat(request.projectContext().startDate()).isNull();
 		assertThat(request.projectContext().endDate()).isNull();
 		assertThat(request.projectContext().methodology()).isEqualTo("WATERFALL");
-		assertThat(request.existingStages()).extracting("stageCode", "order")
-			.startsWith(tuple("ANALYSIS", 1));
+		assertThat(request.existingStages()).extracting("phaseId", "name", "order")
+			.startsWith(tuple(101L, "분석", 1));
 		assertThat(request.existingTasks()).singleElement()
 			.satisfies(task -> {
-				assertThat(task.stageCode()).isNull();
+				assertThat(task.phaseId()).isNull();
 				assertThat(task.status()).isEqualTo("TODO");
 			});
 		assertThat(request.teamMembers()).singleElement()
@@ -71,7 +75,7 @@ class WbsDraftAiClientTest {
 			LocalDate.parse("2026-12-01"), LocalDate.parse("2026-12-05"), null,
 			List.of(new AiWbsDraftSubtask("ST-001", "목록 정리", null, null)), "이유");
 		final WbsDraftAiClient client = new WbsDraftAiClient(request -> new AiWbsDraftResult(1L,
-			List.of(new AiWbsDraftStage("ANALYSIS", List.of(task))),
+			List.of(new AiWbsDraftStage(101L, List.of(task))),
 			List.of(new AiWbsDraftMilestone("M-001", "분석 완료", LocalDate.parse("2026-12-05"), List.of("T-001"), null)),
 			new AiWbsFeasibility("FEASIBLE", "충분"), null, null, null, null));
 
@@ -79,7 +83,8 @@ class WbsDraftAiClientTest {
 
 		assertThat(proposal.stages()).singleElement()
 			.satisfies(stage -> {
-				assertThat(stage.stageCode()).isEqualTo(WaterfallPhaseType.ANALYSIS);
+				assertThat(stage.phaseId()).isEqualTo(101L);
+				assertThat(stage.phaseName()).isEqualTo("분석");
 				assertThat(stage.tasks()).singleElement().satisfies(proposed -> {
 					assertThat(proposed.dependencies()).isEmpty();
 					assertThat(proposed.subtasks()).hasSize(1);
@@ -95,7 +100,7 @@ class WbsDraftAiClientTest {
 	@DisplayName("결과에 프로젝트에 없는 단계가 있으면 502 AI_GENERATION_FAILED")
 	void unknownStage() {
 		final WbsDraftAiClient client = new WbsDraftAiClient(request -> new AiWbsDraftResult(1L,
-			List.of(new AiWbsDraftStage("SPRINT_1", List.of())), List.of(), null, null, null, null, null));
+			List.of(new AiWbsDraftStage(999L, List.of())), List.of(), null, null, null, null, null));
 
 		assertThatThrownBy(() -> client.generate(context(null, null)))
 			.isInstanceOf(CustomException.class)
@@ -115,7 +120,7 @@ class WbsDraftAiClientTest {
 	}
 
 	private static WbsDraftContext context(final LocalDate startDate, final LocalDate endDate) {
-		return new WbsDraftContext(1L, "구매 시스템", startDate, endDate, PHASES,
+		return new WbsDraftContext(1L, "구매 시스템", startDate, endDate, Methodology.WATERFALL, PHASES,
 			List.of(new DraftExistingTask(10L, "기존 작업", WbsTaskStatus.TODO)),
 			List.of(new DraftTeamMember(11L, "개발자", ProjectActor.DEVELOPER)),
 			new GenerateWbsDraftCommand(null, "발주 등록", List.of(), null));

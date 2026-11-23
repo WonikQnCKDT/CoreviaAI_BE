@@ -9,7 +9,7 @@ import org.wonik.coreviaai_be.domain.wbs.entity.TaskDetails;
  * @param parentTaskId 상위 작업 ID. null이면 최상위 작업
  * @param attributes   유형·우선순위·완료 조건. 요청에서 비운 값은 기본값(TASK·MEDIUM·없음)
  */
-public record CreateWbsTaskCommand(Long parentTaskId, TaskDetails details, TaskAttributes attributes) {
+public record CreateWbsTaskCommand(Long phaseId, Long parentTaskId, TaskDetails details, TaskAttributes attributes) {
 
 	public CreateWbsTaskCommand {
 		if (attributes == null) {

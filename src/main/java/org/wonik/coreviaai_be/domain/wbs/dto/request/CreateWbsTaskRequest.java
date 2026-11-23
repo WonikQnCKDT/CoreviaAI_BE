@@ -23,6 +23,9 @@ import jakarta.validation.constraints.Size;
  * 업무 상세 필드(FR-TSK-01) taskType·priority·completionCriteria는 선택이며, 비우면 TASK·MEDIUM·없음으로 등록한다.
  */
 public record CreateWbsTaskRequest(
+	@Positive(message = "단계 ID를 확인해 주세요")
+	Long phaseId,
+
 	@Positive(message = "상위 작업 ID를 확인해 주세요")
 	Long parentTaskId,
 
@@ -59,7 +62,7 @@ public record CreateWbsTaskRequest(
 			taskType == null ? TaskAttributes.DEFAULT.taskType() : taskType,
 			priority == null ? TaskAttributes.DEFAULT.priority() : priority,
 			DraftText.trimToNull(completionCriteria));
-		return new CreateWbsTaskCommand(parentTaskId, new TaskDetails(name.strip(), DraftText.trimToNull(description),
+		return new CreateWbsTaskCommand(phaseId, parentTaskId, new TaskDetails(name.strip(), DraftText.trimToNull(description),
 			assigneeUserId, startDate, endDate, estimatedEffort), attributes);
 	}
 }

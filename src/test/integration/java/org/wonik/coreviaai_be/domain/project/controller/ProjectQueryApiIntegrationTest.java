@@ -160,14 +160,14 @@ class ProjectQueryApiIntegrationTest extends ProjectApiTestSupport {
 	}
 
 	@Test
-	@DisplayName("단계 API: 단계가 없는 운영 방식(애자일)의 프로젝트는 PHASES_NOT_AVAILABLE")
-	void phasesNotAvailableForNonWaterfall() throws Exception {
+	@DisplayName("단계 API: 방법론과 관계없이 저장된 단계가 없으면 빈 배열을 반환한다")
+	void emptyPhasesForProjectWithoutPhases() throws Exception {
 		// MVP에서는 API로 애자일 프로젝트를 만들 수 없어 저장소로 직접 만든다(FR-PRJ-10 이후 대비).
 		final Project agile = projectRepository.save(Project.create(
 			"AGL-1", "애자일 프로젝트", LocalDate.of(2026, 12, 1), LocalDate.of(2027, 3, 31),
 			ProjectVisibility.COMPANY, ProjectTemplate.EMPTY, Methodology.AGILE, DepartmentType.SW, creator.getId()));
 
-		expectError(getAs(loginAs(developer), PROJECTS + "/{id}/phases", agile.getId()), ErrorCode.PHASES_NOT_AVAILABLE);
+		assertThat(phasesOf(loginAs(developer), agile.getId())).isEmpty();
 	}
 
 	@Test
