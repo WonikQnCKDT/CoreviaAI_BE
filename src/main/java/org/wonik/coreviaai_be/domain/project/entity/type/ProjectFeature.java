@@ -14,7 +14,7 @@ public enum ProjectFeature {
 	KANBAN(true, false),
 	BOARD(true, false),
 	MEETING(true, false),
-	/** 산출물·게이트. 단계가 있는 운영 방식(폭포수)에서만 쓸 수 있다. */
+	/** 산출물·게이트. 단계가 하나 이상인 프로젝트에서만 쓸 수 있다. */
 	DELIVERABLE(true, true),
 	ISSUE(true, false),
 	FILE(true, false),
@@ -23,8 +23,8 @@ public enum ProjectFeature {
 	private final boolean enabled;
 	private final boolean requiresPhases;
 
-	/** 이 모듈을 해당 운영 방식의 프로젝트에서 켤 수 있는지. */
-	public boolean selectableFor(final Methodology methodology) {
-		return enabled && (!requiresPhases || methodology.isUsesPhases());
+	/** 이 모듈을 현재 단계 구성에서 켤 수 있는지. */
+	public boolean selectableFor(final boolean hasPhases) {
+		return enabled && (!requiresPhases || hasPhases);
 	}
 }

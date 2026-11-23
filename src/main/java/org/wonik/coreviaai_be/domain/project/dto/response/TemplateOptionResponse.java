@@ -13,6 +13,7 @@ import org.wonik.coreviaai_be.domain.project.entity.type.ProjectTemplate;
 public record TemplateOptionResponse(
 	ProjectTemplate value,
 	Methodology defaultMethodology,
+	List<String> defaultPhases,
 	List<ProjectActor> defaultActors,
 	List<ProjectFeature> defaultFeatures
 ) {
@@ -21,6 +22,7 @@ public record TemplateOptionResponse(
 		return new TemplateOptionResponse(
 			template,
 			template.getDefaultMethodology(),
+			template.getDefaultPhases(),
 			template.getDefaultActors().stream().sorted().toList(),
 			template.getDefaultFeatures().stream().sorted().toList()
 		);

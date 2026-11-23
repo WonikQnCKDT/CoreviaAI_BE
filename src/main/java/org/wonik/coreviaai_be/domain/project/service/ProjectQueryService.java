@@ -132,15 +132,11 @@ public class ProjectQueryService {
 	}
 
 	/**
-	 * 폭포수 단계·게이트. 단계가 없는 운영 방식(단계 없음·애자일)이면 PHASES_NOT_AVAILABLE로 알려,
-	 * FE가 빈 목록을 "단계가 아직 없음"으로 오해하지 않게 한다.
+	 * 프로젝트의 사용자 정의 단계·게이트. 단계가 없으면 정상적인 빈 목록을 반환한다.
 	 */
 	@Transactional(readOnly = true)
 	public ProjectPhasesResult getPhases(final Long viewerId, final Long projectId) {
-		final Project project = accessPolicy.getVisibleProject(viewerId, projectId);
-		if (!project.getMethodology().isUsesPhases()) {
-			throw new CustomException(ErrorCode.PHASES_NOT_AVAILABLE);
-		}
+		accessPolicy.getVisibleProject(viewerId, projectId);
 		final List<ProjectPhase> phases = phaseRepository.findAllByProjectIdOrderByPhaseOrder(projectId);
 		final Set<Long> approverIds = phases.stream()
 			.map(ProjectPhase::getGateApproverUserId)

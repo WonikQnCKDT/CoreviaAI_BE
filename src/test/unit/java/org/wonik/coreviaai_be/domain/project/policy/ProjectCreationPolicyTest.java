@@ -133,10 +133,12 @@ class ProjectCreationPolicyTest {
 		}
 
 		@Test
-		@DisplayName("산출물·게이트 모듈은 단계 없음 프로젝트에서 켤 수 없다")
+		@DisplayName("산출물·게이트 모듈은 단계가 없는 프로젝트에서 켤 수 없다")
 		void deliverableNeedsPhases() {
-			assertError(base().methodology(Methodology.NONE).features(Set.of(ProjectFeature.DELIVERABLE)).build(),
+			assertError(base().phases(List.of()).features(Set.of(ProjectFeature.DELIVERABLE)).build(),
 				ErrorCode.FEATURE_NOT_AVAILABLE);
+			assertPasses(base().methodology(Methodology.NONE).phases(List.of("준비")).features(
+				Set.of(ProjectFeature.DELIVERABLE)).build());
 		}
 
 		@Test
@@ -178,10 +180,12 @@ class ProjectCreationPolicyTest {
 		}
 
 		@Test
-		@DisplayName("단계 없음 프로젝트에서는 지정할 수 없다")
+		@DisplayName("단계가 없는 프로젝트에서는 지정할 수 없다")
 		void noPhases() {
-			assertError(base().methodology(Methodology.NONE).actors(actors).members(members).gateApprover(OWNER).build(),
+			assertError(base().phases(List.of()).actors(actors).members(members).gateApprover(OWNER).build(),
 				ErrorCode.GATE_APPROVER_NOT_AVAILABLE);
+			assertPasses(base().methodology(Methodology.NONE).phases(List.of("준비"))
+				.actors(actors).members(members).gateApprover(OWNER).build());
 		}
 	}
 
@@ -207,6 +211,7 @@ class ProjectCreationPolicyTest {
 		private List<Long> departmentIds = List.of();
 		private ProjectTemplate template = ProjectTemplate.IT_PROJECT;
 		private Methodology methodology = Methodology.WATERFALL;
+		private List<String> phases = ProjectTemplate.IT_PROJECT.getDefaultPhases();
 		private DepartmentType departmentType = DepartmentType.SW;
 		private Set<ProjectActor> actors = Set.of(ProjectActor.PM);
 		private Set<ProjectFeature> features = Set.of();
@@ -231,6 +236,11 @@ class ProjectCreationPolicyTest {
 
 		CommandBuilder methodology(final Methodology value) {
 			this.methodology = value;
+			return this;
+		}
+
+		CommandBuilder phases(final List<String> value) {
+			this.phases = value;
 			return this;
 		}
 
@@ -261,7 +271,7 @@ class ProjectCreationPolicyTest {
 
 		CreateProjectCommand build() {
 			return new CreateProjectCommand("이름", "ERP-1", startDate, endDate, departmentIds, ProjectVisibility.COMPANY,
-				template, methodology, departmentType, actors, features, members, gateApproverUserId);
+				template, methodology, phases, departmentType, actors, features, members, gateApproverUserId);
 		}
 	}
 }

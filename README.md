@@ -13,7 +13,7 @@
 - 구현된 기능
   - FR-ADM-01 로그인·계정 (Jira SCRUM-96): ID/PW 로그인·로그아웃, 토큰 재발급, 내 계정 조회, 비밀번호 변경, 관리자 비밀번호 초기화, 5회 연속 실패 잠금, 30분 무활동 세션 만료, 로그인 시도 기록
   - FR-ADM-02 사용자·조직 관리 (Jira SCRUM-97): 사용자 추가·수정·활성/비활성, 시스템 역할 변경, 부서(계층) 관리, 변경 이력(감사 로그) 조회
-  - FR-PRJ-01 프로젝트 생성 (Jira SCRUM-98): 생성 권한 제한 없음(활성 일반 사용자 전원), 단계형 생성(기본 정보 → 템플릿·운영 방식 → 액터 → 기능 구성 → 멤버(선택) → 게이트 승인자(선택)), 기간·주관 부서(0~N개) 후입력, 생성자 PM 자동 지정, 폭포수 5단계·게이트 자동 생성(단계 없음은 미생성), 공개 범위에 따른 목록(필터·커서)·상세·멤버 목록(커서) 조회. MVP는 단계 없음·폭포수, SW 액터만 선택 가능
+  - FR-PRJ-01 프로젝트 생성 (Jira SCRUM-98): 생성 권한 제한 없음(활성 일반 사용자 전원), 단계형 생성(기본 정보 → 템플릿·운영 방식 → 사용자 정의 단계 → 액터 → 기능 구성 → 멤버(선택) → 게이트 승인자(선택)), 기간·주관 부서(0~N개) 후입력, 생성자 PM 자동 지정, 템플릿 기본 단계 또는 사용자 지정 단계 생성, 공개 범위에 따른 목록(필터·커서)·상세·멤버 목록(커서) 조회. MVP는 방법론 없음·폭포수, SW 액터만 선택 가능
   - FR-PRJ-06·09 기능 구성·템플릿(일부): 생성 시 기능 모듈 선택(Git 연동 비활성), 빈/IT 프로젝트 템플릿 기본값 제공. 관리자 템플릿 관리 화면과 설정 변경(FR-PRJ-14)은 후속
   - FR-ADM-07 공통 코드 관리 (Jira SCRUM-168): 코드 그룹(위험 수준·업무 진행 상태·요청 처리 결과·프로젝트 상태)과 코드 테이블, 관리자 정렬 순서 변경(코드 값은 고정: 추가·수정·삭제와 사용 여부 변경은 마이그레이션으로만, 감사 로그), 화면용 그룹별 코드 조회
   - FR-ADM-06 다국어 라벨 관리 (Jira SCRUM-169): 한국어·영어·번체 중국어 라벨 테이블(`i18n_labels`, 라벨 키 + 언어별 컬럼), 화면용 언어별 라벨 묶음 조회(로그인 전 공개, 번역 누락은 한국어), 관리자 라벨 등록·문구 수정(낙관적 잠금)·키/문구 검색·번역 누락 필터, 문구 변경 이력(감사 로그). 표시 언어는 `lang` 파라미터 → `Accept-Language` → 한국어(사용자별 언어 저장 없음)
@@ -114,7 +114,7 @@ org.wonik
 │  │  ├─ controller                  ProjectController(생성·목록·상세·단계), ProjectMemberController(멤버·이력·PM 추가·해제)
 │  │  ├─ service                     ProjectCreationService(생성), ProjectQueryService(목록·상세·단계), ProjectMemberService(멤버·이력·복수 PM), ProjectPmService(관리자 PM 재지정)
 │  │  ├─ policy                      ProjectCreationPolicy(생성 규칙), ProjectMemberPolicy(멤버·역할·PM 최소 인원 규칙), ProjectAccessPolicy(조회 404·PM 전용 403), ProjectVisibilityPolicy(공개 범위·경영진 소속 범위)
-│  │  ├─ structure                   ProjectStructureInitializer(운영 방식별 기본 구조) + WaterfallStructureInitializer(5단계·게이트)
+│  │  ├─ service                     ProjectCreationService(템플릿 기본값 또는 요청 단계 생성) + ProjectPhaseService(단계 CRUD·순서)
 │  │  ├─ entity                      Project, ProjectActorAssignment, ProjectMember, ProjectMemberHistory, ProjectPhase, type/(enum)
 │  │  └─ dto                         request / response
 │  ├─ domain/code                    공통 코드(FR-ADM-07, code_groups·codes): CodeGroup, CommonCode, 화면용 조회 CodeController(/api/codes/{groupCode})·CodeQueryService
@@ -123,7 +123,7 @@ org.wonik
 │  ├─ domain/wbs                     WBS·일정·업무 (FR-WBS-01 계층형 WBS, FR-WBS-04 마일스톤, FR-PRJ-07 AI 초안 생성·반영, FR-TSK-01 업무 상세·변경 이력)
 │  │  ├─ controller                  WbsTaskController(트리 조회·등록·수정·이동·삭제), TaskController(업무 상세·상세 필드 수정·변경 이력), MilestoneController, WbsAiDraftController(초안 생성·승인 반영)
 │  │  ├─ service                     WbsTaskService(직접 편집·상위 기간 산출), TaskDetailService(업무 상세), TaskHistoryRecorder(변경 이력 기록, 모든 쓰기 경로가 사용), WbsTreeReader(트리 조립), WbsDraftGenerationService(AI 호출·토큰 발급), WbsDraftApplyService(토큰 소비·반영), WbsDraftContextReader, WbsItemWriter
-│  │  ├─ policy                      WbsTaskAccessPolicy(공개 범위·WBS 기능·프로젝트 행 잠금), WbsEditor(역할별 변경 권한), WbsTaskRules(기간·담당자), WbsDraftAccessPolicy(PM·폭포수·WBS 기능), WbsDraftValidator(참조·기간·순환·담당자)
+│  │  ├─ policy                      WbsTaskAccessPolicy(공개 범위·WBS 기능·프로젝트 행 잠금), WbsEditor(역할별 변경 권한), WbsTaskRules(기간·담당자), WbsDraftAccessPolicy(PM·단계 존재·WBS 기능), WbsDraftValidator(참조·기간·순환·담당자)
 │  │  ├─ client                      WbsDraftAiClient: 도메인 입력·결과 ↔ aiserver 계약(`aiserver.domain.wbs.api`) 변환
 │  │  ├─ drafttoken                  WbsDraftTokenStore(인터페이스) + RedisWbsDraftTokenStore: 1회용 draftToken
 │  │  ├─ entity                      WbsTask, TaskHistory, WbsDependency, Milestone, MilestoneTask, TaskDetails(기본 필드), TaskAttributes(상세 필드), TaskSnapshot(이력용 전·후 값), type/(enum)
@@ -199,7 +199,7 @@ org.wonik
 | GET | `/api/i18n/labels` | 불필요(공개) | 화면용 라벨 묶음 `{lang, labels: {키: 문구}}`. 언어 `lang` → `Accept-Language` → ko, 번역 누락은 한국어. 비밀번호 변경 강제 세션도 허용 |
 | GET | `/api/projects/creation-options` | USER·EXECUTIVE | 생성 화면 ②·③·④ 선택지(템플릿 기본값, 운영 방식, 부서 유형별 액터, 기능 모듈. `enabled`·`required`) |
 | GET | `/api/projects/code-availability` | 활성 USER | `?code=` 코드 중복 확인(대문자로 정규화한 코드와 `available`) |
-| POST | `/api/projects` | 활성 USER | 프로젝트 생성. `template`·`features`·`departmentIds`(0~N) 필수 형식, 기간 선택. 생성자 PM 자동 지정, 폭포수면 5단계·게이트 생성, 감사 로그(`PROJECT_CREATED`). 응답은 상세 |
+| POST | `/api/projects` | 활성 USER | 프로젝트 생성. `template`·`features`·`departmentIds`(0~N) 필수 형식, 기간·`phases` 선택. `phases` 생략 시 템플릿 기본값, 빈 배열이면 0개, 값이 있으면 사용자 정의 단계 생성. 생성자 PM 자동 지정, 감사 로그(`PROJECT_CREATED`). 응답은 상세 |
 | GET | `/api/projects` | USER·EXECUTIVE | 프로젝트 목록(커서, id 내림차순). `cursor`, `size`, `status`, `departmentId`(주관 부서 중 하나), `pmUserId`(PM 중 한 명). 항목의 `departments`·`pms`는 배열. 공개 범위 밖은 제외 |
 | GET | `/api/projects/{projectId}` | USER·EXECUTIVE | 상세(운영 방식과 무관한 공통 정보: 기본 정보·템플릿·운영 방식·주관 부서·PM 목록·지정 액터·기능 구성). 볼 수 없으면 404 |
 | GET | `/api/projects/{projectId}/members` | USER·EXECUTIVE | 멤버 목록(커서, id 오름차순 = 등록순). `cursor`, `size`. 공개 범위는 상세와 같음. 항목에 해당 프로젝트의 완료 업무를 포함한 `assignedTaskCount` |
@@ -208,7 +208,11 @@ org.wonik
 | DELETE | `/api/projects/{projectId}/members/{userId}` | PM | 멤버 제외. 마지막 PM·게이트 승인자는 409 |
 | GET | `/api/projects/{projectId}/members/histories` | USER·EXECUTIVE | 멤버 이력(커서, id 내림차순). 공개 범위는 상세와 같음 |
 | PUT | `/api/admin/projects/pm` | SYSTEM_ADMIN | PM 재지정(활성 PM이 하나도 없을 때만). `projectCode`, `newPmUserId`. 응답은 재지정 후 PM 목록(`pms`) |
-| GET | `/api/projects/{projectId}/phases` | USER·EXECUTIVE | 폭포수 단계·게이트(단계 순서, 5개). 공개 범위는 상세와 같음. 단계 없음·애자일이면 404 `PHASES_NOT_AVAILABLE` |
+| GET | `/api/projects/{projectId}/phases` | USER·EXECUTIVE | 사용자 정의 단계·게이트를 순서대로 조회. 공개 범위는 상세와 같고 단계가 없으면 빈 배열 |
+| POST | `/api/projects/{projectId}/phases` | PM | 단계 추가(최대 20개) |
+| PATCH | `/api/projects/{projectId}/phases/{phaseId}` | PM | 단계 이름 변경 |
+| PUT | `/api/projects/{projectId}/phases/order` | PM | 전체 단계 순서 변경 |
+| DELETE | `/api/projects/{projectId}/phases/{phaseId}` | PM | 단계 삭제. WBS에서 참조 중이면 409(phase 연결 도입 후) |
 | GET | `/api/projects/{projectId}/wbs/tasks` | USER·EXECUTIVE | WBS 트리(작업 표시 순서, 각 작업 아래 하위작업). 공개 범위는 상세와 같음, WBS 기능을 끄면 404 `FEATURE_DISABLED` |
 | POST | `/api/projects/{projectId}/wbs/tasks` | PM · 개발자·QA(담당 작업 하위) | 작업(`parentTaskId` 없음)·하위작업 등록. 같은 부모의 맨 뒤, 상태 TODO, 출처 MANUAL. 응답은 `taskId`와 바뀐 뒤 트리 |
 | PATCH | `/api/projects/{projectId}/wbs/tasks/{taskId}` | PM · 개발자·QA(본인 담당) | 이름·설명·담당자(PM만)·기간·예상 공수 덮어쓰기. `version` 불일치 409 |
@@ -272,11 +276,11 @@ org.wonik
 - 단계형 화면(① 기본 정보 → ② 템플릿·운영 방식 → ③ 액터 → ④ 기능 구성 → ⑤ 멤버 → ⑥ 게이트 승인자)의 입력은 FE가 모아 마지막에 한 번 `POST /api/projects`로 보낸다. 한 트랜잭션으로 프로젝트·주관 부서·액터·기능·멤버·단계를 만들어, 반쯤 만든 프로젝트가 남지 않는다.
 - 필수: 이름(100자 이하), 코드, 공개 범위, 템플릿, 운영 방식, 부서 유형, 액터, 기능 구성(빈 배열 허용). 선택: 기간(둘 다 있으면 시작일 ≤ 종료일, 과거 허용), 주관 부서(0~20개, 모두 활성, 중복 불가). 코드는 영문·숫자로 시작하는 영문·숫자·하이픈 2~20자, 대문자로 저장한다(대소문자만 다르면 중복).
 - 템플릿(`EMPTY`·`IT_PROJECT`)은 ②~④의 기본값만 정한다(선택지 API의 `templates`). 사용자가 바꾼 조합도 서버가 받아들이고, 템플릿은 프로젝트에 기록만 한다.
-- 기능 구성(FR-PRJ-06): `WBS`·`KANBAN`·`BOARD`·`MEETING`·`DELIVERABLE`(산출물·게이트)·`ISSUE`·`FILE`·`GIT`. `GIT`은 FR-DEV-01 전까지 비활성, `DELIVERABLE`은 폭포수에서만 켤 수 있다(400 `FEATURE_NOT_AVAILABLE`).
+- 기능 구성(FR-PRJ-06): `WBS`·`KANBAN`·`BOARD`·`MEETING`·`DELIVERABLE`(산출물·게이트)·`ISSUE`·`FILE`·`GIT`. `GIT`은 FR-DEV-01 전까지 비활성, `DELIVERABLE`은 단계가 하나 이상일 때만 켤 수 있다(400 `FEATURE_NOT_AVAILABLE`).
 - MVP 선택 범위: 운영 방식은 단계 없음(`NONE`)·폭포수, 부서 유형은 SW만, 액터는 PM·현업 담당자(`BUSINESS_OWNER`)·개발자·QA만. 비활성 값은 FE가 막더라도 서버에서 다시 거부한다. 활성 여부는 `Methodology`·`DepartmentType`·`ProjectFeature` enum의 `enabled`가 기준이라, 애자일(FR-PRJ-10)·제조 모듈(4.14)을 열 때 enum 값만 바꾸면 선택지 API와 검증이 함께 바뀐다.
 - 액터: PM은 필수, 나머지는 선택. 초대 멤버의 역할은 지정한 액터 중에서만 고르고 PM 역할은 줄 수 없다. 한 사람은 한 프로젝트에서 역할 하나.
 - 초대 대상: 활성 일반 사용자(다른 부서 포함). 생성자 본인, 경영진(프로젝트 읽기 전용), 시스템 관리자, 비활성·없는 사용자는 거부.
-- 게이트 승인자(선택, 폭포수만 — 단계 없음이면 400 `GATE_APPROVER_NOT_AVAILABLE`): 초대한 멤버 중 PM이 아닌 1명. 5개 단계 게이트 모두에 적용된다. 이후 지정·변경과 미지정 시 단계 전환 차단은 FR-PRJ-05 범위.
+- 게이트 승인자(선택, 단계가 하나 이상일 때): 초대한 멤버 중 PM이 아닌 1명. 생성되는 모든 단계 게이트에 적용된다. 이후 지정·변경과 미지정 시 단계 전환 차단은 FR-PRJ-05 범위.
 - 공개 범위: 전사 공개는 전원, 부서 공개는 주관 부서 중 하나에 소속된 사용자(하위 부서 제외)와 멤버, 멤버 전용은 멤버만 본다. 주관 부서가 없는 부서 공개 프로젝트는 멤버만 본다. 경영진은 주관 부서 중 하나라도 본인 부서·모든 하위 부서에 속한 프로젝트를 멤버 전용까지 보고, 그 밖은 전사 공개만 본다. 상세에서 볼 수 없는 프로젝트는 404로 존재를 드러내지 않는다.
 - 상세 응답은 운영 방식과 무관한 공통 정보만 담고, 운영 방식별 구조는 별도 API로 조회한다(폭포수: `/phases`, 애자일은 FR-PRJ-10에서 별도 API 추가). 운영 방식이 늘어도 상세 계약이 바뀌지 않게 하기 위해서다. FE는 `methodology`로 어느 구조 API를 부를지 고른다(목록에도 있어 상세와 병렬 호출 가능).
 - 멤버는 인원 제한이 없어 상세에 넣지 않고 커서 목록(`/members`)으로 따로 조회한다. 커서가 id만 담으므로 역할순이 아니라 등록순(id 오름차순)이다. 생성 직후에는 생성자 PM이 첫 행이지만 PM은 여러 명일 수 있어 FE는 `actor`나 상세의 `pms`로 PM을 구분한다.
@@ -344,7 +348,7 @@ org.wonik
 ### AI WBS 초안 규칙 (FR-PRJ-07)
 
 - 흐름: FE → `coreviaai_be`(권한·토큰·반영) → `aiserver` 계약 `WbsDraftGenerator`(같은 프로세스 호출). LLM 호출은 aiserver만 한다. FastAPI `/generate/wbs`의 Java 이식 전까지 aiserver는 503 `AI_NOT_READY`를 돌려준다. 민감정보 마스킹은 팀 결정으로 미구현이라 요구사항 원문이 aiserver로 그대로 간다.
-- 대상: PM(복수 PM 누구나), 폭포수 프로젝트(단계 없음은 404 `PHASES_NOT_AVAILABLE`), WBS 기능을 켠 프로젝트(끄면 404 `FEATURE_DISABLED`). 프로젝트 기간은 없어도 된다(aiserver에는 null로 보내고, 반영 검증은 있는 쪽만 적용).
+- 대상: PM(복수 PM 누구나), 단계가 하나 이상인 프로젝트(0개면 404 `PHASES_NOT_AVAILABLE`), WBS 기능을 켠 프로젝트(끄면 404 `FEATURE_DISABLED`). 방법론과 단계 구성은 독립적이며 프로젝트 기간은 없어도 된다(aiserver에는 null로 보내고, 반영 검증은 있는 쪽만 적용).
 - 초안 기록과 승인(NFR-07·08): 생성 결과는 `ai_drafts`에 `DRAFT`(feature `WBS_DRAFT`, AI 결과 JSON·응답 시간)로, AI 실패는 `FAILED`로 남긴다. WBS 테이블은 바꾸지 않는다. 반영하면 같은 트랜잭션에서 `ACCEPTED`(제외 항목이 있으면 `PARTIALLY_ACCEPTED`)와 결정자·시각을 남긴다. 반영하지 않은 초안은 `DRAFT`로 남는다(거절 API 없음). 요구사항 원문 등 사용자 입력은 저장하지 않는다.
 - 반영 토큰: Redis에 `draftToken`(프로젝트·PM·`ai_drafts.id`에 묶임, 1시간)을 둔다. 반영 API는 FE가 보낸 승인 항목만 WBS에 저장한다.
 - 반영: 토큰을 원자적으로 소비한 뒤 한 트랜잭션에서 PM·기능을 다시 확인하고, 참조·기간·순환·담당자를 서버에서 전부 검증한 뒤 작업·하위작업·선후행·마일스톤·감사 로그를 저장한다. 실패하면 토큰을 되돌려 같은 토큰으로 다시 반영할 수 있다. 이미 반영한 토큰은 409 `AI_DRAFT_ALREADY_APPLIED`.

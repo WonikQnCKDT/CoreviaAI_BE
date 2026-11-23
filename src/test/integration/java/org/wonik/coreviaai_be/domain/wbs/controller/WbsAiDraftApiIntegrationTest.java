@@ -28,7 +28,6 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.ResultActions;
 import org.wonik.coreviaai_be.domain.project.controller.ProjectApiTestSupport;
 import org.wonik.coreviaai_be.domain.project.entity.type.ProjectActor;
-import org.wonik.coreviaai_be.domain.project.entity.type.WaterfallPhaseType;
 import org.wonik.coreviaai_be.domain.wbs.client.WbsDraftAiClient;
 import org.wonik.coreviaai_be.domain.wbs.entity.Milestone;
 import org.wonik.coreviaai_be.domain.wbs.entity.MilestoneTask;
@@ -115,7 +114,7 @@ class WbsAiDraftApiIntegrationTest extends ProjectApiTestSupport {
 		assertThat(draft.get("status").asString()).isEqualTo("AI_DRAFT");
 		assertThat(draft.get("draftToken").asString()).isNotBlank();
 		assertThat(draft.get("expiresAt").asString()).isEqualTo("2026-11-09T01:00:00Z");
-		assertThat(draft.get("stages").get(0).get("stageCode").asString()).isEqualTo("ANALYSIS");
+		assertThat(draft.get("stages").get(0).get("phaseName").asString()).isEqualTo("분석");
 		assertThat(draft.get("stages").get(0).get("tasks").get(0).get("tempId").asString()).isEqualTo("T-001");
 		assertThat(draft.get("milestones").get(0).get("tempId").asString()).isEqualTo("M-001");
 		assertThat(draft.get("feasibility").get("status").asString()).isEqualTo("AT_RISK");
@@ -131,7 +130,8 @@ class WbsAiDraftApiIntegrationTest extends ProjectApiTestSupport {
 
 		final ArgumentCaptor<WbsDraftContext> context = ArgumentCaptor.forClass(WbsDraftContext.class);
 		verify(aiClient).generate(context.capture());
-		assertThat(context.getValue().phases()).containsExactly(WaterfallPhaseType.values());
+		assertThat(context.getValue().phases()).extracting("name", "order")
+			.containsExactly(tuple("분석", 1), tuple("설계", 2), tuple("개발", 3), tuple("테스트", 4), tuple("이행", 5));
 		assertThat(context.getValue().members()).extracting(DraftTeamMember::userId, DraftTeamMember::actor)
 			.containsExactly(
 				tuple(creator.getId(), ProjectActor.PM),
@@ -507,8 +507,8 @@ class WbsAiDraftApiIntegrationTest extends ProjectApiTestSupport {
 			null, "DEVELOPER", LocalDate.parse("2026-12-11"), LocalDate.parse("2026-12-20"), List.of("T-001"), List.of(),
 			"구현 전에 인터페이스를 확정");
 		return new WbsDraftProposal(
-			List.of(new ProposedStage(WaterfallPhaseType.ANALYSIS, List.of(analysis)),
-				new ProposedStage(WaterfallPhaseType.DESIGN, List.of(design))),
+			List.of(new ProposedStage(101L, "분석", List.of(analysis)),
+				new ProposedStage(102L, "설계", List.of(design))),
 			List.of(new ProposedMilestone("M-001", "설계 완료", LocalDate.parse("2026-12-20"), List.of("T-002"),
 				"개발 착수 전 설계 확정")),
 			new DraftFeasibility("AT_RISK", "범위가 넓음"),

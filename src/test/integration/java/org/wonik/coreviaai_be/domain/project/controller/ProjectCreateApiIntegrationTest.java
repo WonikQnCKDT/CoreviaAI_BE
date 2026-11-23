@@ -70,8 +70,8 @@ class ProjectCreateApiIntegrationTest extends ProjectApiTestSupport {
 		// 상세는 운영 방식과 무관한 공통 정보만 담고, 단계·게이트는 별도 API로 조회한다.
 		assertThat(project.has("phases")).isFalse();
 		final JsonNode phases = phasesOf(cookie, project.get("id").asLong());
-		assertThat(phases.valueStream().map(p -> p.get("phaseType").asString()).toList())
-			.containsExactly("ANALYSIS", "DESIGN", "DEVELOPMENT", "TEST", "TRANSITION");
+		assertThat(phases.valueStream().map(p -> p.get("name").asString()).toList())
+			.containsExactly("분석", "설계", "개발", "테스트", "이행");
 		assertThat(phases.valueStream().toList()).allSatisfy(phase -> {
 			assertThat(phase.get("status").asString()).isEqualTo("NOT_STARTED");
 			assertThat(phase.get("gateStatus").asString()).isEqualTo("PENDING");
@@ -103,6 +103,37 @@ class ProjectCreateApiIntegrationTest extends ProjectApiTestSupport {
 		assertThat(phasesOf(cookie, project.get("id").asLong()).valueStream().toList())
 			.hasSize(5)
 			.allSatisfy(phase -> assertThat(phase.get("gateApproverUserId").isNull()).isTrue());
+	}
+
+	@Test
+	@DisplayName("방법론 미지정 프로젝트도 생성 요청의 이름·순서대로 사용자 정의 단계를 만들 수 있다")
+	void createCustomPhasesWithoutMethodology() throws Exception {
+		final Map<String, Object> body = validCreateBody("CUS-1");
+		body.put("template", "EMPTY");
+		body.put("methodology", "NONE");
+		body.put("phases", List.of("준비", "실행", "검토"));
+
+		final long projectId = readResponse(create(loginAs(creator), body)).get("id").asLong();
+
+		assertThat(phasesOf(loginAs(creator), projectId).valueStream()
+			.map(phase -> phase.get("name").asString()).toList()).containsExactly("준비", "실행", "검토");
+	}
+
+	@Test
+	@DisplayName("생성 단계 목록은 최대 20개이며 공백 이름과 100자 초과 이름을 거부한다")
+	void customPhaseValidation() throws Exception {
+		final Cookie cookie = loginAs(creator);
+		final Map<String, Object> tooMany = validCreateBody("CUS-1");
+		tooMany.put("phases", java.util.stream.IntStream.rangeClosed(1, 21).mapToObj(i -> "단계 " + i).toList());
+		create(cookie, tooMany).andExpect(status().isBadRequest());
+
+		final Map<String, Object> blank = validCreateBody("CUS-2");
+		blank.put("phases", List.of("준비", "   "));
+		create(cookie, blank).andExpect(status().isBadRequest());
+
+		final Map<String, Object> longName = validCreateBody("CUS-3");
+		longName.put("phases", List.of("가".repeat(101)));
+		create(cookie, longName).andExpect(status().isBadRequest());
 	}
 
 	@Test
@@ -177,7 +208,7 @@ class ProjectCreateApiIntegrationTest extends ProjectApiTestSupport {
 	}
 
 	@Test
-	@DisplayName("빈 템플릿·단계 없음으로 생성하면 단계·게이트가 없고, 단계 조회는 PHASES_NOT_AVAILABLE")
+	@DisplayName("빈 템플릿 기본값으로 생성하면 단계·게이트가 없고, 단계 조회는 빈 배열이다")
 	void createNoPhaseProject() throws Exception {
 		final Cookie cookie = loginAs(creator);
 		final Map<String, Object> body = validCreateBody("OPS-1");
@@ -190,7 +221,7 @@ class ProjectCreateApiIntegrationTest extends ProjectApiTestSupport {
 
 		assertThat(project.get("template").asString()).isEqualTo("EMPTY");
 		assertThat(project.get("methodology").asString()).isEqualTo("NONE");
-		expectError(getAs(cookie, PROJECTS + "/{id}/phases", project.get("id").asLong()), ErrorCode.PHASES_NOT_AVAILABLE);
+		assertThat(phasesOf(cookie, project.get("id").asLong())).isEmpty();
 	}
 
 	@Test
@@ -200,11 +231,13 @@ class ProjectCreateApiIntegrationTest extends ProjectApiTestSupport {
 
 		final Map<String, Object> approver = validCreateBody("OPS-1");
 		approver.put("methodology", "NONE");
+		approver.put("phases", List.of());
 		approver.put("features", List.of("KANBAN"));
 		expectError(create(cookie, approver), ErrorCode.GATE_APPROVER_NOT_AVAILABLE);
 
 		final Map<String, Object> deliverable = validCreateBody("OPS-1");
 		deliverable.put("methodology", "NONE");
+		deliverable.put("phases", List.of());
 		deliverable.put("gateApproverUserId", null);
 		expectError(create(cookie, deliverable), ErrorCode.FEATURE_NOT_AVAILABLE);
 
@@ -364,6 +397,8 @@ class ProjectCreateApiIntegrationTest extends ProjectApiTestSupport {
 			.andExpect(jsonPath("$.response.templates[0].defaultMethodology").value("NONE"))
 			.andExpect(jsonPath("$.response.templates[1].value").value("IT_PROJECT"))
 			.andExpect(jsonPath("$.response.templates[1].defaultMethodology").value("WATERFALL"))
+			.andExpect(jsonPath("$.response.templates[0].defaultPhases.length()").value(0))
+			.andExpect(jsonPath("$.response.templates[1].defaultPhases.length()").value(5))
 			.andExpect(jsonPath("$.response.templates[1].defaultActors.length()").value(4))
 			.andExpect(jsonPath("$.response.methodologies[0].value").value("NONE"))
 			.andExpect(jsonPath("$.response.methodologies[0].enabled").value(true))
@@ -378,7 +413,7 @@ class ProjectCreateApiIntegrationTest extends ProjectApiTestSupport {
 			.andExpect(jsonPath("$.response.departmentTypes[1].value").value("MANUFACTURING"))
 			.andExpect(jsonPath("$.response.departmentTypes[1].enabled").value(false))
 			.andExpect(jsonPath("$.response.departmentTypes[1].actors[*].enabled").value(everyItem(is(false))))
-			.andExpect(jsonPath("$.response.features[?(@.value == 'DELIVERABLE')].methodologies[0]").value("WATERFALL"))
+			.andExpect(jsonPath("$.response.features[?(@.value == 'DELIVERABLE')].requiresPhases").value(true))
 			.andExpect(jsonPath("$.response.features[?(@.value == 'GIT')].enabled").value(false));
 	}
 

@@ -1,10 +1,7 @@
 package org.wonik.coreviaai_be.domain.wbs.client;
 
-import java.util.EnumMap;
 import java.util.List;
-import java.util.Map;
 import java.util.function.Function;
-import java.util.stream.IntStream;
 
 import org.springframework.stereotype.Component;
 import org.wonik.aiserver.domain.wbs.api.AiWbsDraftMilestone;
@@ -18,8 +15,7 @@ import org.wonik.aiserver.domain.wbs.api.AiWbsProjectContext;
 import org.wonik.aiserver.domain.wbs.api.AiWbsStage;
 import org.wonik.aiserver.domain.wbs.api.AiWbsTeamMember;
 import org.wonik.aiserver.domain.wbs.api.WbsDraftGenerator;
-import org.wonik.coreviaai_be.domain.project.entity.type.Methodology;
-import org.wonik.coreviaai_be.domain.project.entity.type.WaterfallPhaseType;
+import org.wonik.coreviaai_be.domain.wbs.service.command.DraftProjectPhase;
 import org.wonik.coreviaai_be.domain.wbs.service.command.GenerateWbsDraftCommand;
 import org.wonik.coreviaai_be.domain.wbs.service.command.WbsDraftContext;
 import org.wonik.coreviaai_be.domain.wbs.service.result.DraftFeasibility;
@@ -46,14 +42,6 @@ import lombok.extern.slf4j.Slf4j;
 @RequiredArgsConstructor
 public class WbsDraftAiClient {
 
-	private static final Map<WaterfallPhaseType, String> PHASE_NAMES = new EnumMap<>(Map.of(
-		WaterfallPhaseType.ANALYSIS, "분석",
-		WaterfallPhaseType.DESIGN, "설계",
-		WaterfallPhaseType.DEVELOPMENT, "개발",
-		WaterfallPhaseType.TEST, "테스트",
-		WaterfallPhaseType.TRANSITION, "이행"
-	));
-
 	private final WbsDraftGenerator draftGenerator;
 
 	public WbsDraftProposal generate(final WbsDraftContext context) {
@@ -63,16 +51,16 @@ public class WbsDraftAiClient {
 
 	private static AiWbsGenerateRequest toRequest(final WbsDraftContext context) {
 		final GenerateWbsDraftCommand command = context.command();
-		final List<WaterfallPhaseType> phases = context.phases();
+		final List<DraftProjectPhase> phases = context.phases();
 		return new AiWbsGenerateRequest(
 			context.projectId(),
 			context.projectName(),
 			command.projectPurpose(),
 			command.requirementsText(),
-			new AiWbsProjectContext(context.startDate(), context.endDate(), Methodology.WATERFALL.name(),
+			new AiWbsProjectContext(context.startDate(), context.endDate(), context.methodology().name(),
 				command.constraints()),
-			IntStream.range(0, phases.size())
-				.mapToObj(index -> new AiWbsStage(phases.get(index).name(), PHASE_NAMES.get(phases.get(index)), index + 1))
+			phases.stream()
+				.map(phase -> new AiWbsStage(phase.phaseId(), phase.name(), phase.order()))
 				.toList(),
 			context.existingTasks().stream()
 				.map(task -> new AiWbsExistingTask(task.taskId(), task.name(), null, task.status().name()))
@@ -84,7 +72,7 @@ public class WbsDraftAiClient {
 		);
 	}
 
-	private static WbsDraftProposal toProposal(final AiWbsDraftResult result, final List<WaterfallPhaseType> phases) {
+	private static WbsDraftProposal toProposal(final AiWbsDraftResult result, final List<DraftProjectPhase> phases) {
 		return new WbsDraftProposal(
 			map(result.stages(), stage -> toStage(stage, phases)),
 			map(result.milestones(), WbsDraftAiClient::toMilestone),
@@ -97,15 +85,15 @@ public class WbsDraftAiClient {
 		);
 	}
 
-	private static ProposedStage toStage(final AiWbsDraftStage stage, final List<WaterfallPhaseType> phases) {
-		final WaterfallPhaseType phase = phases.stream()
-			.filter(candidate -> candidate.name().equals(stage.stageCode()))
+	private static ProposedStage toStage(final AiWbsDraftStage stage, final List<DraftProjectPhase> phases) {
+		final DraftProjectPhase phase = phases.stream()
+			.filter(candidate -> candidate.phaseId().equals(stage.phaseId()))
 			.findFirst()
 			.orElseThrow(() -> {
-				log.warn("AI 초안에 프로젝트에 없는 단계가 있습니다: {}", stage.stageCode());
+				log.warn("AI 초안에 프로젝트에 없는 단계가 있습니다: {}", stage.phaseId());
 				return new CustomException(ErrorCode.AI_GENERATION_FAILED);
 			});
-		return new ProposedStage(phase, map(stage.tasks(), WbsDraftAiClient::toTask));
+		return new ProposedStage(phase.phaseId(), phase.name(), map(stage.tasks(), WbsDraftAiClient::toTask));
 	}
 
 	private static ProposedTask toTask(final AiWbsDraftTask task) {
