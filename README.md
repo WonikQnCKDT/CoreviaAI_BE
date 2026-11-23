@@ -18,7 +18,7 @@
   - FR-ADM-07 공통 코드 관리 (Jira SCRUM-168): 코드 그룹(위험 수준·업무 진행 상태·요청 처리 결과·프로젝트 상태)과 코드 테이블, 관리자 정렬 순서 변경(코드 값은 고정: 추가·수정·삭제와 사용 여부 변경은 마이그레이션으로만, 감사 로그), 화면용 그룹별 코드 조회
   - FR-ADM-06 다국어 라벨 관리 (Jira SCRUM-169): 한국어·영어·번체 중국어 라벨 테이블(`i18n_labels`, 라벨 키 + 언어별 컬럼), 화면용 언어별 라벨 묶음 조회(로그인 전 공개, 번역 누락은 한국어), 관리자 라벨 등록·문구 수정(낙관적 잠금)·키/문구 검색·번역 누락 필터, 문구 변경 이력(감사 로그). 표시 언어는 `lang` 파라미터 → `Accept-Language` → 한국어(사용자별 언어 저장 없음)
   - FR-ADM-09 에러 로그 관리 (Jira SCRUM-170) + NFR-06 패턴 마스킹 일부 (Jira SCRUM-114): 전역 예외 처리기에 도달한 미처리 예외(500)를 `error_logs`에 별도 트랜잭션으로 기록(발생 시각·메서드·경로·사용자 ID·예외 클래스·마스킹한 메시지·원인 포함 스택), 사용자에게는 공통 500만 응답, 시스템 관리자 조회(기간·유형·경로 필터, 커서, 상세). 1년 보관 정리는 미구현
-  - FR-WBS-01 계층형 WBS (Jira SCRUM-107): 작업 > 하위작업 2단계 트리 조회(한 번에, 담당자 이름 포함), 작업·하위작업 등록·수정(낙관적 잠금)·삭제(연결 있으면 거부)·드래그 이동(순서·계층 변경), 상위 작업 기간을 하위작업 기간으로 자동 산출(저장값 갱신). 권한은 3.3 WBS-01(PM 전체, 개발자·QA 본인 담당 작업 수정·그 아래 하위작업 추가). '단계' 레벨 표현은 미결
+  - FR-WBS-01 계층형 WBS (Jira SCRUM-107): 사용자 정의 단계 > 작업 > 하위작업 트리, 작업·하위작업 등록·수정(낙관적 잠금)·삭제(연결 있으면 거부)·드래그 이동(순서·계층 변경), 상위 작업 기간을 하위작업 기간으로 자동 산출. 단계가 없는 프로젝트는 `phaseId=null`, 하위작업은 상위 작업 단계를 상속한다
   - FR-WBS-04 마일스톤 (Jira SCRUM-108): 마일스톤 목록(목표일 순)·상세, 등록(출처 MANUAL)·이름·목표일 수정(낙관적 잠금)·삭제(연결 정보 함께 삭제, 감사 로그), 연결 작업 전체 교체(같은 프로젝트 작업만). D-day와 지연 경고(목표일 당일부터, 연결 작업 중 미완료가 있으면)를 조회 때 한국 시간 기준으로 계산(저장 안 함). 권한은 3.3 WBS-04(PM C·U·D, 그 밖 조회). 알림(FR-NTF-01)은 Sprint 3
   - FR-TSK-01 업무 CRUD (Jira SCRUM-109): 업무 = WBS 작업·하위작업. 업무 상세 조회, 유형(TASK·DEFECT)·우선순위(HIGH·MEDIUM·LOW)·완료 조건 수정(낙관적 잠금, WBS 등록 때 선택 입력 가능), 변경 이력(`task_histories`: 등록·배정·해제·일정·상세·이동·삭제, 업무별 시간순 커서 조회). 등록·담당자 배정·기간·삭제는 FR-WBS-01 API를 그대로 쓴다. 담당자 TODO 반영은 FR-PSN-01(SCRUM-111)이 조회 때 `assignee_user_id`로 합침, 일정(FR-PSN-02)은 Sprint 3, AI 공수 추정(FR-AIR-15)은 Sprint 5
   - FR-PRJ-04 멤버·역할 관리 (Jira SCRUM-106): 멤버 초대·역할 변경·제외(PM만), 복수 PM(역할 변경으로 추가·해제, 최소 1명), 멤버 이력, PM 재지정(활성 PM이 없을 때 시스템 관리자). 담당 업무 수는 완료 여부와 관계없이 해당 프로젝트의 담당 업무·하위 업무를 집계하며, 미완료 담당 업무가 있으면 멤버를 제외할 수 없다.
@@ -214,8 +214,8 @@ org.wonik
 | PUT | `/api/projects/{projectId}/phases/order` | PM | 전체 단계 순서 변경 |
 | DELETE | `/api/projects/{projectId}/phases/{phaseId}` | PM | 단계 삭제. WBS에서 참조 중이면 409(phase 연결 도입 후) |
 | GET | `/api/projects/{projectId}/wbs/tasks` | USER·EXECUTIVE | WBS 트리(작업 표시 순서, 각 작업 아래 하위작업). 공개 범위는 상세와 같음, WBS 기능을 끄면 404 `FEATURE_DISABLED` |
-| POST | `/api/projects/{projectId}/wbs/tasks` | PM · 개발자·QA(담당 작업 하위) | 작업(`parentTaskId` 없음)·하위작업 등록. 같은 부모의 맨 뒤, 상태 TODO, 출처 MANUAL. 응답은 `taskId`와 바뀐 뒤 트리 |
-| PATCH | `/api/projects/{projectId}/wbs/tasks/{taskId}` | PM · 개발자·QA(본인 담당) | 이름·설명·담당자(PM만)·기간·예상 공수 덮어쓰기. `version` 불일치 409 |
+| POST | `/api/projects/{projectId}/wbs/tasks` | PM · 개발자·QA(담당 작업 하위) | 작업(`parentTaskId` 없음)·하위작업 등록. 최상위 작업의 `phaseId`는 같은 프로젝트 단계여야 하며 생략 시 첫 단계, 하위작업은 상위 단계 상속. 응답은 `taskId`와 바뀐 뒤 트리 |
+| PATCH | `/api/projects/{projectId}/wbs/tasks/{taskId}` | PM · 개발자·QA(본인 담당) | 이름·설명·담당자(PM만)·기간·예상 공수·최상위 작업 단계 덮어쓰기. `version` 불일치 409 |
 | PUT | `/api/projects/{projectId}/wbs/tasks/{taskId}/position` | PM | 드래그 이동: `parentTaskId`(null=최상위), `index`(0부터), `version` |
 | DELETE | `/api/projects/{projectId}/wbs/tasks/{taskId}` | PM | 삭제. 하위작업·선후행·마일스톤 연결이 있으면 409 `WBS_TASK_IN_USE`. 변경 이력은 남고 `DELETED` 이력 추가 |
 | GET | `/api/projects/{projectId}/tasks/{taskId}` | USER·EXECUTIVE | 업무 상세(WBS 항목 필드 + 유형·우선순위·완료 조건·완료 시각·칸반 컬럼·상태 변경 시각·등록자). 공개 범위는 WBS와 같음, WBS·칸반 둘 다 꺼야 404 `FEATURE_DISABLED` |
@@ -299,7 +299,7 @@ org.wonik
 
 ### 계층형 WBS 규칙 (FR-WBS-01)
 
-- 계층: DB는 작업(`parent_task_id` NULL) > 하위작업 2단계(ERD 04). 하위작업 아래 등록·이동, 하위작업을 가진 작업을 다른 작업 아래로 옮기기는 400 `INVALID_WBS_HIERARCHY`. 명세의 '단계' 레벨 표현은 미결이라 이 API에 없다.
+- 계층: DB는 프로젝트 단계(`phase_id`, nullable) > 작업(`parent_task_id` NULL) > 하위작업 2단계(ERD 04). 하위작업 아래 등록·이동, 하위작업을 가진 작업을 다른 작업 아래로 옮기기는 400 `INVALID_WBS_HIERARCHY`.
 - 권한(3.3 WBS-01): 판정 순서 404 `PROJECT_NOT_FOUND`(볼 수 없음) → 404 `FEATURE_DISABLED`(WBS 기능 꺼짐) → 403. PM은 전체, 개발자·QA는 본인이 담당한 작업 아래 하위작업 추가(담당자는 비우거나 본인)·본인 담당 항목 수정만(그 밖 403 `WBS_TASK_ASSIGNEE_ONLY`), 담당자 변경·최상위 작업 등록·이동·삭제는 PM만(403 `PROJECT_PM_ONLY`). 현업 담당자·경영진·멤버 아닌 열람자는 조회만.
 - 상위 기간 자동 산출: 하위작업이 있는 작업의 `start_date`·`end_date`는 하위작업의 최소 시작일~최대 종료일로 저장한다. 하위작업 등록·기간 수정·이동·삭제와 AI 초안 반영 때 같은 트랜잭션에서 다시 맞춘다. 간트·지연 감지 등은 저장값을 그대로 읽으면 된다. 이런 작업의 기간을 직접 바꾸면 400 `WBS_SCHEDULE_DERIVED`(응답 `scheduleDerived: true`). 마지막 하위작업이 빠지면 마지막 산출값이 작업 자신의 기간으로 남는다.
 - 값 규칙: 시작일 ≤ 종료일, 프로젝트 기간이 있으면 그 안(있는 쪽만, 400 `INVALID_WBS_SCHEDULE`). 하위작업 기간은 상위 작업 기간에 묶지 않는다(상위가 하위로 산출되므로). 담당자는 프로젝트 멤버이면서 활성 계정(400 `INVALID_TASK_ASSIGNEE`), 바꿀 때만 검증.
@@ -352,7 +352,7 @@ org.wonik
 - 초안 기록과 승인(NFR-07·08): 생성 결과는 `ai_drafts`에 `DRAFT`(feature `WBS_DRAFT`, AI 결과 JSON·응답 시간)로, AI 실패는 `FAILED`로 남긴다. WBS 테이블은 바꾸지 않는다. 반영하면 같은 트랜잭션에서 `ACCEPTED`(제외 항목이 있으면 `PARTIALLY_ACCEPTED`)와 결정자·시각을 남긴다. 반영하지 않은 초안은 `DRAFT`로 남는다(거절 API 없음). 요구사항 원문 등 사용자 입력은 저장하지 않는다.
 - 반영 토큰: Redis에 `draftToken`(프로젝트·PM·`ai_drafts.id`에 묶임, 1시간)을 둔다. 반영 API는 FE가 보낸 승인 항목만 WBS에 저장한다.
 - 반영: 토큰을 원자적으로 소비한 뒤 한 트랜잭션에서 PM·기능을 다시 확인하고, 참조·기간·순환·담당자를 서버에서 전부 검증한 뒤 작업·하위작업·선후행·마일스톤·감사 로그를 저장한다. 실패하면 토큰을 되돌려 같은 토큰으로 다시 반영할 수 있다. 이미 반영한 토큰은 409 `AI_DRAFT_ALREADY_APPLIED`.
-- 단계 미저장: ERD(04. WBS·일정)에 `wbs_tasks.phase_id`가 없어 응답의 단계 묶음은 검토 화면용이다. 반영 작업은 프로젝트 기존 작업 뒤에 요청 순서대로 붙는다.
+- 단계 연결: `wbs_tasks.phase_id`로 사용자 정의 단계에 연결한다. AI 초안 생성에도 기존 작업의 `phaseId`를 보내 중복 제안 문맥을 보존한다.
 - 감사 로그: `AI_WBS_DRAFT_REQUESTED`(`aiDraftId`, 입력 길이·결과·제안 개수. 원문 미기록, AI 호출 뒤 별도 트랜잭션), `AI_WBS_DRAFT_APPLIED`(`aiDraftId`, 반영·제외 개수, 반영과 같은 트랜잭션).
 - 반영도 직접 편집과 같은 프로젝트 행 잠금·항목 수 상한(2,000개, 409 `WBS_TASK_LIMIT_EXCEEDED`)을 쓰고, 하위작업이 있는 작업의 기간은 하위작업 기간으로 맞춘다(FR-WBS-01).
 - AI 오류는 사용자에게 고정 메시지만 준다: 502 `AI_GENERATION_FAILED`(생성 실패·형식 오류·프로젝트에 없는 단계), 503 `AI_NOT_READY`(이식 전), 504 `AI_TIMEOUT`(이식 후 LLM 시간 초과에 사용).

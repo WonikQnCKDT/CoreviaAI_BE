@@ -45,7 +45,7 @@ public class WbsDraftContextReader {
 
 		final List<DraftExistingTask> existingTasks =
 			taskRepository.findAllByProjectIdAndParentTaskIdIsNullOrderBySortOrderAscIdAsc(projectId).stream()
-				.map(task -> new DraftExistingTask(task.getId(), task.getName(), task.getStatus()))
+				.map(task -> new DraftExistingTask(task.getId(), task.getPhaseId(), task.getName(), task.getStatus()))
 				.toList();
 
 		final List<ProjectMember> members = memberRepository.findAllByProjectIdOrderById(projectId);
