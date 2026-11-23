@@ -19,6 +19,7 @@
   - FR-ADM-06 다국어 라벨 관리 (Jira SCRUM-169): 한국어·영어·번체 중국어 라벨 테이블(`i18n_labels`, 라벨 키 + 언어별 컬럼), 화면용 언어별 라벨 묶음 조회(로그인 전 공개, 번역 누락은 한국어), 관리자 라벨 등록·문구 수정(낙관적 잠금)·키/문구 검색·번역 누락 필터, 문구 변경 이력(감사 로그). 표시 언어는 `lang` 파라미터 → `Accept-Language` → 한국어(사용자별 언어 저장 없음)
   - FR-ADM-09 에러 로그 관리 (Jira SCRUM-170) + NFR-06 패턴 마스킹 일부 (Jira SCRUM-114): 전역 예외 처리기에 도달한 미처리 예외(500)를 `error_logs`에 별도 트랜잭션으로 기록(발생 시각·메서드·경로·사용자 ID·예외 클래스·마스킹한 메시지·원인 포함 스택), 사용자에게는 공통 500만 응답, 시스템 관리자 조회(기간·유형·경로 필터, 커서, 상세). 1년 보관 정리는 미구현
   - FR-WBS-01 계층형 WBS (Jira SCRUM-107): 작업 > 하위작업 2단계 트리 조회(한 번에, 담당자 이름 포함), 작업·하위작업 등록·수정(낙관적 잠금)·삭제(연결 있으면 거부)·드래그 이동(순서·계층 변경), 상위 작업 기간을 하위작업 기간으로 자동 산출(저장값 갱신). 권한은 3.3 WBS-01(PM 전체, 개발자·QA 본인 담당 작업 수정·그 아래 하위작업 추가). '단계' 레벨 표현은 미결
+  - FR-WBS-03 선후행 관계 (Jira SCRUM-118): 완료→시작 선행 작업 목록 조회·전체 교체·해제, 같은 프로젝트 작업만 허용하고 자기 참조·간접 순환을 차단. 선행 작업이 종료일을 넘긴 채 미완료이면 한국 날짜 기준 지연 일수와 후행 영향 여부를 계산. 권한은 PM 전체, 개발자·QA 본인 담당 후행 작업 변경, 프로젝트 열람 가능자는 조회
   - FR-WBS-04 마일스톤 (Jira SCRUM-108): 마일스톤 목록(목표일 순)·상세, 등록(출처 MANUAL)·이름·목표일 수정(낙관적 잠금)·삭제(연결 정보 함께 삭제, 감사 로그), 연결 작업 전체 교체(같은 프로젝트 작업만). D-day와 지연 경고(목표일 당일부터, 연결 작업 중 미완료가 있으면)를 조회 때 한국 시간 기준으로 계산(저장 안 함). 권한은 3.3 WBS-04(PM C·U·D, 그 밖 조회). 알림(FR-NTF-01)은 Sprint 3
   - FR-TSK-01 업무 CRUD (Jira SCRUM-109): 업무 = WBS 작업·하위작업. 업무 상세 조회, 유형(TASK·DEFECT)·우선순위(HIGH·MEDIUM·LOW)·완료 조건 수정(낙관적 잠금, WBS 등록 때 선택 입력 가능), 변경 이력(`task_histories`: 등록·배정·해제·일정·상세·이동·삭제, 업무별 시간순 커서 조회). 등록·담당자 배정·기간·삭제는 FR-WBS-01 API를 그대로 쓴다. 담당자 TODO 반영은 FR-PSN-01(SCRUM-111)이 조회 때 `assignee_user_id`로 합침, 일정(FR-PSN-02)은 Sprint 3, AI 공수 추정(FR-AIR-15)은 Sprint 5
   - FR-PRJ-04 멤버·역할 관리 (Jira SCRUM-106): 멤버 초대·역할 변경·제외(PM만), 복수 PM(역할 변경으로 추가·해제, 최소 1명), 멤버 이력, PM 재지정(활성 PM이 없을 때 시스템 관리자). 담당 업무 수는 완료 여부와 관계없이 해당 프로젝트의 담당 업무·하위 업무를 집계하며, 미완료 담당 업무가 있으면 멤버를 제외할 수 없다.
@@ -214,6 +215,8 @@ org.wonik
 | PATCH | `/api/projects/{projectId}/wbs/tasks/{taskId}` | PM · 개발자·QA(본인 담당) | 이름·설명·담당자(PM만)·기간·예상 공수 덮어쓰기. `version` 불일치 409 |
 | PUT | `/api/projects/{projectId}/wbs/tasks/{taskId}/position` | PM | 드래그 이동: `parentTaskId`(null=최상위), `index`(0부터), `version` |
 | DELETE | `/api/projects/{projectId}/wbs/tasks/{taskId}` | PM | 삭제. 하위작업·선후행·마일스톤 연결이 있으면 409 `WBS_TASK_IN_USE`. 변경 이력은 남고 `DELETED` 이력 추가 |
+| GET | `/api/projects/{projectId}/wbs/tasks/{taskId}/predecessors` | USER·EXECUTIVE | 완료→시작 선행 작업 목록과 현재 날짜 기준 지연 일수·후행 영향 여부 |
+| PUT | `/api/projects/{projectId}/wbs/tasks/{taskId}/predecessors` | PM · 개발자·QA(본인 담당) | `predecessorTaskIds` 전체 교체. 빈 배열은 모두 해제, 다른 프로젝트·자기 참조 400, 순환 400 |
 | GET | `/api/projects/{projectId}/tasks/{taskId}` | USER·EXECUTIVE | 업무 상세(WBS 항목 필드 + 유형·우선순위·완료 조건·완료 시각·칸반 컬럼·상태 변경 시각·등록자). 공개 범위는 WBS와 같음, WBS·칸반 둘 다 꺼야 404 `FEATURE_DISABLED` |
 | PATCH | `/api/projects/{projectId}/tasks/{taskId}` | PM · 개발자·QA(본인 담당) | 유형·우선순위·완료 조건 덮어쓰기. `version`(WBS 수정과 공유) 불일치 409 |
 | GET | `/api/projects/{projectId}/tasks/{taskId}/histories` | USER·EXECUTIVE | 업무 변경 이력(커서, id 오름차순 = 시간순). `activityType`, `before`·`after`(JSON), `actor`, `occurredAt` |
@@ -329,6 +332,14 @@ org.wonik
 - 조회 비용: 컬럼 1회 + 업무 1회 + 담당자 이름 1회(N+1 없음). 업무는 프로젝트당 최대 2,000개라 WBS 트리처럼 페이지 없이 한 번에 준다. 카드 이동의 WIP 판정과 컬럼 삭제의 카드 유무는 보드 전체를 읽지 않고 COUNT 쿼리로 센다(그 컬럼에 놓인 카드 + 그 상태의 첫 컬럼이면 컬럼이 비어 있는 같은 상태 카드, 조회 배치 규칙과 같음).
 - 범위 밖·미결: 단계 필터(작업과 단계 연결이 없어 구현 불가, WBS '단계' 레벨 미결), 같은 컬럼 안 카드 순서, 상위 작업 상태의 하위작업 연동. 칸반 모듈을 끈 프로젝트는 상태를 바꿀 API가 없다.
 
+### 선후행 관계 규칙 (FR-WBS-03)
+
+- 현재 지원 유형은 ERD의 `FINISH_TO_START`(완료→시작)뿐이다. 후행 작업별 선행 작업 ID 전체를 교체하며 중복은 한 번만 저장하고, 빈 배열은 모두 해제한다. 같은 목록 재전송은 저장하지 않는 멱등 요청이다.
+- 권한(3.3 WBS-03): 조회는 프로젝트를 볼 수 있는 사용자 전원. 변경은 PM 전체, 개발자·QA는 본인 담당 후행 작업만 가능하다. 판정 순서는 404 `PROJECT_NOT_FOUND` → 404 `FEATURE_DISABLED` → 404 `WBS_TASK_NOT_FOUND` → 403이다.
+- 선행 작업은 같은 프로젝트의 다른 WBS 작업만 허용한다. 자기 참조·다른 프로젝트·없는 작업은 존재 여부를 구분하지 않고 400 `INVALID_WBS_DEPENDENCY`, 직접·간접 순환은 400 `WBS_DEPENDENCY_CYCLE`이다.
+- 변경은 다른 WBS 편집과 같은 프로젝트 행 잠금으로 직렬화한다. 전체 프로젝트 그래프를 위상 정렬로 검증한 뒤 빠진 연결만 삭제하고 새 연결만 추가한다. ERD의 유일 제약과 인덱스를 그대로 사용하며 스키마 변경은 없다.
+- 지연은 조회 시 한국 날짜 기준으로 계산한다. 선행 작업이 미완료이고 종료일이 오늘보다 전이면 `delayed=true`, `delayDays=종료일~오늘`이며 후행 작업도 미완료이면 `impactsSuccessor=true`이다. 저장값은 변경하지 않는다.
+
 ### 마일스톤 규칙 (FR-WBS-04)
 
 - 권한(3.3 WBS-04): 조회는 프로젝트를 볼 수 있는 사용자 전원(멤버, 공개 범위 열람자, 소속 범위 경영진). 등록·수정·연결·삭제는 PM만(403 `PROJECT_PM_ONLY`). 판정 순서와 프로젝트 행 잠금은 계층형 WBS와 같다. 다른 프로젝트의 마일스톤 ID는 404 `MILESTONE_NOT_FOUND`.
@@ -438,6 +449,8 @@ org.wonik
 - integration(FR-PRJ-07): `WbsAiDraftApiIntegrationTest`(ai_drafts DRAFT·FAILED·ACCEPTED·PARTIALLY_ACCEPTED 기록, 생성·반영·토큰 1회용·만료·다른 프로젝트 토큰, 검증 실패 후 같은 토큰으로 재반영, 멤버 아닌 담당자, 기간 없는 프로젝트, 단계 없음·WBS 기능 꺼짐 404, PM 아님 403, AI 사용 불가 503, 감사 로그)
 - unit(FR-WBS-01): `WbsTaskTest`(상위 기간 산출·하위작업 없음, 같은 값 판정·공수 scale, 상태 유지), `WbsEditorTest`(역할별 허용·거부: PM, 개발자·QA 본인/남의 작업, 현업 담당자, 역할 없음), `WbsTaskRulesTest`(기간 경계·프로젝트 기간 없음/한쪽, 활성 멤버 담당자)
 - integration(FR-WBS-01): `WbsTaskApiIntegrationTest`(3레벨 등록 후 재조회 유지, 조회 권한·404·기능 꺼짐·관리자, 쓰기 권한 매트릭스, 3단계 중첩 거부, 이동·승격·재조회·상위 기간 재산출·형제 version 유지, 같은 위치 재전송 멱등·낡은 version 409·위치 경계, 수정 409·상위 기간 직접 변경 400, 값 검증 경계·다른 프로젝트 작업 404, 항목 수 상한, 삭제 거부·재산출·감사 로그)
+- unit(FR-WBS-03): `WbsDependencyCycleValidatorTest`(분기·합류 비순환 그래프, 자기 참조·간접 순환, 중복 간선)
+- integration(FR-WBS-03): `TaskDependencyApiIntegrationTest`(전체 교체·해제·멱등, 지연 일수·후행 영향, 역할별 조회·변경 권한, 자기 참조·간접 순환·다른 프로젝트·없는 작업, 입력 개수·ID·기능 경계)
 - unit(FR-TSK-01): `WbsTaskTest`(상세 기본값·수정·같은 값 판정, 완료 시각 기록·유지·취소, 유형·우선순위 필수), `TaskHistoryRecorderTest`(변경 없음·공수 scale 무시, 배정·해제, 여러 종류 동시 변경 순서·바뀐 필드만, 이동·상태, 삭제 전 값)
 - integration(FR-TSK-01): `TaskApiIntegrationTest`(기본값·지정값 등록과 상세·트리·CREATED 이력, 조회 권한·비공개 404·다른 프로젝트 업무 404·기능 꺼짐·관리자, 수정 권한 매트릭스, DETAILS_CHANGED 전·후 값·같은 값 멱등·낡은 version 409·WBS와 version 공유, 경계값 2000/2001자·누락·허용 밖 값, 배정·변경·해제 이력·개발자 배정 403, 일정·상위 기간 산출·상세 이력·실패 시 이력 없음, 이동·삭제 후 이력 보존·JSONB 객체 저장, 커서 페이지·size 경계·잘못된 커서, V11 기본값·CHECK), `WbsAiDraftApiIntegrationTest.applyDerivesParentSchedule`(AI 반영 CREATED 이력)
 - unit(FR-TSK-02): `BoardColumnTest`(기본 4개·라벨 키, WIP 경계: 한도와 같음/+1/없음/1), `BoardLayoutTest`(저장 컬럼·빈 컬럼·없는 컬럼 → 같은 상태 첫 컬럼, 카드 순서, 빈 보드), `WbsTaskTest`(컬럼 이동: 상태·변경 시각, 완료 시각·진척률 100, 같은 상태 컬럼, 완료 이탈), `TaskHistoryRecorderTest`(STATUS_CHANGED 상태·컬럼, BOARD_COLUMN_CHANGED, PROGRESS_CHANGED)

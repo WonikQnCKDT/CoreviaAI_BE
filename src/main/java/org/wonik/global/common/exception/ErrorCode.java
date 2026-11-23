@@ -39,6 +39,7 @@ public enum ErrorCode {
 	INVALID_WBS_DRAFT_REFERENCE(400, "AI 초안 항목이 반영하지 않는 작업을 참조합니다"),
 	INVALID_WBS_DRAFT_SCHEDULE(400, "AI 초안 항목의 기간을 확인해 주세요. 시작일은 종료일보다 늦을 수 없고 프로젝트 기간이 있으면 그 안이어야 합니다"),
 	WBS_DEPENDENCY_CYCLE(400, "선후행 관계에 순환이 있습니다"),
+	INVALID_WBS_DEPENDENCY(400, "선행 작업은 같은 프로젝트의 다른 WBS 작업만 지정할 수 있습니다"),
 	INVALID_TASK_ASSIGNEE(400, "담당자는 프로젝트 멤버 중에서만 지정할 수 있습니다"),
 	INVALID_MISSING_LANGUAGE(400, "번역 누락 필터는 en 또는 zh-TW만 지정할 수 있습니다"),
 	INVALID_PERIOD(400, "조회 시작 시각은 종료 시각보다 앞서야 합니다"),

@@ -68,6 +68,9 @@ public interface WbsTaskRepository extends JpaRepository<WbsTask, Long> {
 	/** 주어진 ID 중 그 프로젝트의 항목 수. 마일스톤 연결 작업이 모두 같은 프로젝트에 있는지 확인한다. */
 	long countByProjectIdAndIdIn(Long projectId, Collection<Long> ids);
 
+	/** 선행 작업 응답을 한 번에 조립한다(N+1 방지). */
+	List<WbsTask> findAllByProjectIdAndIdInOrderByIdAsc(Long projectId, Collection<Long> ids);
+
 	/** 컬럼에 놓인 카드 수(idx_wbs_tasks_board_column_id). 카드 이동 WIP 판정·컬럼 삭제 판정에 쓴다. */
 	long countByProjectIdAndBoardColumnId(Long projectId, Long boardColumnId);
 
