@@ -68,10 +68,11 @@ public class ProjectCreationPolicy {
 		}
 	}
 
-	/** 비활성 모듈(Git 연동 등)과 운영 방식에 맞지 않는 모듈(단계 없음의 산출물·게이트)은 켤 수 없다. */
+	/** 비활성 모듈(Git 연동 등)과 단계가 필요한 모듈(산출물·게이트)의 구성을 검증한다. */
 	private void validateFeatures(final CreateProjectCommand command) {
+		final boolean hasPhases = !command.phases().isEmpty();
 		for (final ProjectFeature feature : command.features()) {
-			if (!feature.selectableFor(command.methodology())) {
+			if (!feature.selectableFor(hasPhases)) {
 				throw new CustomException(ErrorCode.FEATURE_NOT_AVAILABLE);
 			}
 		}
@@ -91,13 +92,13 @@ public class ProjectCreationPolicy {
 		}
 	}
 
-	/** 게이트 승인자는 단계가 있는 운영 방식에서만, PM(생성자)이 아닌 초대 멤버 중에서 지정한다(FR-PRJ-01 ⑥, FR-PRJ-05). */
+	/** 게이트 승인자는 단계가 하나 이상일 때만, PM(생성자)이 아닌 초대 멤버 중에서 지정한다(FR-PRJ-01 ⑥, FR-PRJ-05). */
 	private void validateGateApprover(final CreateProjectCommand command, final Long creatorUserId) {
 		final Long approverId = command.gateApproverUserId();
 		if (approverId == null) {
 			return;
 		}
-		if (!command.methodology().isUsesPhases()) {
+		if (command.phases().isEmpty()) {
 			throw new CustomException(ErrorCode.GATE_APPROVER_NOT_AVAILABLE);
 		}
 		if (Objects.equals(approverId, creatorUserId)) {

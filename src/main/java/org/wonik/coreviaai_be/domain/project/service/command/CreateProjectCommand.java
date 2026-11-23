@@ -30,6 +30,7 @@ public record CreateProjectCommand(
 	ProjectVisibility visibility,
 	ProjectTemplate template,
 	Methodology methodology,
+	List<String> phases,
 	DepartmentType departmentType,
 	Set<ProjectActor> actors,
 	Set<ProjectFeature> features,
