@@ -370,6 +370,15 @@ org.wonik
 - 반영도 직접 편집과 같은 프로젝트 행 잠금·항목 수 상한(2,000개, 409 `WBS_TASK_LIMIT_EXCEEDED`)을 쓰고, 하위작업이 있는 작업의 기간은 하위작업 기간으로 맞춘다(FR-WBS-01).
 - AI 오류는 사용자에게 고정 메시지만 준다: 502 `AI_GENERATION_FAILED`(생성 실패·형식 오류·프로젝트에 없는 단계), 503 `AI_NOT_READY`(이식 전), 504 `AI_TIMEOUT`(이식 후 LLM 시간 초과에 사용).
 
+### 개인 일정 API (FR-PSN-02, SCRUM-120)
+
+- `GET /api/me/events?from&to&page&size`: 본인 일정 중 `[from, to)`와 겹치는 일정. `from < to`, 최대 366일.
+- offset 페이지: `page`는 0부터(기본 0), `size`는 1~100(기본 20). `response`는 `{items, page, size, hasNext}`이며 `startAt`, `id` 오름차순이다. `hasNext`일 때 다음 페이지를 요청한다.
+- `POST /api/me/events`는 등록(201), `PATCH /api/me/events/{eventId}`는 전체 필드 교체이다. 타인 일정 수정과 없는 일정은 모두 404이다.
+- V17은 `personal_events`를 추가한다. develop의 기존 V15·V16을 보존한다. 이미 이전 번호로 적용한 DB에는 자동 repair를 실행하지 말고 이력을 점검한다.
+- 담당 업무·마일스톤·회의 일정의 통합 조회, 프로젝트별 색상, 날짜별 업무·노트 연결은 미구현이므로 FR-PSN-02 전체 완료가 아니다.
+- API 명세: [06-2. 개인 일정·업무일지](https://jnu-team-aaptc1y6.atlassian.net/wiki/spaces/CoreviaAI/pages/23396356), [PR #32 인수 조건 평가](docs/reviews/SCRUM-120-pr32.md).
+
 ### 목록 페이지네이션 (커서)
 
 - 요청: `?cursor={이전 응답의 nextCursor}&size=20` (기본 20, 최대 100). 첫 페이지는 `cursor` 없이 요청한다.

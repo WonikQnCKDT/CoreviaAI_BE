@@ -1,8 +1,8 @@
 package org.wonik.coreviaai_be.domain.schedule.service;
 
 import java.time.Instant;
-import java.util.List;
 
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.wonik.coreviaai_be.domain.schedule.entity.PersonalEvent;
@@ -10,6 +10,7 @@ import org.wonik.coreviaai_be.domain.schedule.policy.SchedulePolicy;
 import org.wonik.coreviaai_be.domain.schedule.repository.PersonalEventRepository;
 import org.wonik.coreviaai_be.domain.schedule.service.command.ScheduleCommand;
 import org.wonik.coreviaai_be.domain.schedule.service.result.ScheduleResult;
+import org.wonik.coreviaai_be.domain.schedule.service.result.SchedulePageResult;
 import org.wonik.global.common.exception.CustomException;
 import org.wonik.global.common.exception.ErrorCode;
 import org.wonik.global.common.time.QueryRangePolicy;
@@ -24,9 +25,11 @@ public class PersonalScheduleService {
 	private final PersonalEventRepository repository;
 	private final EntityManager entityManager;
 
-	public List<ScheduleResult> findOverlapping(final Long userId, final Instant from, final Instant to) {
+	public SchedulePageResult findOverlapping(final Long userId, final Instant from, final Instant to,
+		final int page, final int size) {
 		QueryRangePolicy.requireInstantRange(from, to);
-		return repository.findOverlapping(userId, from, to).stream().map(ScheduleResult::from).toList();
+		final var events = repository.findOverlapping(userId, from, to, PageRequest.of(page, size));
+		return new SchedulePageResult(events.stream().map(ScheduleResult::from).toList(), events.hasNext());
 	}
 
 	@Transactional
