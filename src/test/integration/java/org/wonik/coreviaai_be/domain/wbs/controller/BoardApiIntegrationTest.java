@@ -136,9 +136,13 @@ class BoardApiIntegrationTest extends ProjectApiTestSupport {
 	@Test
 	@DisplayName("조회: 작업·하위작업이 모두 카드로 컬럼별(종료일 순) 보이고, 담당자 필터는 카드만 줄이며 카드 수·WIP는 전체 기준이다")
 	void readBoardAndFilter() throws Exception {
+		final List<Long> phaseIds = phasesOf(pm, projectId).valueStream()
+			.map(phase -> phase.get("id").asLong()).toList();
 		final long design = createTask("설계", null, developer.getId(), "2026-12-20");
 		final long api = createTask("API 설계", design, qa.getId(), "2026-12-05");
-		final long build = createTask("개발", null, null, "2026-12-31");
+		final Map<String, Object> buildRequest = taskBody("개발", null, null, "2026-12-31");
+		buildRequest.put("phaseId", phaseIds.get(1));
+		final long build = readResponse(postJson(url(WBS_TASKS), pm, buildRequest)).get("taskId").asLong();
 		move(pm, build, inProgress);
 
 		final JsonNode columns = columns(pm);
@@ -157,6 +161,7 @@ class BoardApiIntegrationTest extends ProjectApiTestSupport {
 		assertThat(todoColumn.get("cards").get(0).get("parentTaskName").isNull()).isTrue();
 		final JsonNode buildCard = columns.get(1).get("cards").get(0);
 		assertThat(buildCard.get("id").asLong()).isEqualTo(build);
+		assertThat(buildCard.get("phaseId").asLong()).isEqualTo(phaseIds.get(1));
 		assertThat(buildCard.get("assignee").isNull()).isTrue();
 
 		final JsonNode filtered = readResponse(getAs(pm, BOARD + "?assigneeUserId=" + developer.getId(), projectId))
@@ -165,6 +170,14 @@ class BoardApiIntegrationTest extends ProjectApiTestSupport {
 		assertThat(filtered.get(0).get("cardCount").asInt()).isEqualTo(2);
 		assertThat(filtered.get(1).get("cards")).isEmpty();
 		assertThat(filtered.get(1).get("cardCount").asInt()).isEqualTo(1);
+		final JsonNode phaseFiltered = readResponse(getAs(pm, BOARD + "?phaseId=" + phaseIds.get(1), projectId))
+			.get("columns");
+		assertThat(phaseFiltered.get(0).get("cards")).isEmpty();
+		assertThat(ids(phaseFiltered.get(1).get("cards"))).containsExactly(build);
+
+		final long otherProjectId = createProject(validCreateBody("BOARD-PHASE"));
+		final long otherPhaseId = phasesOf(pm, otherProjectId).get(0).get("id").asLong();
+		expectError(getAs(pm, BOARD + "?phaseId=" + otherPhaseId, projectId), ErrorCode.PROJECT_PHASE_NOT_FOUND);
 
 		getAs(pm, BOARD + "?assigneeUserId=0", projectId).andExpect(status().isBadRequest());
 	}

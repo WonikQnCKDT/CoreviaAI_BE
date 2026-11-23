@@ -9,7 +9,7 @@ import org.wonik.global.common.exception.CustomException;
 import org.wonik.global.common.exception.ErrorCode;
 
 /**
- * 기간 조회 범위 규칙. 기간을 제한해 목록 응답 크기를 묶는다(개인 일정·업무일지 조회는 페이지 대신 기간으로 제한한다).
+ * 기간 조회 범위 규칙. 일정 목록은 별도 페이지로 제한하고, 날짜당 한 건인 업무일지는 최대 MAX_DAYS건을 반환한다.
  */
 public final class QueryRangePolicy {
 

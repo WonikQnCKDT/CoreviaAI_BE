@@ -14,6 +14,7 @@ import org.wonik.coreviaai_be.domain.project.repository.ProjectPhaseRepository;
 import org.wonik.coreviaai_be.domain.wbs.policy.WbsDraftAccessPolicy;
 import org.wonik.coreviaai_be.domain.wbs.repository.WbsTaskRepository;
 import org.wonik.coreviaai_be.domain.wbs.service.command.DraftExistingTask;
+import org.wonik.coreviaai_be.domain.wbs.service.command.DraftProjectPhase;
 import org.wonik.coreviaai_be.domain.wbs.service.command.DraftTeamMember;
 import org.wonik.coreviaai_be.domain.wbs.service.command.GenerateWbsDraftCommand;
 import org.wonik.coreviaai_be.domain.wbs.service.command.WbsDraftContext;
@@ -44,7 +45,7 @@ public class WbsDraftContextReader {
 
 		final List<DraftExistingTask> existingTasks =
 			taskRepository.findAllByProjectIdAndParentTaskIdIsNullOrderBySortOrderAscIdAsc(projectId).stream()
-				.map(task -> new DraftExistingTask(task.getId(), task.getName(), task.getStatus()))
+				.map(task -> new DraftExistingTask(task.getId(), task.getPhaseId(), task.getName(), task.getStatus()))
 				.toList();
 
 		final List<ProjectMember> members = memberRepository.findAllByProjectIdOrderById(projectId);
@@ -60,8 +61,9 @@ public class WbsDraftContextReader {
 			project.getName(),
 			project.getStartDate(),
 			project.getEndDate(),
+			project.getMethodology(),
 			phaseRepository.findAllByProjectIdOrderByPhaseOrder(projectId).stream()
-				.map(ProjectPhase::getPhaseType)
+				.map(phase -> new DraftProjectPhase(phase.getId(), phase.getName(), phase.getPhaseOrder()))
 				.toList(),
 			existingTasks,
 			teamMembers,

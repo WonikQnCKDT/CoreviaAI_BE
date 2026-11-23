@@ -85,6 +85,41 @@ class PersonalScheduleApiIntegrationTest extends ProjectApiTestSupport {
 		expectError(getAs(null, URL + "?from={from}&to={to}", RANGE_FROM, RANGE_TO), ErrorCode.UNAUTHORIZED);
 	}
 
+	@Test
+	void pagesByStartThenIdAndKeepsOtherUsersOutOfEveryPage() throws Exception {
+		final Cookie owner = loginAs(developer);
+		for (final String title : List.of("First", "Second", "Third")) {
+			created(postJson(URL, owner, body("title", title, "startAt", "2026-11-09T01:00:00Z",
+				"endAt", "2026-11-09T02:00:00Z")));
+		}
+		final Cookie other = loginAs(outsider);
+		created(postJson(URL, other, body("title", "Private", "startAt", "2026-11-09T00:00:00Z",
+			"endAt", "2026-11-09T02:00:00Z")));
+		final JsonNode first = readResponse(getAs(owner, URL + "?from={from}&to={to}&page=0&size=2",
+			RANGE_FROM, RANGE_TO));
+		assertThat(first.get("items").valueStream().map(n -> n.get("title").asString()).toList())
+			.containsExactly("First", "Second");
+		assertThat(first.get("hasNext").asBoolean()).isTrue();
+		final JsonNode second = readResponse(getAs(owner, URL + "?from={from}&to={to}&page=1&size=2",
+			RANGE_FROM, RANGE_TO));
+		assertThat(second.get("items").valueStream().map(n -> n.get("title").asString()).toList())
+			.containsExactly("Third");
+		assertThat(second.get("hasNext").asBoolean()).isFalse();
+		assertThat(readResponse(getAs(owner, URL + "?from={from}&to={to}&page=2&size=2",
+			RANGE_FROM, RANGE_TO)).get("items").valueStream().toList()).isEmpty();
+	}
+
+	@Test
+	void validatesPageAndSizeBoundaries() throws Exception {
+		final Cookie cookie = loginAs(developer);
+		for (final String query : List.of("page=-1", "size=0", "size=101")) {
+			getAs(cookie, URL + "?from={from}&to={to}&" + query, RANGE_FROM, RANGE_TO)
+				.andExpect(status().isBadRequest());
+		}
+		getAs(cookie, URL + "?from={from}&to={to}&size=100", RANGE_FROM, RANGE_TO)
+			.andExpect(status().isOk());
+	}
+
 	/** 201 Created 응답의 response 본문. readResponse는 200만 받으므로 상태 검증 없이 읽는다. */
 	private JsonNode created(final ResultActions actions) throws Exception {
 		final MvcResult result = actions.andExpect(status().isCreated()).andReturn();
@@ -94,6 +129,6 @@ class PersonalScheduleApiIntegrationTest extends ProjectApiTestSupport {
 	private List<JsonNode> list(final Cookie cookie, final String from, final String to) throws Exception {
 		final var result = getAs(cookie, URL + "?from={from}&to={to}", from, to).andReturn();
 		return jsonMapper.readTree(result.getResponse().getContentAsString(StandardCharsets.UTF_8))
-			.get("response").valueStream().toList();
+			.get("response").get("items").valueStream().toList();
 	}
 }

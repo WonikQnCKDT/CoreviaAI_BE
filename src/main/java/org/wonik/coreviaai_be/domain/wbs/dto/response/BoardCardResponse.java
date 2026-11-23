@@ -19,6 +19,7 @@ import org.wonik.coreviaai_be.domain.wbs.service.result.BoardCard;
  */
 public record BoardCardResponse(
 	Long id,
+	Long phaseId,
 	Long parentTaskId,
 	String parentTaskName,
 	String name,
@@ -39,7 +40,7 @@ public record BoardCardResponse(
 		final WbsTaskResponse.AssigneeResponse assignee = task.getAssigneeUserId() == null
 			? null
 			: new WbsTaskResponse.AssigneeResponse(task.getAssigneeUserId(), card.assigneeName());
-		return new BoardCardResponse(task.getId(), task.getParentTaskId(), card.parentTaskName(), task.getName(),
+		return new BoardCardResponse(task.getId(), task.getPhaseId(), task.getParentTaskId(), card.parentTaskName(), task.getName(),
 			task.getTaskType().name(), task.getPriority().name(), task.getStatus().name(), assignee,
 			task.getStartDate(), task.getEndDate(), task.getProgress(), task.getStatusChangedAt(),
 			task.getCompletedAt(), task.getVersion());

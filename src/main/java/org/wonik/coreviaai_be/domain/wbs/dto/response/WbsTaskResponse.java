@@ -19,6 +19,7 @@ import org.wonik.coreviaai_be.domain.wbs.service.result.WbsTreeNode;
  */
 public record WbsTaskResponse(
 	Long id,
+	Long phaseId,
 	Long parentTaskId,
 	int sortOrder,
 	String name,
@@ -42,7 +43,7 @@ public record WbsTaskResponse(
 		final AssigneeResponse assignee = task.getAssigneeUserId() == null
 			? null
 			: new AssigneeResponse(task.getAssigneeUserId(), node.assigneeName());
-		return new WbsTaskResponse(task.getId(), task.getParentTaskId(), task.getSortOrder(), task.getName(),
+		return new WbsTaskResponse(task.getId(), task.getPhaseId(), task.getParentTaskId(), task.getSortOrder(), task.getName(),
 			task.getDescription(), assignee, task.getStartDate(), task.getEndDate(), node.scheduleDerived(),
 			task.getEstimatedEffort(), task.getTaskType().name(), task.getPriority().name(), task.getProgress(), task.getStatus().name(), task.getSource().name(),
 			task.getVersion(), listOf(node.subtasks()));

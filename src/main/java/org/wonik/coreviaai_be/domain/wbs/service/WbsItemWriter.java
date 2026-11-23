@@ -9,6 +9,7 @@ import java.util.Map;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+import org.wonik.coreviaai_be.domain.project.repository.ProjectPhaseRepository;
 import org.wonik.coreviaai_be.domain.wbs.entity.Milestone;
 import org.wonik.coreviaai_be.domain.wbs.entity.MilestoneTask;
 import org.wonik.coreviaai_be.domain.wbs.entity.TaskDetails;
@@ -41,6 +42,7 @@ import lombok.RequiredArgsConstructor;
 public class WbsItemWriter {
 
 	private final WbsTaskRepository taskRepository;
+	private final ProjectPhaseRepository phaseRepository;
 	private final WbsDependencyRepository dependencyRepository;
 	private final MilestoneRepository milestoneRepository;
 	private final MilestoneTaskRepository milestoneTaskRepository;
@@ -73,12 +75,14 @@ public class WbsItemWriter {
 		final List<DraftTaskCommand> commands
 	) {
 		int sortOrder = taskRepository.findLastTopLevelSortOrder(projectId);
+		final Long defaultPhaseId = phaseRepository.findAllByProjectIdOrderByPhaseOrder(projectId).get(0).getId();
 
 		final Map<String, WbsTask> tasks = new LinkedHashMap<>();
 		for (final DraftTaskCommand command : commands) {
 			final TaskDetails details = new TaskDetails(command.name(), command.description(), command.assigneeUserId(),
 				command.startDate(), command.endDate(), command.estimatedPersonDays());
-			final WbsTask task = WbsTask.task(projectId, ++sortOrder, details, WbsItemSource.AI_DRAFT, userId);
+			final Long phaseId = command.phaseId() == null ? defaultPhaseId : command.phaseId();
+			final WbsTask task = WbsTask.task(projectId, phaseId, ++sortOrder, details, WbsItemSource.AI_DRAFT, userId);
 			task.placeOnBoard(initialColumnId);
 			tasks.put(command.tempId(), task);
 		}

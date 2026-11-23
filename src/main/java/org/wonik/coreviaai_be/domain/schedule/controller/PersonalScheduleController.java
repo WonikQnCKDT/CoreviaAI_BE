@@ -1,7 +1,6 @@
 package org.wonik.coreviaai_be.domain.schedule.controller;
 
 import java.time.Instant;
-import java.util.List;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -16,11 +15,14 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 import org.wonik.coreviaai_be.domain.schedule.dto.request.ScheduleRequest;
 import org.wonik.coreviaai_be.domain.schedule.dto.response.ScheduleResponse;
+import org.wonik.coreviaai_be.domain.schedule.dto.response.SchedulePageResponse;
 import org.wonik.coreviaai_be.domain.schedule.service.PersonalScheduleService;
 import org.wonik.global.common.response.ApiResponse;
 import org.wonik.global.jwt.LoginUser;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Positive;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.Max;
 import lombok.RequiredArgsConstructor;
 
 @RestController
@@ -32,10 +34,12 @@ public class PersonalScheduleController {
 
 	/** [from, to) 기간과 겹치는 본인 일정. 기간은 366일 이내. */
 	@GetMapping
-	public ApiResponse<List<ScheduleResponse>> findOverlapping(@AuthenticationPrincipal final LoginUser viewer,
-		@RequestParam final Instant from, @RequestParam final Instant to) {
-		return ApiResponse.success(scheduleService.findOverlapping(viewer.userId(), from, to).stream()
-			.map(ScheduleResponse::from).toList());
+	public ApiResponse<SchedulePageResponse> findOverlapping(@AuthenticationPrincipal final LoginUser viewer,
+		@RequestParam final Instant from, @RequestParam final Instant to,
+		@RequestParam(defaultValue = "0") @Min(0) final int page,
+		@RequestParam(defaultValue = "20") @Min(1) @Max(100) final int size) {
+		return ApiResponse.success(SchedulePageResponse.from(
+			scheduleService.findOverlapping(viewer.userId(), from, to, page, size), page, size));
 	}
 
 	@PostMapping
