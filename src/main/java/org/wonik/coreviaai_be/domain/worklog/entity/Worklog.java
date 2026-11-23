@@ -20,7 +20,7 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Worklog extends BaseTimeEntity {
 
-	/** 임시 상한. ERD는 TEXT만 정하므로 운영 데이터를 본 뒤 조정한다. */
+	/** API 명세 06-2의 Markdown 본문 입력 상한. */
 	public static final int CONTENT_MAX_LENGTH = 10_000;
 
 	@Id

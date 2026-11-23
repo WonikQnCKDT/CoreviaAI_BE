@@ -26,7 +26,7 @@ public class WorklogController {
 
 	private final WorklogService worklogService;
 
-	/** [from, to] 날짜 기간의 본인 업무일지. 기간은 366일 이내. 내용이 없는 날은 목록에 없다. */
+	/** [from, to] 날짜 기간의 본인 업무일지. 기간은 366일 이내. 저장하지 않은 날은 목록에 없다. */
 	@GetMapping
 	public ApiResponse<List<WorklogResponse>> findRange(@AuthenticationPrincipal final LoginUser viewer,
 		@RequestParam final LocalDate from, @RequestParam final LocalDate to) {

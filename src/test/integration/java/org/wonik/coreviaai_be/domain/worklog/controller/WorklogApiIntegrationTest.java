@@ -6,6 +6,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import java.nio.charset.StandardCharsets;
 import java.sql.Date;
 import java.util.List;
+import java.util.concurrent.Callable;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -74,5 +78,32 @@ class WorklogApiIntegrationTest extends ProjectApiTestSupport {
 			ErrorCode.INVALID_QUERY_RANGE);
 		putJson(cookie, body("content", "x".repeat(10_001)), URL + "/{logDate}", "2026-11-14")
 			.andExpect(status().isBadRequest());
+	}
+
+	@Test
+	void simultaneousFirstSavesKeepOneRowAndIdenticalRetryTimestamps() throws Exception {
+		final Cookie cookie = loginAs(developer);
+		final CountDownLatch start = new CountDownLatch(1);
+		final var executor = Executors.newFixedThreadPool(2);
+		try {
+			final Callable<JsonNode> save = () -> {
+				assertThat(start.await(5, TimeUnit.SECONDS)).isTrue();
+				return readResponse(putJson(cookie, body("content", "same note"),
+					URL + "/{logDate}", "2026-11-23"));
+			};
+			final var first = executor.submit(save);
+			final var second = executor.submit(save);
+			start.countDown();
+			final JsonNode firstResult = first.get(10, TimeUnit.SECONDS);
+			final JsonNode secondResult = second.get(10, TimeUnit.SECONDS);
+			assertThat(firstResult.get("content").asString()).isEqualTo("same note");
+			assertThat(secondResult.get("updatedAt")).isEqualTo(firstResult.get("updatedAt"));
+			assertThat(jdbcTemplate.queryForObject(
+				"select count(*) from worklogs where user_id = ? and log_date = ?", Integer.class,
+				developer.getId(), Date.valueOf("2026-11-23"))).isEqualTo(1);
+		} finally {
+			executor.shutdownNow();
+			assertThat(executor.awaitTermination(5, TimeUnit.SECONDS)).isTrue();
+		}
 	}
 }

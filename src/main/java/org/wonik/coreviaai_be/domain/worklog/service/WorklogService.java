@@ -14,6 +14,8 @@ import org.wonik.global.common.time.QueryRangePolicy;
 import org.wonik.global.user.entity.User;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.LockModeType;
+import jakarta.persistence.LockTimeoutException;
+import jakarta.persistence.PessimisticLockException;
 import lombok.RequiredArgsConstructor;
 
 @Service
@@ -39,8 +41,13 @@ public class WorklogService {
 	/** 그날 업무일지가 없으면 만들고 있으면 내용을 바꾼다. 같은 날짜의 동시 첫 저장은 사용자 행 잠금으로 직렬화한다. */
 	@Transactional
 	public WorklogResult upsert(final Long userId, final LocalDate logDate, final String content) {
-		if (entityManager.find(User.class, userId, LockModeType.PESSIMISTIC_WRITE) == null) {
-			throw new CustomException(ErrorCode.USER_NOT_FOUND);
+		try {
+			if (entityManager.find(User.class, userId, LockModeType.PESSIMISTIC_WRITE) == null) {
+				throw new CustomException(ErrorCode.USER_NOT_FOUND);
+			}
+		} catch (final PessimisticLockException | LockTimeoutException ex) {
+			// EntityManager 직접 호출은 Spring Data 저장소의 예외 변환을 거치지 않는다.
+			throw new CustomException(ErrorCode.CONCURRENT_MODIFICATION, ex);
 		}
 		final Worklog log = repository.findByUserIdAndLogDate(userId, logDate)
 			.map(existing -> {

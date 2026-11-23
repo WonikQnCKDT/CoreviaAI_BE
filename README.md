@@ -379,6 +379,15 @@ org.wonik
 - 담당 업무·마일스톤·회의 일정의 통합 조회, 프로젝트별 색상, 날짜별 업무·노트 연결은 미구현이므로 FR-PSN-02 전체 완료가 아니다.
 - API 명세: [06-2. 개인 일정·업무일지](https://jnu-team-aaptc1y6.atlassian.net/wiki/spaces/CoreviaAI/pages/23396356), [PR #32 인수 조건 평가](docs/reviews/SCRUM-120-pr32.md).
 
+### 업무일지 API (FR-PSN-03, SCRUM-121)
+
+- `GET /api/me/worklogs?from&to`: 날짜 양끝 포함 최대 366일의 본인 노트, 저장된 날짜만 반환한다. 날짜당 1건이므로 최대 366건이다.
+- `GET /api/me/worklogs/{logDate}`: 본인 노트 조회, 없으면 404. `PUT`은 생성·교체이며 본문은 최대 10,000자, 같은 내용 재저장 시 수정 시각을 유지한다.
+- 첫 동시 저장은 `users` 행 잠금과 `(user_id, log_date)` 유일 제약으로 직렬화한다. 직접 JPA 잠금의 timeout/실패는 원문·DB 정보를 노출하지 않는 409 `CONCURRENT_MODIFICATION`으로 변환한다.
+- V18은 `worklogs`를 추가한다. V15·V16은 develop의 기존 마이그레이션이고 V17은 개인 일정이다.
+- 업무 연결·진척률·소요 시간·완료 반영, 상위 진척률 갱신과 연결 프로젝트 PM 원문 조회는 미구현이므로 FR-PSN-03 전체 완료가 아니다.
+- [PR #33 인수 조건 평가](docs/reviews/SCRUM-121-pr33.md), [저장 시퀀스](docs/sequence/06-4-worklog-upsert.md).
+
 ### 목록 페이지네이션 (커서)
 
 - 요청: `?cursor={이전 응답의 nextCursor}&size=20` (기본 20, 최대 100). 첫 페이지는 `cursor` 없이 요청한다.
