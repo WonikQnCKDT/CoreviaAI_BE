@@ -234,7 +234,7 @@ org.wonik
 | PUT | `/api/projects/{projectId}/wbs/milestones/{milestoneId}/tasks` | PM | 연결 작업 전체 교체(`taskIds`, 빈 배열=모두 해제, `version`). 바뀌면 version +1 |
 | DELETE | `/api/projects/{projectId}/wbs/milestones/{milestoneId}` | PM | 삭제(연결 정보 함께 삭제, 작업은 남음). 감사 로그 `MILESTONE_DELETED` |
 | POST | `/api/projects/{projectId}/wbs/ai-draft` | PM | AI WBS 초안 생성(저장 없음). 응답에 초안과 1회용 `draftToken`(1시간) |
-| POST | `/api/projects/{projectId}/wbs/ai-draft/apply` | PM | PM이 승인·수정한 항목만 WBS에 반영. 응답은 tempId → 정식 ID |
+| POST | `/api/projects/{projectId}/wbs/ai-draft/apply` | PM | PM이 승인·수정한 항목과 각 작업의 `phaseId`를 WBS에 반영. 생략 시 첫 단계, 다른 프로젝트 단계면 400. 응답은 tempId → 정식 ID |
 
 ### 인증 방식 (세션 + JWT)
 
@@ -352,7 +352,7 @@ org.wonik
 - 초안 기록과 승인(NFR-07·08): 생성 결과는 `ai_drafts`에 `DRAFT`(feature `WBS_DRAFT`, AI 결과 JSON·응답 시간)로, AI 실패는 `FAILED`로 남긴다. WBS 테이블은 바꾸지 않는다. 반영하면 같은 트랜잭션에서 `ACCEPTED`(제외 항목이 있으면 `PARTIALLY_ACCEPTED`)와 결정자·시각을 남긴다. 반영하지 않은 초안은 `DRAFT`로 남는다(거절 API 없음). 요구사항 원문 등 사용자 입력은 저장하지 않는다.
 - 반영 토큰: Redis에 `draftToken`(프로젝트·PM·`ai_drafts.id`에 묶임, 1시간)을 둔다. 반영 API는 FE가 보낸 승인 항목만 WBS에 저장한다.
 - 반영: 토큰을 원자적으로 소비한 뒤 한 트랜잭션에서 PM·기능을 다시 확인하고, 참조·기간·순환·담당자를 서버에서 전부 검증한 뒤 작업·하위작업·선후행·마일스톤·감사 로그를 저장한다. 실패하면 토큰을 되돌려 같은 토큰으로 다시 반영할 수 있다. 이미 반영한 토큰은 409 `AI_DRAFT_ALREADY_APPLIED`.
-- 단계 연결: `wbs_tasks.phase_id`로 사용자 정의 단계에 연결한다. AI 초안 생성에도 기존 작업의 `phaseId`를 보내 중복 제안 문맥을 보존한다.
+- 단계 연결: `wbs_tasks.phase_id`로 사용자 정의 단계에 연결한다. AI 초안 생성에는 기존 작업의 `phaseId`를 보내고, 반영 요청의 `phaseId`를 최상위 작업과 하위작업에 함께 저장한다.
 - 감사 로그: `AI_WBS_DRAFT_REQUESTED`(`aiDraftId`, 입력 길이·결과·제안 개수. 원문 미기록, AI 호출 뒤 별도 트랜잭션), `AI_WBS_DRAFT_APPLIED`(`aiDraftId`, 반영·제외 개수, 반영과 같은 트랜잭션).
 - 반영도 직접 편집과 같은 프로젝트 행 잠금·항목 수 상한(2,000개, 409 `WBS_TASK_LIMIT_EXCEEDED`)을 쓰고, 하위작업이 있는 작업의 기간은 하위작업 기간으로 맞춘다(FR-WBS-01).
 - AI 오류는 사용자에게 고정 메시지만 준다: 502 `AI_GENERATION_FAILED`(생성 실패·형식 오류·프로젝트에 없는 단계), 503 `AI_NOT_READY`(이식 전), 504 `AI_TIMEOUT`(이식 후 LLM 시간 초과에 사용).
