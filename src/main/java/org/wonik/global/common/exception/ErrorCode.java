@@ -16,6 +16,7 @@ public enum ErrorCode {
 	INVALID_SCHEDULE_PERIOD(400, "일정 종료 시각은 시작 시각보다 뒤여야 합니다"),
 	SCHEDULE_NOT_FOUND(404, "일정을 찾을 수 없습니다"),
 	INVALID_QUERY_RANGE(400, "조회 기간을 확인해 주세요. 시작은 종료보다 앞서고 366일 이내여야 합니다"),
+	WORKLOG_NOT_FOUND(404, "업무일지를 찾을 수 없습니다"),
 	DEPARTMENT_REQUIRED(400, "시스템 관리자가 아닌 사용자는 소속 부서를 지정해야 합니다"),
 	DEPARTMENT_INACTIVE(400, "비활성 부서에는 사용자를 배치할 수 없습니다"),
 	INVALID_DEPARTMENT_PARENT(400, "상위 부서로 지정할 수 없는 부서입니다"),
