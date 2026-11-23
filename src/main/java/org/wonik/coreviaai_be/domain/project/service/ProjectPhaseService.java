@@ -10,6 +10,7 @@ import org.wonik.coreviaai_be.domain.project.dto.request.CreateProjectRequest;
 import org.wonik.coreviaai_be.domain.project.entity.ProjectPhase;
 import org.wonik.coreviaai_be.domain.project.policy.ProjectAccessPolicy;
 import org.wonik.coreviaai_be.domain.project.repository.ProjectPhaseRepository;
+import org.wonik.coreviaai_be.domain.wbs.repository.WbsTaskRepository;
 import org.wonik.global.audit.AuditAction;
 import org.wonik.global.audit.AuditActor;
 import org.wonik.global.audit.AuditChanges;
@@ -27,6 +28,7 @@ public class ProjectPhaseService {
 
 	private final ProjectAccessPolicy accessPolicy;
 	private final ProjectPhaseRepository phaseRepository;
+	private final WbsTaskRepository taskRepository;
 	private final AuditLogger auditLogger;
 
 	@Transactional
@@ -87,6 +89,9 @@ public class ProjectPhaseService {
 	public void delete(final AuditActor actor, final Long projectId, final Long phaseId) {
 		accessPolicy.getManagedProjectForUpdate(actor.userId(), projectId);
 		final ProjectPhase phase = getPhase(projectId, phaseId);
+		if (taskRepository.existsByPhaseId(phaseId)) {
+			throw new CustomException(ErrorCode.PROJECT_PHASE_IN_USE);
+		}
 		final String name = phase.getName();
 		final int removedOrder = phase.getPhaseOrder();
 		phaseRepository.delete(phase);

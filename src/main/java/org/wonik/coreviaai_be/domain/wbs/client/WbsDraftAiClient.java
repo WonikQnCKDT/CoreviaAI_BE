@@ -63,7 +63,7 @@ public class WbsDraftAiClient {
 				.map(phase -> new AiWbsStage(phase.phaseId(), phase.name(), phase.order()))
 				.toList(),
 			context.existingTasks().stream()
-				.map(task -> new AiWbsExistingTask(task.taskId(), task.name(), null, task.status().name()))
+				.map(task -> new AiWbsExistingTask(task.taskId(), task.name(), task.phaseId(), task.status().name()))
 				.toList(),
 			context.members().stream()
 				.map(member -> new AiWbsTeamMember(member.userId(), member.name(), member.actor().name()))

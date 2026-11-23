@@ -41,6 +41,10 @@ public interface WbsTaskRepository extends JpaRepository<WbsTask, Long> {
 
 	boolean existsByParentTaskId(Long parentTaskId);
 
+	boolean existsByPhaseId(Long phaseId);
+
+	List<WbsTask> findAllByParentTaskId(Long parentTaskId);
+
 	/** 프로젝트당 WBS 항목 수 상한 판정용. */
 	long countByProjectId(Long projectId);
 

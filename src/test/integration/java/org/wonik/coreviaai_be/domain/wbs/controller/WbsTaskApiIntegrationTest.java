@@ -79,6 +79,30 @@ class WbsTaskApiIntegrationTest extends ProjectApiTestSupport {
 	// ---- 조회·등록 ----
 
 	@Test
+	@DisplayName("최상위 작업은 프로젝트 단계를 지정하고 하위작업은 상위 단계 상속, 다른 프로젝트 단계는 거부한다")
+	void assignProjectPhase() throws Exception {
+		final long phaseId = phasesOf(pm, projectId).get(1).get("id").asLong();
+		final Map<String, Object> request = taskBody(null, "단계 지정 작업", null,
+			"2026-12-01", "2026-12-10", 2.0);
+		request.put("phaseId", phaseId);
+		final JsonNode created = readResponse(postJson(url(TASKS), pm, request));
+		final long parentId = created.get("taskId").asLong();
+		assertThat(created.get("tasks").get(0).get("phaseId").asLong()).isEqualTo(phaseId);
+
+		final long childId = createTask(pm, parentId, "하위작업", null, "2026-12-02", "2026-12-03");
+		assertThat(node(childId).get("phaseId").asLong()).isEqualTo(phaseId);
+		expectError(deleteAs(pm, PROJECTS + "/{id}/phases/{phaseId}", projectId, phaseId),
+			ErrorCode.PROJECT_PHASE_IN_USE);
+
+		final long otherProjectId = createProject(validCreateBody("PHASE-OTHER"));
+		final long otherPhaseId = phasesOf(pm, otherProjectId).get(0).get("id").asLong();
+		final Map<String, Object> crossProject = taskBody(null, "잘못된 단계", null,
+			"2026-12-01", "2026-12-02", null);
+		crossProject.put("phaseId", otherPhaseId);
+		expectError(postJson(url(TASKS), pm, crossProject), ErrorCode.INVALID_WBS_PHASE);
+	}
+
+	@Test
 	@DisplayName("3레벨 등록: 작업과 하위작업을 등록하면 새로고침(재조회) 후에도 순서·계층·기본 필드가 유지된다")
 	void createTree() throws Exception {
 		assertThat(tree(pm)).isEmpty();

@@ -21,6 +21,9 @@ import jakarta.validation.constraints.Size;
  * version은 조회 응답 값이며, 그 사이 다른 변경이 있었으면 409로 거부한다.
  */
 public record UpdateWbsTaskRequest(
+	@Positive(message = "단계 ID를 확인해 주세요")
+	Long phaseId,
+
 	@NotBlank(message = "작업명을 입력해 주세요")
 	@Size(max = WbsTask.NAME_MAX_LENGTH, message = "작업명은 200자 이하로 입력해 주세요")
 	String name,
@@ -47,7 +50,7 @@ public record UpdateWbsTaskRequest(
 ) {
 
 	public UpdateWbsTaskCommand toCommand() {
-		return new UpdateWbsTaskCommand(new TaskDetails(name.strip(), DraftText.trimToNull(description),
+		return new UpdateWbsTaskCommand(phaseId, new TaskDetails(name.strip(), DraftText.trimToNull(description),
 			assigneeUserId, startDate, endDate, estimatedEffort), version);
 	}
 }

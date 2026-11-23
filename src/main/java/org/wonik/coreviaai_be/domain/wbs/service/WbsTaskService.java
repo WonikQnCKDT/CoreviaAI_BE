@@ -6,6 +6,7 @@ import java.util.Objects;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.wonik.coreviaai_be.domain.project.repository.ProjectPhaseRepository;
 import org.wonik.coreviaai_be.domain.wbs.entity.TaskDetails;
 import org.wonik.coreviaai_be.domain.wbs.entity.TaskSnapshot;
 import org.wonik.coreviaai_be.domain.wbs.entity.WbsTask;
@@ -56,6 +57,7 @@ public class WbsTaskService {
 
 	private final WbsTaskAccessPolicy accessPolicy;
 	private final WbsTaskRules rules;
+	private final ProjectPhaseRepository phaseRepository;
 	private final WbsTaskRepository taskRepository;
 	private final WbsDependencyRepository dependencyRepository;
 	private final MilestoneTaskRepository milestoneTaskRepository;
@@ -76,14 +78,20 @@ public class WbsTaskService {
 		final WbsEditor editor = accessPolicy.getEditor(actor.userId(), projectId);
 		final TaskDetails details = command.details();
 		WbsTask parent = null;
+		final Long phaseId;
 		if (command.parentTaskId() == null) {
 			editor.requirePm();
+			phaseId = requireTopLevelPhase(projectId, command.phaseId());
 		} else {
 			parent = getTask(projectId, command.parentTaskId());
 			editor.requireCanAddSubtaskUnder(parent);
 			if (parent.isSubtask()) {
 				throw new CustomException(ErrorCode.INVALID_WBS_HIERARCHY);
 			}
+			if (command.phaseId() != null && !Objects.equals(command.phaseId(), parent.getPhaseId())) {
+				throw new CustomException(ErrorCode.INVALID_WBS_PHASE);
+			}
+			phaseId = parent.getPhaseId();
 		}
 		editor.requireCanAssignOnCreate(details.assigneeUserId());
 		rules.validateSchedule(editor.project(), details.startDate(), details.endDate());
@@ -93,7 +101,7 @@ public class WbsTaskService {
 		}
 
 		final WbsTask task = parent == null
-			? WbsTask.task(projectId, taskRepository.findLastTopLevelSortOrder(projectId) + 1, details,
+			? WbsTask.task(projectId, phaseId, taskRepository.findLastTopLevelSortOrder(projectId) + 1, details,
 			WbsItemSource.MANUAL, actor.userId())
 			: WbsTask.subtask(parent, taskRepository.findLastSortOrderUnder(parent.getId()) + 1, details,
 			WbsItemSource.MANUAL, actor.userId());
@@ -122,7 +130,8 @@ public class WbsTaskService {
 		final WbsTask task = getTask(projectId, taskId);
 		editor.requireCanUpdate(task);
 		final TaskDetails details = command.details();
-		if (task.hasSameDetails(details)) {
+		final Long requestedPhaseId = resolveUpdatePhase(projectId, task, command.phaseId());
+		if (task.hasSameDetails(details) && Objects.equals(task.getPhaseId(), requestedPhaseId)) {
 			return changed(taskId, projectId);
 		}
 		requireVersion(task, command.version());
@@ -141,6 +150,10 @@ public class WbsTaskService {
 
 		final TaskSnapshot before = TaskSnapshot.of(task);
 		task.changeDetails(details);
+		if (!Objects.equals(task.getPhaseId(), requestedPhaseId)) {
+			task.changePhase(requestedPhaseId);
+			taskRepository.findAllByParentTaskId(taskId).forEach(child -> child.changePhase(requestedPhaseId));
+		}
 		taskRepository.flush();
 		historyRecorder.changed(actor.userId(), before, TaskSnapshot.of(task));
 		if (scheduleChanged && task.isSubtask()) {
@@ -188,7 +201,8 @@ public class WbsTaskService {
 
 		destination.add(command.index(), task);
 		final TaskSnapshot before = TaskSnapshot.of(task);
-		task.moveTo(newParentId, command.index() + 1);
+		final Long destinationPhaseId = newParent == null ? task.getPhaseId() : newParent.getPhaseId();
+		task.moveTo(newParentId, destinationPhaseId, command.index() + 1);
 		taskRepository.flush();
 		historyRecorder.changed(actor.userId(), before, TaskSnapshot.of(task));
 		final List<WbsTask> source = new ArrayList<>();
@@ -243,6 +257,33 @@ public class WbsTaskService {
 	private WbsTask getTask(final Long projectId, final Long taskId) {
 		return taskRepository.findByIdAndProjectId(taskId, projectId)
 			.orElseThrow(() -> new CustomException(ErrorCode.WBS_TASK_NOT_FOUND));
+	}
+
+	private Long requireTopLevelPhase(final Long projectId, final Long phaseId) {
+		final long phaseCount = phaseRepository.countByProjectId(projectId);
+		if (phaseCount == 0) {
+			if (phaseId != null) {
+				throw new CustomException(ErrorCode.INVALID_WBS_PHASE);
+			}
+			return null;
+		}
+		if (phaseId == null) {
+			return phaseRepository.findAllByProjectIdOrderByPhaseOrder(projectId).get(0).getId();
+		}
+		if (phaseRepository.findByIdAndProjectId(phaseId, projectId).isEmpty()) {
+			throw new CustomException(ErrorCode.INVALID_WBS_PHASE);
+		}
+		return phaseId;
+	}
+
+	private Long resolveUpdatePhase(final Long projectId, final WbsTask task, final Long requestedPhaseId) {
+		if (task.isSubtask()) {
+			if (requestedPhaseId != null && !Objects.equals(requestedPhaseId, task.getPhaseId())) {
+				throw new CustomException(ErrorCode.INVALID_WBS_PHASE);
+			}
+			return task.getPhaseId();
+		}
+		return requestedPhaseId == null ? task.getPhaseId() : requireTopLevelPhase(projectId, requestedPhaseId);
 	}
 
 	private static void requireVersion(final WbsTask task, final long version) {
