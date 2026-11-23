@@ -192,13 +192,19 @@ class WbsAiDraftApiIntegrationTest extends ProjectApiTestSupport {
 		final long milestoneId = applied.get("milestoneIds").get("M-001").asLong();
 
 		final WbsTask analysis = taskRepository.findById(analysisTaskId).orElseThrow();
+		final List<Long> phaseIds = phasesOf(pm, projectId).valueStream()
+			.map(phase -> phase.get("id").asLong()).toList();
+		assertThat(analysis.getPhaseId()).isEqualTo(phaseIds.get(0));
 		assertThat(analysis.getParentTaskId()).isNull();
 		assertThat(analysis.getAssigneeUserId()).isEqualTo(developer.getId());
 		assertThat(analysis.getEstimatedEffort()).isEqualByComparingTo("3.5");
 		assertThat(analysis.getSource()).isEqualTo(WbsItemSource.AI_DRAFT);
 		assertThat(analysis.getStatus()).isEqualTo(WbsTaskStatus.TODO);
 		assertThat(analysis.getSortOrder()).isEqualTo(1);
-		assertThat(taskRepository.findById(designTaskId).orElseThrow().getSortOrder()).isEqualTo(2);
+		assertThat(taskRepository.findById(designTaskId).orElseThrow()).satisfies(design -> {
+			assertThat(design.getSortOrder()).isEqualTo(2);
+			assertThat(design.getPhaseId()).isEqualTo(phaseIds.get(1));
+		});
 		// 칸반(FR-TSK-02): 반영한 작업·하위작업은 모두 대기(TODO) 첫 컬럼에 놓인다
 		final Long todoColumnId = jdbcTemplate.queryForObject("SELECT id FROM board_columns WHERE project_id = ?"
 			+ " AND status_category = 'TODO' ORDER BY sort_order, id LIMIT 1", Long.class, projectId);
@@ -207,6 +213,7 @@ class WbsAiDraftApiIntegrationTest extends ProjectApiTestSupport {
 
 		final WbsTask subtask = taskRepository.findById(subtaskId).orElseThrow();
 		assertThat(subtask.getParentTaskId()).isEqualTo(analysisTaskId);
+		assertThat(subtask.getPhaseId()).isEqualTo(phaseIds.get(0));
 		assertThat(subtask.getSortOrder()).isEqualTo(1);
 		assertThat(subtask.getStartDate()).isEqualTo(LocalDate.parse("2026-12-01"));
 		assertThat(subtask.getEndDate()).isEqualTo(LocalDate.parse("2026-12-10"));
@@ -261,6 +268,20 @@ class WbsAiDraftApiIntegrationTest extends ProjectApiTestSupport {
 			assertThat(historyRepository.findAllByTaskIdOrderByIdAsc(taskIds.get(tempId).asLong()))
 				.extracting(TaskHistory::getActivityType).containsExactly(TaskActivityType.CREATED);
 		}
+	}
+
+	@Test
+	@DisplayName("반영: 다른 프로젝트의 단계 ID는 400 INVALID_WBS_PHASE이고 WBS를 저장하지 않는다")
+	void applyRejectsCrossProjectPhase() throws Exception {
+		final long otherProjectId = createProject(validCreateBody("AI-PHASE-OTHER"));
+		final long otherPhaseId = phasesOf(pm, otherProjectId).get(0).get("id").asLong();
+		final Map<String, Object> request = validApplyBody(generateToken());
+		@SuppressWarnings("unchecked")
+		final List<Map<String, Object>> tasks = (List<Map<String, Object>>) request.get("tasks");
+		tasks.get(0).put("phaseId", otherPhaseId);
+
+		expectError(apply(pm, request), ErrorCode.INVALID_WBS_PHASE);
+		assertThat(taskRepository.count()).isZero();
 	}
 
 	@Test
@@ -461,14 +482,18 @@ class WbsAiDraftApiIntegrationTest extends ProjectApiTestSupport {
 	}
 
 	/** AI 초안의 작업 2개 중 둘 다 승인(분석 작업은 담당자·공수 수정), 마일스톤 승인, 하위작업 1개 중 1개 승인, 1개 제외. */
-	private Map<String, Object> validApplyBody(final String token) {
+	private Map<String, Object> validApplyBody(final String token) throws Exception {
+		final List<Long> phaseIds = phasesOf(pm, projectId).valueStream()
+			.map(phase -> phase.get("id").asLong()).toList();
+		final Map<String, Object> analysis = applyTask("T-001", "2026-12-01", "2026-12-10",
+			developer.getId(), List.of(), List.of(body("tempId", "ST-001", "name", "요구사항 목록 정리")));
+		analysis.put("phaseId", phaseIds.get(0));
+		final Map<String, Object> design = applyTask("T-002", "2026-12-11", "2026-12-20", null,
+			List.of("T-001"), List.of());
+		design.put("phaseId", phaseIds.get(1));
 		return body(
 			"draftToken", token,
-			"tasks", List.of(
-				applyTask("T-001", "2026-12-01", "2026-12-10", developer.getId(), List.of(),
-					List.of(body("tempId", "ST-001", "name", "요구사항 목록 정리"))),
-				applyTask("T-002", "2026-12-11", "2026-12-20", null, List.of("T-001"), List.of())
-			),
+			"tasks", List.of(analysis, design),
 			"milestones", List.of(body("tempId", "M-001", "name", "설계 완료", "targetDate", "2026-12-20",
 				"relatedTaskIds", List.of("T-002"))),
 			"rejectedCount", 1
