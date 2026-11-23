@@ -7,5 +7,5 @@ import org.wonik.coreviaai_be.domain.wbs.entity.TaskDetails;
  *
  * @param version 조회 때 받은 값(낙관적 잠금)
  */
-public record UpdateWbsTaskCommand(TaskDetails details, long version) {
+public record UpdateWbsTaskCommand(Long phaseId, TaskDetails details, long version) {
 }

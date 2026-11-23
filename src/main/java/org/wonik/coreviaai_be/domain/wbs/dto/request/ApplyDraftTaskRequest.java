@@ -16,10 +16,13 @@ import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
 
 /**
- * 반영할 작업 한 개. 요청 순서가 표시 순서다. 초안의 단계 구분은 저장하지 않아 받지 않는다(04. WBS·일정 ERD).
+ * 반영할 작업 한 개. 요청 순서가 표시 순서다. phaseId는 AI 제안 단계 또는 PM이 검토 화면에서 바꾼 단계다.
  * 기간은 프로젝트 기간이 있으면 그 안이어야 하고(서비스 검증), 예상 공수는 인일 단위 소수 첫째 자리까지다.
  */
 public record ApplyDraftTaskRequest(
+	@Positive(message = "단계 ID를 확인해 주세요")
+	Long phaseId,
+
 	@NotBlank(message = "작업의 임시 ID가 필요합니다")
 	@Size(max = 50, message = "임시 ID는 50자 이하여야 합니다")
 	String tempId,
@@ -53,6 +56,7 @@ public record ApplyDraftTaskRequest(
 
 	public DraftTaskCommand toCommand() {
 		return new DraftTaskCommand(
+			phaseId,
 			tempId,
 			name.strip(),
 			DraftText.trimToNull(description),

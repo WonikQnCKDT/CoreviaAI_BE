@@ -33,6 +33,9 @@ import org.wonik.coreviaai_be.domain.project.service.result.NamedRef;
 import org.wonik.coreviaai_be.domain.project.service.result.ProjectDetailResult;
 import org.wonik.coreviaai_be.domain.project.service.result.ProjectPhasesResult;
 import org.wonik.coreviaai_be.domain.project.service.result.ProjectSummaryResult;
+import org.wonik.coreviaai_be.domain.wbs.entity.WbsTask;
+import org.wonik.coreviaai_be.domain.wbs.repository.WbsTaskRepository;
+import org.wonik.coreviaai_be.domain.wbs.service.ProgressCalculator;
 import org.wonik.global.common.exception.CustomException;
 import org.wonik.global.common.exception.ErrorCode;
 import org.wonik.global.common.pagination.CursorPage;
@@ -57,6 +60,7 @@ public class ProjectQueryService {
 	private final ProjectFeatureAssignmentRepository featureAssignmentRepository;
 	private final ProjectMemberRepository memberRepository;
 	private final ProjectPhaseRepository phaseRepository;
+	private final WbsTaskRepository taskRepository;
 	private final UserRepository userRepository;
 	private final DepartmentRepository departmentRepository;
 	private final ProjectVisibilityPolicy visibilityPolicy;
@@ -127,26 +131,37 @@ public class ProjectQueryService {
 			namedRefs(departmentIds, departmentNamesOf(departmentIds)),
 			namedRefs(pmUserIds, userNamesOf(pmUserIds)),
 			actors,
-			features
+			features,
+			ProgressCalculator.weightedAverage(leafTasks(projectId))
 		);
 	}
 
 	/**
-	 * 폭포수 단계·게이트. 단계가 없는 운영 방식(단계 없음·애자일)이면 PHASES_NOT_AVAILABLE로 알려,
-	 * FE가 빈 목록을 "단계가 아직 없음"으로 오해하지 않게 한다.
+	 * 프로젝트의 사용자 정의 단계·게이트. 단계가 없으면 정상적인 빈 목록을 반환한다.
 	 */
 	@Transactional(readOnly = true)
 	public ProjectPhasesResult getPhases(final Long viewerId, final Long projectId) {
-		final Project project = accessPolicy.getVisibleProject(viewerId, projectId);
-		if (!project.getMethodology().isUsesPhases()) {
-			throw new CustomException(ErrorCode.PHASES_NOT_AVAILABLE);
-		}
+		accessPolicy.getVisibleProject(viewerId, projectId);
 		final List<ProjectPhase> phases = phaseRepository.findAllByProjectIdOrderByPhaseOrder(projectId);
 		final Set<Long> approverIds = phases.stream()
 			.map(ProjectPhase::getGateApproverUserId)
 			.filter(Objects::nonNull)
 			.collect(Collectors.toSet());
-		return new ProjectPhasesResult(phases, userNamesOf(approverIds));
+		final Map<Long, List<WbsTask>> tasksByPhase = leafTasks(projectId).stream()
+			.filter(task -> task.getPhaseId() != null)
+			.collect(Collectors.groupingBy(WbsTask::getPhaseId));
+		final Map<Long, Integer> progressByPhaseId = phases.stream().collect(Collectors.toMap(
+			ProjectPhase::getId,
+			phase -> ProgressCalculator.weightedAverage(tasksByPhase.getOrDefault(phase.getId(), List.of()))));
+		return new ProjectPhasesResult(phases, userNamesOf(approverIds), progressByPhaseId);
+	}
+
+	/** 상위 집계 행을 중복 계산하지 않고 실제 작업량 기준으로 집계할 말단 작업 목록. */
+	private List<WbsTask> leafTasks(final Long projectId) {
+		final List<WbsTask> tasks = taskRepository.findAllByProjectIdOrderBySortOrderAscIdAsc(projectId);
+		final Set<Long> parentIds = tasks.stream().map(WbsTask::getParentTaskId).filter(Objects::nonNull)
+			.collect(Collectors.toSet());
+		return tasks.stream().filter(task -> !parentIds.contains(task.getId())).toList();
 	}
 
 	/**

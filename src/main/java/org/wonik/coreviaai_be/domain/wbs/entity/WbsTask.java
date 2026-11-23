@@ -31,8 +31,7 @@ import lombok.NoArgsConstructor;
  * WBS 작업과 하위작업. parentTaskId가 null이면 작업, 있으면 하위작업이다. 하위작업 아래로는 만들지 않는 규칙은
  * 등록하는 서비스가 지킨다.
  * <p>
- * 작업과 단계(project_phases)의 연결은 저장하지 않는다(04. WBS·일정 ERD: 단계 없음 운영 방식 도입으로 phase_id 제거).
- * FR-WBS-01의 '단계' 레벨 표현은 미결이다(SCRUM-107 보고).
+	 * 작업과 프로젝트 단계는 phase_id로 연결한다. 단계가 없는 프로젝트에서는 null이고, 하위작업은 상위 작업의 단계를 따른다.
  * <p>
  * 하위작업이 있는 작업의 기간(start_date·end_date)은 하위작업 기간의 최소 시작일~최대 종료일로 저장한다(FR-WBS-01 상위 기간 자동 산출).
  * 하위작업이 바뀌는 트랜잭션에서 {@link #deriveScheduleFrom(List)}로 다시 맞추므로, 간트·지연 감지는 저장값을 그대로 읽으면 된다.
@@ -66,6 +65,9 @@ public class WbsTask extends BaseTimeEntity {
 
 	@Column(name = "parent_task_id")
 	private Long parentTaskId;
+
+	@Column(name = "phase_id")
+	private Long phaseId;
 
 	/** 같은 부모 안의 표시 순서. 작업은 프로젝트 안, 하위작업은 상위 작업 안에서 매긴다. */
 	@Column(name = "sort_order", nullable = false)
@@ -137,6 +139,7 @@ public class WbsTask extends BaseTimeEntity {
 	private WbsTask(
 		final Long projectId,
 		final Long parentTaskId,
+		final Long phaseId,
 		final int sortOrder,
 		final TaskDetails details,
 		final WbsItemSource source,
@@ -144,6 +147,7 @@ public class WbsTask extends BaseTimeEntity {
 	) {
 		this.projectId = projectId;
 		this.parentTaskId = parentTaskId;
+		this.phaseId = phaseId;
 		this.sortOrder = sortOrder;
 		this.name = details.name();
 		this.description = details.description();
@@ -163,12 +167,19 @@ public class WbsTask extends BaseTimeEntity {
 	/** 최상위 작업. */
 	public static WbsTask task(
 		final Long projectId,
+		final Long phaseId,
 		final int sortOrder,
 		final TaskDetails details,
 		final WbsItemSource source,
 		final Long createdBy
 	) {
-		return new WbsTask(projectId, null, sortOrder, details, source, createdBy);
+		return new WbsTask(projectId, null, phaseId, sortOrder, details, source, createdBy);
+	}
+
+	/** 단계 연결 도입 전 호출부와 단계 없는 프로젝트용. */
+	public static WbsTask task(final Long projectId, final int sortOrder, final TaskDetails details,
+		final WbsItemSource source, final Long createdBy) {
+		return task(projectId, null, sortOrder, details, source, createdBy);
 	}
 
 	/** 작업 아래 하위작업. */
@@ -179,7 +190,7 @@ public class WbsTask extends BaseTimeEntity {
 		final WbsItemSource source,
 		final Long createdBy
 	) {
-		return new WbsTask(parent.projectId, parent.id, sortOrder, details, source, createdBy);
+		return new WbsTask(parent.projectId, parent.id, parent.phaseId, sortOrder, details, source, createdBy);
 	}
 
 	public boolean isSubtask() {
@@ -211,6 +222,16 @@ public class WbsTask extends BaseTimeEntity {
 		this.startDate = details.startDate();
 		this.endDate = details.endDate();
 		this.estimatedEffort = details.estimatedEffort();
+	}
+
+	/** 최상위 작업의 단계를 바꾼다. 하위작업 단계는 서비스가 함께 동기화한다. */
+	public void changePhase(final Long phaseId) {
+		this.phaseId = phaseId;
+	}
+
+	/** 직접 입력 또는 하위작업 가중 집계로 진척률을 바꾼다. 입력 범위 검증은 API·서비스가 담당한다. */
+	public void changeProgress(final int progress) {
+		this.progress = progress;
 	}
 
 	public TaskAttributes attributes() {
@@ -269,8 +290,9 @@ public class WbsTask extends BaseTimeEntity {
 	}
 
 	/** 부모와 표시 순서를 바꾼다(드래그 이동). 2단계 계층 규칙은 서비스가 먼저 확인한다. */
-	public void moveTo(final Long parentTaskId, final int sortOrder) {
+	public void moveTo(final Long parentTaskId, final Long phaseId, final int sortOrder) {
 		this.parentTaskId = parentTaskId;
+		this.phaseId = phaseId;
 		this.sortOrder = sortOrder;
 	}
 

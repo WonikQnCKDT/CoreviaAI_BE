@@ -3,7 +3,7 @@ package org.wonik.coreviaai_be.domain.wbs.service.command;
 import java.time.LocalDate;
 import java.util.List;
 
-import org.wonik.coreviaai_be.domain.project.entity.type.WaterfallPhaseType;
+import org.wonik.coreviaai_be.domain.project.entity.type.Methodology;
 
 /**
  * AI 초안 생성에 넘길 프로젝트 정보. PM 권한을 확인한 뒤 읽은 값만 담는다(aiserver는 권한을 다시 검사하지 않음).
@@ -19,7 +19,8 @@ public record WbsDraftContext(
 	String projectName,
 	LocalDate startDate,
 	LocalDate endDate,
-	List<WaterfallPhaseType> phases,
+	Methodology methodology,
+	List<DraftProjectPhase> phases,
 	List<DraftExistingTask> existingTasks,
 	List<DraftTeamMember> members,
 	GenerateWbsDraftCommand command

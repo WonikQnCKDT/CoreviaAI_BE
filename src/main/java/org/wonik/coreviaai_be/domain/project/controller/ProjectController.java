@@ -1,16 +1,23 @@
 package org.wonik.coreviaai_be.domain.project.controller;
 
 import java.util.List;
+import java.util.Map;
 
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.wonik.coreviaai_be.domain.project.dto.request.CreateProjectRequest;
+import org.wonik.coreviaai_be.domain.project.dto.request.CreateProjectPhaseRequest;
+import org.wonik.coreviaai_be.domain.project.dto.request.RenameProjectPhaseRequest;
+import org.wonik.coreviaai_be.domain.project.dto.request.ReorderProjectPhasesRequest;
 import org.wonik.coreviaai_be.domain.project.dto.response.CodeAvailabilityResponse;
 import org.wonik.coreviaai_be.domain.project.dto.response.CreationOptionsResponse;
 import org.wonik.coreviaai_be.domain.project.dto.response.ProjectDetailResponse;
@@ -18,6 +25,7 @@ import org.wonik.coreviaai_be.domain.project.dto.response.ProjectPhaseResponse;
 import org.wonik.coreviaai_be.domain.project.dto.response.ProjectSummaryResponse;
 import org.wonik.coreviaai_be.domain.project.entity.type.ProjectStatus;
 import org.wonik.coreviaai_be.domain.project.service.ProjectCreationService;
+import org.wonik.coreviaai_be.domain.project.service.ProjectPhaseService;
 import org.wonik.coreviaai_be.domain.project.service.ProjectQueryService;
 import org.wonik.coreviaai_be.domain.project.service.result.ProjectPhasesResult;
 import org.wonik.global.audit.AuditActor;
@@ -44,6 +52,7 @@ public class ProjectController {
 
 	private final ProjectCreationService projectCreationService;
 	private final ProjectQueryService projectQueryService;
+	private final ProjectPhaseService projectPhaseService;
 
 	@GetMapping
 	public ApiResponse<CursorPage<ProjectSummaryResponse>> findPage(
@@ -70,7 +79,7 @@ public class ProjectController {
 		return ApiResponse.success(ProjectDetailResponse.from(projectQueryService.getDetail(loginUser.userId(), projectId)));
 	}
 
-	/** 폭포수 단계·게이트(단계 순서대로, 항상 5개라 페이지네이션 없음). 단계 없음·애자일이면 404 PHASES_NOT_AVAILABLE. */
+	/** 프로젝트 단계·게이트(사용자 정의 순서, 최대 20개). 단계가 없으면 빈 배열이다. */
 	@GetMapping("/{projectId}/phases")
 	public ApiResponse<List<ProjectPhaseResponse>> getPhases(
 		@AuthenticationPrincipal final LoginUser loginUser,
@@ -78,8 +87,50 @@ public class ProjectController {
 	) {
 		final ProjectPhasesResult result = projectQueryService.getPhases(loginUser.userId(), projectId);
 		return ApiResponse.success(
-			result.phases().stream().map(phase -> ProjectPhaseResponse.of(phase, result.userNames())).toList()
+			result.phases().stream().map(phase -> ProjectPhaseResponse.of(phase, result.userNames(),
+				result.progressByPhaseId().getOrDefault(phase.getId(), 0))).toList()
 		);
+	}
+
+	@PostMapping("/{projectId}/phases")
+	public ApiResponse<ProjectPhaseResponse> createPhase(
+		final AuditActor actor,
+		@PathVariable @Positive final Long projectId,
+		@Valid @RequestBody final CreateProjectPhaseRequest request
+	) {
+		return ApiResponse.success(ProjectPhaseResponse.of(
+			projectPhaseService.create(actor, projectId, request.name()), Map.of()));
+	}
+
+	@PatchMapping("/{projectId}/phases/{phaseId}")
+	public ApiResponse<Void> renamePhase(
+		final AuditActor actor,
+		@PathVariable @Positive final Long projectId,
+		@PathVariable @Positive final Long phaseId,
+		@Valid @RequestBody final RenameProjectPhaseRequest request
+	) {
+		projectPhaseService.rename(actor, projectId, phaseId, request.name());
+		return ApiResponse.success(null);
+	}
+
+	@PutMapping("/{projectId}/phases/order")
+	public ApiResponse<Void> reorderPhases(
+		final AuditActor actor,
+		@PathVariable @Positive final Long projectId,
+		@Valid @RequestBody final ReorderProjectPhasesRequest request
+	) {
+		projectPhaseService.reorder(actor, projectId, request.phaseIds());
+		return ApiResponse.success(null);
+	}
+
+	@DeleteMapping("/{projectId}/phases/{phaseId}")
+	public ApiResponse<Void> deletePhase(
+		final AuditActor actor,
+		@PathVariable @Positive final Long projectId,
+		@PathVariable @Positive final Long phaseId
+	) {
+		projectPhaseService.delete(actor, projectId, phaseId);
+		return ApiResponse.success(null);
 	}
 
 	/** 단계형 생성의 마지막에 한 번 호출한다. 응답은 생성된 프로젝트 상세다. */

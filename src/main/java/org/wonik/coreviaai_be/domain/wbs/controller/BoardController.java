@@ -40,14 +40,16 @@ public class BoardController {
 	private final BoardService boardService;
 	private final BoardColumnService boardColumnService;
 
-	/** assigneeUserId를 주면 그 담당자의 카드만 돌려준다(담당자 필터). */
+	/** assigneeUserId·phaseId를 주면 두 조건을 모두 만족하는 카드만 돌려준다. */
 	@GetMapping
 	public ApiResponse<BoardResponse> find(
 		@AuthenticationPrincipal final LoginUser loginUser,
 		@PathVariable @Positive final Long projectId,
-		@RequestParam(required = false) @Positive final Long assigneeUserId
+		@RequestParam(required = false) @Positive final Long assigneeUserId,
+		@RequestParam(required = false) @Positive final Long phaseId
 	) {
-		return ApiResponse.success(BoardResponse.from(boardService.find(loginUser.userId(), projectId, assigneeUserId)));
+		return ApiResponse.success(BoardResponse.from(
+			boardService.find(loginUser.userId(), projectId, assigneeUserId, phaseId)));
 	}
 
 	/** 같은 컬럼으로 다시 보내면 아무것도 바꾸지 않고 성공한다(멱등). */

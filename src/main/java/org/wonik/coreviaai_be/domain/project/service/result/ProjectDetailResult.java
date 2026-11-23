@@ -17,6 +17,7 @@ public record ProjectDetailResult(
 	List<NamedRef> departments,
 	List<NamedRef> pms,
 	List<ProjectActor> actors,
-	List<ProjectFeature> features
+	List<ProjectFeature> features,
+	int progress
 ) {
 }

@@ -20,6 +20,7 @@ import org.wonik.coreviaai_be.domain.wbs.service.result.TaskDetail;
 public record TaskDetailResponse(
 	Long id,
 	Long projectId,
+	Long phaseId,
 	Long parentTaskId,
 	String name,
 	String description,
@@ -48,7 +49,8 @@ public record TaskDetailResponse(
 		final WbsTaskResponse.AssigneeResponse assignee = task.getAssigneeUserId() == null
 			? null
 			: new WbsTaskResponse.AssigneeResponse(task.getAssigneeUserId(), detail.assigneeName());
-		return new TaskDetailResponse(task.getId(), task.getProjectId(), task.getParentTaskId(), task.getName(),
+		return new TaskDetailResponse(task.getId(), task.getProjectId(), task.getPhaseId(), task.getParentTaskId(),
+			task.getName(),
 			task.getDescription(), task.getTaskType().name(), task.getPriority().name(), task.getCompletionCriteria(),
 			assignee, task.getStartDate(), task.getEndDate(), detail.scheduleDerived(), task.getEstimatedEffort(),
 			task.getProgress(), task.getStatus().name(), task.getSource().name(), task.getCompletedAt(),

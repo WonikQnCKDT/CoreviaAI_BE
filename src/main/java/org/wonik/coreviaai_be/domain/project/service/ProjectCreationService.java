@@ -16,6 +16,7 @@ import org.wonik.coreviaai_be.domain.project.entity.ProjectActorAssignment;
 import org.wonik.coreviaai_be.domain.project.entity.ProjectDepartment;
 import org.wonik.coreviaai_be.domain.project.entity.ProjectFeatureAssignment;
 import org.wonik.coreviaai_be.domain.project.entity.ProjectMember;
+import org.wonik.coreviaai_be.domain.project.entity.ProjectPhase;
 import org.wonik.coreviaai_be.domain.project.entity.type.Methodology;
 import org.wonik.coreviaai_be.domain.project.entity.type.ProjectActor;
 import org.wonik.coreviaai_be.domain.project.entity.type.ProjectFeature;
@@ -24,11 +25,11 @@ import org.wonik.coreviaai_be.domain.project.repository.ProjectActorAssignmentRe
 import org.wonik.coreviaai_be.domain.project.repository.ProjectDepartmentRepository;
 import org.wonik.coreviaai_be.domain.project.repository.ProjectFeatureAssignmentRepository;
 import org.wonik.coreviaai_be.domain.project.repository.ProjectMemberRepository;
+import org.wonik.coreviaai_be.domain.project.repository.ProjectPhaseRepository;
 import org.wonik.coreviaai_be.domain.project.repository.ProjectRepository;
 import org.wonik.coreviaai_be.domain.project.service.command.CreateProjectCommand;
 import org.wonik.coreviaai_be.domain.project.service.command.InitialMember;
 import org.wonik.coreviaai_be.domain.project.structure.ProjectDefaultDataInitializer;
-import org.wonik.coreviaai_be.domain.project.structure.ProjectStructureInitializer;
 import org.wonik.global.audit.AuditAction;
 import org.wonik.global.audit.AuditActor;
 import org.wonik.global.audit.AuditChanges;
@@ -59,11 +60,11 @@ public class ProjectCreationService {
 	private final ProjectDepartmentRepository projectDepartmentRepository;
 	private final ProjectFeatureAssignmentRepository featureAssignmentRepository;
 	private final ProjectMemberRepository memberRepository;
+	private final ProjectPhaseRepository phaseRepository;
 	private final UserRepository userRepository;
 	private final DepartmentRepository departmentRepository;
 	private final ProjectCreationPolicy creationPolicy;
 	private final ProjectMemberService memberService;
-	private final List<ProjectStructureInitializer> structureInitializers;
 	private final List<ProjectDefaultDataInitializer> defaultDataInitializers;
 	private final AuditLogger auditLogger;
 
@@ -106,7 +107,7 @@ public class ProjectCreationService {
 			features.stream().map(feature -> ProjectFeatureAssignment.of(project.getId(), feature)).toList()
 		);
 		memberRepository.saveAll(membersOf(project, creator, command.members()));
-		initializerFor(command.methodology()).initialize(project, command.gateApproverUserId());
+		phaseRepository.saveAll(phasesOf(project.getId(), command.phases(), command.gateApproverUserId()));
 		defaultDataInitializers.forEach(initializer -> initializer.initialize(project));
 
 		auditLogger.record(actor, AuditAction.PROJECT_CREATED, AuditTargetType.PROJECT, project.getId(), AuditChanges.create()
@@ -117,6 +118,7 @@ public class ProjectCreationService {
 			.value("departmentType", project.getDepartmentType())
 			.value("actors", actors)
 			.value("features", features)
+			.value("phases", command.phases())
 			.value("departmentIds", departmentIds)
 			.value("pmUserIds", List.of(creator.getId()))
 			.value("memberUserIds", command.members().stream().map(InitialMember::userId).sorted().toList())
@@ -164,12 +166,16 @@ public class ProjectCreationService {
 		return members;
 	}
 
-	/** 정책에서 비활성 운영 방식을 이미 거부하므로, 여기서 구현체가 없으면 코드 구성 오류다. */
-	private ProjectStructureInitializer initializerFor(final Methodology methodology) {
-		return structureInitializers.stream()
-			.filter(initializer -> initializer.supports(methodology))
-			.findFirst()
-			.orElseThrow(() -> new IllegalStateException("운영 방식의 기본 구조 생성기가 없습니다: " + methodology));
+	private List<ProjectPhase> phasesOf(
+		final Long projectId,
+		final List<String> names,
+		final Long gateApproverUserId
+	) {
+		final List<ProjectPhase> phases = new ArrayList<>(names.size());
+		for (int index = 0; index < names.size(); index++) {
+			phases.add(ProjectPhase.of(projectId, names.get(index), index + 1, gateApproverUserId));
+		}
+		return phases;
 	}
 
 	/** 사전 중복 확인과 저장 사이에 같은 코드가 먼저 저장되면 UNIQUE 제약 위반을 중복 오류로 바꾼다. */

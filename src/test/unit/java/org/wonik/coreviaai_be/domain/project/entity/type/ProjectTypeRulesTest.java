@@ -15,21 +15,19 @@ import org.junit.jupiter.params.provider.EnumSource;
 class ProjectTypeRulesTest {
 
 	@Test
-	@DisplayName("운영 방식: 단계 없음·폭포수만 활성이고, 단계·게이트는 폭포수만 쓴다")
+	@DisplayName("운영 방식: 방법론 없음·폭포수만 활성이고 단계 구성은 템플릿이 별도로 제안한다")
 	void methodology() {
 		assertThat(Arrays.stream(Methodology.values()).filter(Methodology::isEnabled))
 			.containsExactly(Methodology.NONE, Methodology.WATERFALL);
-		assertThat(Arrays.stream(Methodology.values()).filter(Methodology::isUsesPhases))
-			.containsExactly(Methodology.WATERFALL);
 	}
 
 	@Test
-	@DisplayName("기능 모듈: 산출물·게이트는 폭포수에서만, Git 연동은 어디서도 선택할 수 없다")
+	@DisplayName("기능 모듈: 산출물·게이트는 단계가 있을 때만, Git 연동은 선택할 수 없다")
 	void featureSelectable() {
-		assertThat(ProjectFeature.DELIVERABLE.selectableFor(Methodology.WATERFALL)).isTrue();
-		assertThat(ProjectFeature.DELIVERABLE.selectableFor(Methodology.NONE)).isFalse();
-		assertThat(ProjectFeature.GIT.selectableFor(Methodology.WATERFALL)).isFalse();
-		assertThat(ProjectFeature.KANBAN.selectableFor(Methodology.NONE)).isTrue();
+		assertThat(ProjectFeature.DELIVERABLE.selectableFor(true)).isTrue();
+		assertThat(ProjectFeature.DELIVERABLE.selectableFor(false)).isFalse();
+		assertThat(ProjectFeature.GIT.selectableFor(true)).isFalse();
+		assertThat(ProjectFeature.KANBAN.selectableFor(false)).isTrue();
 	}
 
 	@ParameterizedTest
@@ -40,15 +38,17 @@ class ProjectTypeRulesTest {
 		assertThat(template.getDefaultActors()).contains(ProjectActor.PM);
 		assertThat(template.getDefaultActors()).allMatch(actor -> actor.selectableFor(DepartmentType.SW));
 		assertThat(template.getDefaultFeatures())
-			.allMatch(feature -> feature.selectableFor(template.getDefaultMethodology()));
+			.allMatch(feature -> feature.selectableFor(!template.getDefaultPhases().isEmpty()));
 	}
 
 	@Test
 	@DisplayName("빈 템플릿은 단계 없음, IT 프로젝트 템플릿은 폭포수·SW 액터 전체를 기본값으로 쓴다")
 	void templateDefaults() {
 		assertThat(ProjectTemplate.EMPTY.getDefaultMethodology()).isEqualTo(Methodology.NONE);
+		assertThat(ProjectTemplate.EMPTY.getDefaultPhases()).isEmpty();
 		assertThat(ProjectTemplate.EMPTY.getDefaultFeatures()).doesNotContain(ProjectFeature.DELIVERABLE, ProjectFeature.WBS);
 		assertThat(ProjectTemplate.IT_PROJECT.getDefaultMethodology()).isEqualTo(Methodology.WATERFALL);
+		assertThat(ProjectTemplate.IT_PROJECT.getDefaultPhases()).containsExactly("분석", "설계", "개발", "테스트", "이행");
 		assertThat(ProjectTemplate.IT_PROJECT.getDefaultActors()).containsExactlyInAnyOrder(
 			ProjectActor.PM, ProjectActor.BUSINESS_OWNER, ProjectActor.DEVELOPER, ProjectActor.QA);
 	}

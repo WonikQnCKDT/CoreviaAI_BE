@@ -13,6 +13,7 @@ import org.wonik.coreviaai_be.domain.project.entity.Project;
 import org.wonik.coreviaai_be.domain.project.entity.ProjectMember;
 import org.wonik.coreviaai_be.domain.project.repository.ProjectMemberRepository;
 import org.wonik.coreviaai_be.domain.project.repository.ProjectRepository;
+import org.wonik.coreviaai_be.domain.project.repository.ProjectPhaseRepository;
 import org.wonik.coreviaai_be.domain.wbs.drafttoken.DraftTokenOwner;
 import org.wonik.coreviaai_be.domain.wbs.drafttoken.WbsDraftTokenStore;
 import org.wonik.coreviaai_be.domain.wbs.policy.WbsDraftAccessPolicy;
@@ -53,6 +54,7 @@ public class WbsDraftApplyService {
 	private final WbsDraftAccessPolicy draftAccessPolicy;
 	private final ProjectMemberRepository memberRepository;
 	private final ProjectRepository projectRepository;
+	private final ProjectPhaseRepository phaseRepository;
 	private final WbsTaskRepository taskRepository;
 	private final MilestoneRepository milestoneRepository;
 	private final WbsDraftValidator validator;
@@ -128,6 +130,13 @@ public class WbsDraftApplyService {
 			.map(ProjectMember::getUserId)
 			.collect(Collectors.toSet());
 		validator.validate(command, project.getStartDate(), project.getEndDate(), memberUserIds);
+		final Set<Long> phaseIds = phaseRepository.findAllByProjectIdOrderByPhaseOrder(projectId).stream()
+			.map(phase -> phase.getId())
+			.collect(Collectors.toSet());
+		if (command.tasks().stream().map(task -> task.phaseId()).filter(java.util.Objects::nonNull)
+			.anyMatch(phaseId -> !phaseIds.contains(phaseId))) {
+			throw new CustomException(ErrorCode.INVALID_WBS_PHASE);
+		}
 
 		final AppliedWbsDraft applied = itemWriter.writeAiDraft(projectId, actor.userId(), command);
 		aiDraftRecorder.decide(aiDraftId, AiDraftFeature.WBS_DRAFT, projectId, actor.userId(),
