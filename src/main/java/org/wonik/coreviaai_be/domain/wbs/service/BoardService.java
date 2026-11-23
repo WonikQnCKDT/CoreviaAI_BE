@@ -9,6 +9,7 @@ import java.util.Objects;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.wonik.coreviaai_be.domain.project.repository.ProjectPhaseRepository;
 import org.wonik.coreviaai_be.domain.wbs.entity.BoardColumn;
 import org.wonik.coreviaai_be.domain.wbs.entity.BoardLayout;
 import org.wonik.coreviaai_be.domain.wbs.entity.TaskSnapshot;
@@ -43,6 +44,7 @@ public class BoardService {
 
 	private final WbsTaskAccessPolicy accessPolicy;
 	private final BoardReader boardReader;
+	private final ProjectPhaseRepository phaseRepository;
 	private final BoardColumnRepository columnRepository;
 	private final WbsTaskRepository taskRepository;
 	private final TaskHistoryRecorder historyRecorder;
@@ -54,12 +56,17 @@ public class BoardService {
 	 * 쿼리는 컬럼·업무·사용자 이름 3회다.
 	 */
 	@Transactional(readOnly = true)
-	public List<BoardColumnView> find(final Long userId, final Long projectId, final Long assigneeUserId) {
+	public List<BoardColumnView> find(final Long userId, final Long projectId, final Long assigneeUserId,
+		final Long phaseId) {
 		accessPolicy.getReadableProject(userId, projectId, WbsTaskAccessPolicy.BOARD_FEATURES);
+		if (phaseId != null && phaseRepository.findByIdAndProjectId(phaseId, projectId).isEmpty()) {
+			throw new CustomException(ErrorCode.PROJECT_PHASE_NOT_FOUND);
+		}
 		final BoardLayout layout = boardReader.read(projectId);
 		final List<List<WbsTask>> visibleCards = layout.columns().stream()
 			.map(column -> layout.cardsOf(column.getId()).stream()
 				.filter(task -> assigneeUserId == null || task.isAssignedTo(assigneeUserId))
+				.filter(task -> phaseId == null || phaseId.equals(task.getPhaseId()))
 				.toList())
 			.toList();
 		final Map<Long, String> names = userNameReader.namesOf(visibleCards.stream()
