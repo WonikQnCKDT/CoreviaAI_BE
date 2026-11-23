@@ -97,8 +97,12 @@ public class ProjectPhaseService {
 		phaseRepository.delete(phase);
 		phaseRepository.flush();
 		final List<ProjectPhase> remaining = phaseRepository.findAllByProjectIdOrderByPhaseOrder(projectId);
+		final int temporaryOrderBase = remaining.stream()
+			.mapToInt(ProjectPhase::getPhaseOrder)
+			.max()
+			.orElse(0);
 		for (int index = 0; index < remaining.size(); index++) {
-			remaining.get(index).reorder(remaining.size() + index + 1);
+			remaining.get(index).reorder(temporaryOrderBase + index + 1);
 		}
 		phaseRepository.flush();
 		for (int index = 0; index < remaining.size(); index++) {
