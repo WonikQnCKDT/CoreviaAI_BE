@@ -44,6 +44,8 @@ public enum AuditAction {
 	WBS_TASK_DELETED,
 	/** 마일스톤 삭제(FR-WBS-04, 데이터 삭제 감사). 연결 작업 정보(milestone_tasks)도 함께 지운다. */
 	MILESTONE_DELETED,
+	/** 회의록과 하위 참석자·결정사항·액션아이템 삭제(FR-DOC-01, 데이터 삭제 감사). */
+	MEETING_DELETED,
 	/** 칸반 컬럼 추가(FR-TSK-02, 프로젝트 설정 변경 감사). */
 	BOARD_COLUMN_CREATED,
 	/** 칸반 컬럼 이름·WIP 한도 변경. */
