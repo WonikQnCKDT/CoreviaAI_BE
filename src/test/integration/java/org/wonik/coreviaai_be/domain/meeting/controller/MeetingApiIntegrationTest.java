@@ -7,6 +7,10 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -212,6 +216,58 @@ class MeetingApiIntegrationTest extends ProjectApiTestSupport {
 	}
 
 	@Test
+	void retriesReturnSameMeetingRejectDifferentInputAndDoNotResurrectDeletedMeeting() throws Exception {
+		final Map<String, Object> request = basicMeeting("재전송");
+		final JsonNode first = createMeeting(member, request);
+		final long id = first.get("id").asLong();
+		assertThat(createMeeting(member, request).get("id").asLong()).isEqualTo(id);
+		final Map<String, Object> changed = basicMeeting("다른 내용");
+		changed.put("requestId", request.get("requestId"));
+		expectError(postJson(url(MEETINGS), member, changed), ErrorCode.MEETING_REQUEST_CONFLICT);
+		assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM meetings", Integer.class)).isEqualTo(1);
+		deleteAs(member, MEETING, projectId, id).andExpect(status().isNoContent());
+		expectError(postJson(url(MEETINGS), member, request), ErrorCode.MEETING_REQUEST_DELETED);
+		assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM meetings", Integer.class)).isZero();
+	}
+
+	@Test
+	void replayReturnsCurrentMeetingAndKeyIsScopedToAuthor() throws Exception {
+		final Map<String, Object> request = basicMeeting("원래 제목");
+		final long firstId = createMeeting(member, request).get("id").asLong();
+		readResponse(patchJson(member, updateBody("수정된 제목", 0), MEETING, projectId, firstId));
+		final JsonNode replay = createMeeting(member, request);
+		assertThat(replay.get("id").asLong()).isEqualTo(firstId);
+		assertThat(replay.get("title").asString()).isEqualTo("수정된 제목");
+		assertThat(createMeeting(pm, request).get("id").asLong()).isNotEqualTo(firstId);
+	}
+
+	@Test
+	void simultaneousIdenticalRequestsCreateOneMeeting() throws Exception {
+		final Map<String, Object> request = basicMeeting("동시 생성");
+		final CountDownLatch start = new CountDownLatch(1);
+		final var executor = Executors.newFixedThreadPool(2);
+		try {
+			final var first = executor.submit(() -> { start.await(); return createMeeting(member, request); });
+			final var second = executor.submit(() -> { start.await(); return createMeeting(member, request); });
+			start.countDown();
+			assertThat(first.get(30, TimeUnit.SECONDS).get("id").asLong())
+				.isEqualTo(second.get(30, TimeUnit.SECONDS).get("id").asLong());
+			assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM meetings", Integer.class)).isEqualTo(1);
+		} finally {
+			executor.shutdownNow();
+		}
+	}
+
+	@Test
+	void missingOrInvalidRequestIdIsRejected() throws Exception {
+		final Map<String, Object> request = basicMeeting("키 확인");
+		request.remove("requestId");
+		postJson(url(MEETINGS), member, request).andExpect(status().isBadRequest());
+		request.put("requestId", "not-a-uuid");
+		postJson(url(MEETINGS), member, request).andExpect(status().isBadRequest());
+	}
+
+	@Test
 	void disabledMeetingModuleReturnsFeatureNotFoundForReadAndWrite() throws Exception {
 		final Map<String, Object> project = validCreateBody("NO-MEETING");
 		project.put("features", List.of("WBS", "KANBAN", "DELIVERABLE"));
@@ -236,6 +292,7 @@ class MeetingApiIntegrationTest extends ProjectApiTestSupport {
 
 	private static Map<String, Object> updateBody(final String title, final long version) {
 		final Map<String, Object> body = basicMeeting(title);
+		body.remove("requestId");
 		body.put("version", version);
 		return body;
 	}
@@ -248,7 +305,7 @@ class MeetingApiIntegrationTest extends ProjectApiTestSupport {
 		final List<String> decisions,
 		final List<Map<String, Object>> actionItems
 	) {
-		return body("title", title, "heldAt", heldAt, "content", content, "attendees", attendees,
+		return body("requestId", UUID.randomUUID().toString(), "title", title, "heldAt", heldAt, "content", content, "attendees", attendees,
 			"decisions", decisions, "actionItems", actionItems);
 	}
 }

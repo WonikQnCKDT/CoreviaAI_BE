@@ -100,6 +100,8 @@ public enum ErrorCode {
 	LAST_SYSTEM_ADMIN(409, "마지막 시스템 관리자의 역할·상태는 변경할 수 없습니다"),
 	CONCURRENT_MODIFICATION(409, "다른 사용자가 먼저 수정했습니다. 새로고침한 뒤 다시 시도해 주세요"),
 	MEETING_ITEMS_PROTECTED(409, "연결된 회의록 항목은 이 기능에서 수정하거나 삭제할 수 없습니다"),
+	MEETING_REQUEST_CONFLICT(409, "같은 요청 ID로 다른 회의록을 등록할 수 없습니다"),
+	MEETING_REQUEST_DELETED(409, "삭제한 회의록의 등록 요청입니다. 새 요청 ID를 사용해 주세요"),
 	ALREADY_PROJECT_MEMBER(409, "이미 프로젝트 멤버인 사용자입니다"),
 	GATE_APPROVER_NOT_REMOVABLE(409, "게이트 승인자는 멤버에서 제외할 수 없습니다. 승인자를 먼저 변경해 주세요"),
 	MEMBER_HAS_ASSIGNED_TASKS(409, "담당 중인 업무가 있어 제외할 수 없습니다. 업무를 먼저 재배정해 주세요"),

@@ -66,7 +66,7 @@ public class MeetingController {
 		@Valid @RequestBody final CreateMeetingRequest request
 	) {
 		return ApiResponse.success(MeetingDetailResponse.from(
-			meetingService.create(viewer.userId(), projectId, request.toCommand())));
+			meetingService.create(viewer.userId(), projectId, request.requestId(), request.toCommand())));
 	}
 
 	@PatchMapping("/{meetingId}")

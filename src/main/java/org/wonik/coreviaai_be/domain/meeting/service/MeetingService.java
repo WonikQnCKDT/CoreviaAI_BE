@@ -9,6 +9,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -21,11 +22,13 @@ import org.wonik.coreviaai_be.domain.meeting.entity.Meeting.ActionItemValue;
 import org.wonik.coreviaai_be.domain.meeting.entity.Meeting.AttendeeValue;
 import org.wonik.coreviaai_be.domain.meeting.entity.MeetingAttendee;
 import org.wonik.coreviaai_be.domain.meeting.entity.MeetingDecision;
+import org.wonik.coreviaai_be.domain.meeting.entity.MeetingCreateRequest;
 import org.wonik.coreviaai_be.domain.meeting.entity.type.ActionItemStatus;
 import org.wonik.coreviaai_be.domain.meeting.entity.type.MeetingItemSource;
 import org.wonik.coreviaai_be.domain.meeting.pagination.MeetingCursor;
 import org.wonik.coreviaai_be.domain.meeting.policy.MeetingAccessPolicy;
 import org.wonik.coreviaai_be.domain.meeting.repository.MeetingRepository;
+import org.wonik.coreviaai_be.domain.meeting.repository.MeetingCreateRequestRepository;
 import org.wonik.coreviaai_be.domain.meeting.service.command.MeetingActionItemCommand;
 import org.wonik.coreviaai_be.domain.meeting.service.command.MeetingAttendeeCommand;
 import org.wonik.coreviaai_be.domain.meeting.service.command.SaveMeetingCommand;
@@ -49,6 +52,8 @@ import org.wonik.global.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.LockModeType;
+import jakarta.persistence.LockTimeoutException;
+import jakarta.persistence.PessimisticLockException;
 
 /** FR-DOC-01 회의록 작성·수정·검색과 작성자/PM 권한을 한 트랜잭션 경계에서 처리한다. */
 @Service
@@ -62,6 +67,7 @@ public class MeetingService {
 	private static final String LIKE_ESCAPE = "\\";
 
 	private final MeetingRepository meetingRepository;
+	private final MeetingCreateRequestRepository requestRepository;
 	private final MeetingAccessPolicy accessPolicy;
 	private final UserRepository userRepository;
 	private final AuditLogger auditLogger;
@@ -101,14 +107,42 @@ public class MeetingService {
 	public MeetingDetailResult create(
 		final Long authorUserId,
 		final Long projectId,
+		final UUID requestId,
 		final SaveMeetingCommand command
 	) {
 		accessPolicy.getWritableProject(authorUserId, projectId);
 		final PreparedMeeting prepared = prepare(command);
+		if (requestId == null) {
+			throw new CustomException(ErrorCode.INVALID_MEETING_CONTENT);
+		}
+		// 같은 작성자의 생성 요청을 직렬화해 동시 재전송도 하나만 저장한다.
+		try {
+			if (entityManager.find(User.class, authorUserId, LockModeType.PESSIMISTIC_WRITE) == null) {
+				throw new CustomException(ErrorCode.USER_NOT_FOUND);
+			}
+		} catch (final LockTimeoutException | PessimisticLockException ex) {
+			throw new CustomException(ErrorCode.CONCURRENT_MODIFICATION, ex);
+		}
+		final String hash = MeetingRequestHash.of(command);
+		final MeetingCreateRequest previous = requestRepository
+			.findByProjectIdAndAuthorUserIdAndRequestId(projectId, authorUserId, requestId.toString()).orElse(null);
+		if (previous != null) {
+			if (!previous.getRequestHash().equals(hash)) {
+				throw new CustomException(ErrorCode.MEETING_REQUEST_CONFLICT);
+			}
+			if (previous.getMeetingId() == null) {
+				throw new CustomException(ErrorCode.MEETING_REQUEST_DELETED);
+			}
+			return detail(getMeeting(projectId, previous.getMeetingId()));
+		}
+		validateReferencedUsers(prepared);
 		final Meeting meeting = Meeting.create(projectId, prepared.title(), command.heldAt(), command.content(),
 			authorUserId);
 		apply(meeting, prepared);
-		return detail(meetingRepository.saveAndFlush(meeting));
+		meetingRepository.saveAndFlush(meeting);
+		requestRepository.saveAndFlush(MeetingCreateRequest.create(projectId, authorUserId, requestId.toString(),
+			hash, meeting.getId()));
+		return detail(meeting);
 	}
 
 	@Transactional
@@ -127,6 +161,7 @@ public class MeetingService {
 		}
 		requireReplaceable(meeting);
 		final PreparedMeeting prepared = prepare(command);
+		validateReferencedUsers(prepared);
 		if (Objects.equals(meeting.getTitle(), prepared.title())
 			&& Objects.equals(meeting.getHeldAt(), command.heldAt())
 			&& Objects.equals(meeting.getContent(), command.content())) {
@@ -144,6 +179,8 @@ public class MeetingService {
 		final Meeting meeting = getMeetingForUpdate(projectId, meetingId);
 		accessPolicy.requireEditor(actor.userId(), meeting);
 		requireReplaceable(meeting);
+		requestRepository.findByMeetingId(meetingId).ifPresent(MeetingCreateRequest::markDeleted);
+		requestRepository.flush();
 		meetingRepository.delete(meeting);
 		meetingRepository.flush();
 		auditLogger.record(actor, AuditAction.MEETING_DELETED, AuditTargetType.MEETING, meetingId,
@@ -168,11 +205,15 @@ public class MeetingService {
 		final List<ActionItemValue> actionItems = command.actionItems().stream()
 			.map(item -> new ActionItemValue(meetingItem(item.content()), item.assigneeUserId(), item.dueDate()))
 			.toList();
-		final Set<Long> referencedUsers = attendees.stream().map(AttendeeValue::userId)
-			.filter(id -> id != null).collect(Collectors.toSet());
-		actionItems.stream().map(ActionItemValue::assigneeUserId).filter(id -> id != null).forEach(referencedUsers::add);
-		validateActiveUsers(referencedUsers);
 		return new PreparedMeeting(title, attendees, decisions, actionItems);
+	}
+
+	private void validateReferencedUsers(final PreparedMeeting prepared) {
+		final Set<Long> referencedUsers = prepared.attendees().stream().map(AttendeeValue::userId)
+			.filter(id -> id != null).collect(Collectors.toSet());
+		prepared.actionItems().stream().map(ActionItemValue::assigneeUserId).filter(id -> id != null)
+			.forEach(referencedUsers::add);
+		validateActiveUsers(referencedUsers);
 	}
 
 	private static List<AttendeeValue> prepareAttendees(final List<MeetingAttendeeCommand> commands) {

@@ -2,6 +2,7 @@ package org.wonik.coreviaai_be.domain.meeting.dto.request;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.UUID;
 
 import org.wonik.coreviaai_be.domain.meeting.entity.Meeting;
 import org.wonik.coreviaai_be.domain.meeting.entity.MeetingDecision;
@@ -14,6 +15,7 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
 public record CreateMeetingRequest(
+	@NotNull UUID requestId,
 	@NotBlank @Size(max = Meeting.TITLE_MAX_LENGTH) String title,
 	@NotNull Instant heldAt,
 	@Size(max = Meeting.CONTENT_MAX_LENGTH) String content,
