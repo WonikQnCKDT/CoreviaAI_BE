@@ -277,6 +277,15 @@ public class WbsTask extends BaseTimeEntity {
 		}
 	}
 
+    /** 업무일지 완료: 칸반이 없는 프로젝트도 지원하며 보드의 DONE 컬럼과 상태를 일치시킨다. */
+    public void complete(final Long doneColumnId, final Instant now) {
+        boardColumnId = doneColumnId;
+        if (status != WbsTaskStatus.DONE) statusChangedAt = now;
+        status = WbsTaskStatus.DONE;
+        progress = COMPLETED_PROGRESS;
+        markCompleted(now);
+    }
+
 	/** 완료 처리 시각을 남긴다. 상태 변경(FR-TSK-02)이 DONE으로 바꿀 때 호출한다. 이미 완료 시각이 있으면 그대로 둔다. */
 	public void markCompleted(final Instant completedAt) {
 		if (this.completedAt == null) {

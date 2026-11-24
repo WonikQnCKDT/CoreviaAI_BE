@@ -1,16 +1,19 @@
 package org.wonik.coreviaai_be.domain.wbs.service;
 
+import java.time.Clock;
 import java.util.Arrays;
 import java.util.Map;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.wonik.coreviaai_be.domain.wbs.entity.BoardColumn;
 import org.wonik.coreviaai_be.domain.wbs.entity.TaskHistory;
 import org.wonik.coreviaai_be.domain.wbs.entity.TaskSnapshot;
 import org.wonik.coreviaai_be.domain.wbs.entity.WbsTask;
 import org.wonik.coreviaai_be.domain.wbs.entity.type.WbsTaskStatus;
 import org.wonik.coreviaai_be.domain.wbs.policy.WbsEditor;
 import org.wonik.coreviaai_be.domain.wbs.policy.WbsTaskAccessPolicy;
+import org.wonik.coreviaai_be.domain.wbs.repository.BoardColumnRepository;
 import org.wonik.coreviaai_be.domain.wbs.repository.TaskHistoryRepository;
 import org.wonik.coreviaai_be.domain.wbs.repository.WbsTaskRepository;
 import org.wonik.coreviaai_be.domain.wbs.service.command.UpdateTaskAttributesCommand;
@@ -41,6 +44,8 @@ import tools.jackson.databind.json.JsonMapper;
 public class TaskDetailService {
 
 	private final WbsTaskAccessPolicy accessPolicy;
+    private final BoardColumnRepository columns;
+    private final Clock clock;
 	private final WbsTaskRepository taskRepository;
 	private final TaskHistoryRepository historyRepository;
 	private final TaskHistoryRecorder historyRecorder;
@@ -103,16 +108,27 @@ public class TaskDetailService {
 		task.changeProgress(command.progress());
 		taskRepository.flush();
 		historyRecorder.changed(actor.userId(), before, TaskSnapshot.of(task));
-		if (task.isSubtask()) {
-			final WbsTask parent = getTask(projectId, task.getParentTaskId());
-			final TaskSnapshot parentBefore = TaskSnapshot.of(parent);
-			parent.changeProgress(ProgressCalculator.weightedAverage(
-				taskRepository.findAllByParentTaskIdOrderBySortOrderAscIdAsc(parent.getId())));
-			taskRepository.flush();
-			historyRecorder.changed(actor.userId(), parentBefore, TaskSnapshot.of(parent));
-		}
+		deriveParentProgress(actor.userId(), task);
 		return detailOf(task);
 	}
+
+    @Transactional
+    public TaskDetail complete(final AuditActor actor, final Long projectId, final Long taskId, final long version) {
+        final WbsEditor editor = accessPolicy.getEditor(actor.userId(), projectId, WbsTaskAccessPolicy.TASK_FEATURES);
+        final WbsTask task = getTask(projectId, taskId);
+        editor.requireCanUpdate(task);
+        if (taskRepository.existsByParentTaskId(taskId)) throw new CustomException(ErrorCode.WBS_PROGRESS_DERIVED);
+        if (task.getStatus() == WbsTaskStatus.DONE) return detailOf(task);
+        if (task.getVersion() != version) throw new CustomException(ErrorCode.CONCURRENT_MODIFICATION);
+        final TaskSnapshot before = TaskSnapshot.of(task);
+        final Long columnId = columns.findFirstByProjectIdAndStatusCategoryOrderBySortOrderAscIdAsc(projectId, WbsTaskStatus.DONE)
+            .map(BoardColumn::getId).orElse(null);
+        task.complete(columnId, clock.instant());
+        taskRepository.flush();
+        historyRecorder.changed(actor.userId(), before, TaskSnapshot.of(task));
+        deriveParentProgress(actor.userId(), task);
+        return detailOf(task);
+    }
 
 	/** 업무 변경 이력(커서, id 오름차순 = 시간순). 지운 업무의 이력은 남아 있지만 업무가 없으므로 404다. */
 	@Transactional(readOnly = true)
@@ -134,6 +150,16 @@ public class TaskDetailService {
 		return histories.map(history -> new TaskHistoryView(history, parse(history.getBeforeValue()),
 			parse(history.getAfterValue()), actorNames.get(history.getActorUserId())));
 	}
+
+    private void deriveParentProgress(final Long userId, final WbsTask task) {
+        if (!task.isSubtask()) return;
+        final WbsTask parent = getTask(task.getProjectId(), task.getParentTaskId());
+        final TaskSnapshot before = TaskSnapshot.of(parent);
+        parent.changeProgress(ProgressCalculator.weightedAverage(
+            taskRepository.findAllByParentTaskIdOrderBySortOrderAscIdAsc(parent.getId())));
+        taskRepository.flush();
+        historyRecorder.changed(userId, before, TaskSnapshot.of(parent));
+    }
 
 	private TaskDetail detailOf(final WbsTask task) {
 		final Map<Long, String> names = userNameReader.namesOf(Arrays.asList(task.getAssigneeUserId(), task.getCreatedBy()));

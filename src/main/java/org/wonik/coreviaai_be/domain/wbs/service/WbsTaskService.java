@@ -18,6 +18,7 @@ import org.wonik.coreviaai_be.domain.wbs.repository.BoardColumnRepository;
 import org.wonik.coreviaai_be.domain.wbs.repository.MilestoneTaskRepository;
 import org.wonik.coreviaai_be.domain.wbs.repository.WbsDependencyRepository;
 import org.wonik.coreviaai_be.domain.wbs.repository.WbsTaskRepository;
+import org.wonik.coreviaai_be.domain.worklog.repository.WorklogTaskRepository;
 import org.wonik.coreviaai_be.domain.wbs.service.command.CreateWbsTaskCommand;
 import org.wonik.coreviaai_be.domain.wbs.service.command.MoveWbsTaskCommand;
 import org.wonik.coreviaai_be.domain.wbs.service.command.UpdateWbsTaskCommand;
@@ -59,6 +60,7 @@ public class WbsTaskService {
 	private final WbsTaskRules rules;
 	private final ProjectPhaseRepository phaseRepository;
 	private final WbsTaskRepository taskRepository;
+	private final WorklogTaskRepository worklogTasks;
 	private final WbsDependencyRepository dependencyRepository;
 	private final MilestoneTaskRepository milestoneTaskRepository;
 	private final BoardColumnRepository boardColumnRepository;
@@ -234,7 +236,8 @@ public class WbsTaskService {
 		final WbsTask task = getTask(projectId, taskId);
 		if (taskRepository.existsByParentTaskId(taskId)
 			|| dependencyRepository.existsByPredecessorTaskIdOrSuccessorTaskId(taskId, taskId)
-			|| milestoneTaskRepository.existsByTaskId(taskId)) {
+			|| milestoneTaskRepository.existsByTaskId(taskId)
+            || worklogTasks.existsByTaskId(taskId)) {
 			throw new CustomException(ErrorCode.WBS_TASK_IN_USE);
 		}
 
