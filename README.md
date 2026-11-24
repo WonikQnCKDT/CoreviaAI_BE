@@ -530,3 +530,11 @@ org.wonik
 - Migration V13은 `personal_todos`만 추가한다. **운영 V8~V12 예약 작업을 통합·승인하고 순서대로 적용한 뒤 V13을 migrate해야 한다. V13 단독 선적용 금지.** 기본 Flyway outOfOrder=false에서 뒤늦은 V8~V12는 적용에 실패하므로 번호 변경·outOfOrder 임의 활성화로 우회하지 않는다.
 - V14는 V13을 수정하지 않고 nullable `deleted_at`·조회 인덱스를 추가한다. V8~V12 → V13 → V14 → 새 API 순서로 배포한다. 구 API는 삭제행을 필터하지 않으므로 삭제 활성화 후 구/신 API 혼용·구 리더로 rollback하지 않는다. [소프트 삭제 보안·검수 기록](docs/reviews/SCRUM-111-soft-delete-review.md) 참고.
 - 기존 표준 테스트 명령은 그대로다. 현재 오프라인 환경에는 JaCoCo agent0.8.15가 없어 표준 test/check·커버리지 증거를 확보하지 못했다. 별도 작업 공간 init으로 instrumentation만 끈 대체 테스트·빌드 증거와 기존 formatter/lint/lock/security-scan 미구축 한계는 검수 문서에 기록한다.
+
+## 15. 회의록 (SCRUM-122)
+
+- FR-DOC-01: 프로젝트 회의록 작성·목록 검색·상세·수정·삭제. 참석자, 결정사항, 액션아이템은 V22의 별도 테이블에 저장한다. AI 정리와 업무 전환은 후속 기능이다.
+- `POST/GET /api/projects/{projectId}/meetings`, `GET/PATCH/DELETE /api/projects/{projectId}/meetings/{meetingId}`. 프로젝트 공개 범위 내 조회, 멤버 생성, 작성자 또는 PM 수정·삭제를 허용하고 회의록 기능이 꺼진 프로젝트는 차단한다. 삭제는 감사 로그를 남긴다.
+- 목록은 회의 일시·ID 내림차순 커서, 기본 20건·최대 100건. 제목·본문·결정사항·액션아이템을 부분 검색한다. 수정은 `version`을 요구하고 참석자·결정사항·액션아이템 목록을 전체 교체한다. AI 출처 또는 업무 전환·승인된 항목이 있으면 수정·삭제를 거부해 정보를 보존한다.
+- 회의 시각은 UTC instant, 액션아이템 기한은 날짜다. 참석자는 사내 활성 사용자 또는 외부 이름 중 하나를 입력한다. 제목 200자, 본문 50,000자, 결정사항·액션아이템 각 1,000자, 각 목록 최대 100개다.
+- 검증: `gradlew.bat check bootJar` 통과. `origin/develop`의 V21 적용 후 V22를 적용한다. 통합 전 최신 마이그레이션 번호를 다시 확인해야 한다.
