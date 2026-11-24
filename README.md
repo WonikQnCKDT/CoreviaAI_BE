@@ -2,7 +2,7 @@
 
 > 상태: Draft
 > 담당자: 미정 (팀에서 지정 필요)
-> 마지막 검토일: 2026-11-22
+> 마지막 검토일: 2026-11-24
 > 적용 범위: `CoreviaAI_BE/` 백엔드 (Spring Boot)
 
 ## 1. 프로젝트 개요
@@ -23,6 +23,7 @@
   - FR-WBS-04 마일스톤 (Jira SCRUM-108): 마일스톤 목록(목표일 순)·상세, 등록(출처 MANUAL)·이름·목표일 수정(낙관적 잠금)·삭제(연결 정보 함께 삭제, 감사 로그), 연결 작업 전체 교체(같은 프로젝트 작업만). D-day와 지연 경고(목표일 당일부터, 연결 작업 중 미완료가 있으면)를 조회 때 한국 시간 기준으로 계산(저장 안 함). 권한은 3.3 WBS-04(PM C·U·D, 그 밖 조회). 알림(FR-NTF-01)은 Sprint 3
   - FR-TSK-01 업무 CRUD (Jira SCRUM-109): 업무 = WBS 작업·하위작업. 업무 상세 조회, 유형(TASK·DEFECT)·우선순위(HIGH·MEDIUM·LOW)·완료 조건 수정(낙관적 잠금, WBS 등록 때 선택 입력 가능), 변경 이력(`task_histories`: 등록·배정·해제·일정·상세·이동·삭제, 업무별 시간순 커서 조회). 등록·담당자 배정·기간·삭제는 FR-WBS-01 API를 그대로 쓴다. 담당자 TODO와 개인 통합 일정은 `assignee_user_id` 원본을 조회하므로 배정·재배정·기간·상태 변경이 복제 없이 즉시 반영
   - FR-PRJ-04 멤버·역할 관리 (Jira SCRUM-106): 멤버 초대·역할 변경·제외(PM만), 복수 PM(역할 변경으로 추가·해제, 최소 1명), 멤버 이력, PM 재지정(활성 PM이 없을 때 시스템 관리자). 담당 업무 수는 완료 여부와 관계없이 해당 프로젝트의 담당 업무·하위 업무를 집계하며, 미완료 담당 업무가 있으면 멤버를 제외할 수 없다.
+  - FR-AIR-01 일정 지연 감지 (Jira SCRUM-127): 매일 UTC cron으로 규칙 기반 계산(LLM 미사용). 마감 경과(`OVERDUE`), 진척률이 기간 경과율보다 낮음(`PROGRESS_BEHIND`), 선행 지연 전파(`PREDECESSOR_DELAY`), 마일스톤 지연·예상(`MILESTONE_AT_RISK`)을 `risk_analysis_runs`·`risk_detections`에 저장. AI 진척률 추정은 미사용. 조회 API·점수·알림·병목·편중은 후속
 - 기술 stack: Java 17, Spring Boot 4.1.2 (Web MVC, Security, Data JPA, Data Redis, Validation, Flyway), jjwt 0.13, PostgreSQL, Redis 7.4
 
 ## 2. 개발 환경
@@ -121,6 +122,7 @@ org.wonik
 │  ├─ domain/code                    공통 코드(FR-ADM-07, code_groups·codes): CodeGroup, CommonCode, 화면용 조회 CodeController(/api/codes/{groupCode})·CodeQueryService
 │  ├─ domain/i18n                    다국어 라벨(FR-ADM-06, i18n_labels): I18nLabel, LabelLanguage(표시 언어 결정), 화면용 묶음 LabelController(/api/i18n/labels)·LabelBundleService
 │  ├─ domain/aidraft                 AI 초안·추정 기록(ai_drafts): AiDraft, AiDraftRecorder. 저장만 담당하고 AI 기능 로직은 각 도메인에 둔다
+│  ├─ domain/risk                    일정 지연 감지(FR-AIR-01): RiskAnalysisRunner·DelayDetectionService, policy/(Overdue·ProgressBehind·PredecessorDelay·MilestoneAtRisk), DelayRiskAnalysisScheduler
 │  ├─ domain/wbs                     WBS·일정·업무 (FR-WBS-01 계층형 WBS, FR-WBS-04 마일스톤, FR-PRJ-07 AI 초안 생성·반영, FR-TSK-01 업무 상세·변경 이력)
 │  │  ├─ controller                  WbsTaskController(트리 조회·등록·수정·이동·삭제), TaskController(업무 상세·상세 필드 수정·변경 이력), MilestoneController, WbsAiDraftController(초안 생성·승인 반영)
 │  │  ├─ service                     WbsTaskService(직접 편집·상위 기간 산출), TaskDetailService(업무 상세), TaskHistoryRecorder(변경 이력 기록, 모든 쓰기 경로가 사용), WbsTreeReader(트리 조립), WbsDraftGenerationService(AI 호출·토큰 발급), WbsDraftApplyService(토큰 소비·반영), WbsDraftContextReader, WbsItemWriter
@@ -358,7 +360,16 @@ org.wonik
 - 연결 작업: 같은 프로젝트의 작업·하위작업만(없는 ID·다른 프로젝트 ID 모두 400 `INVALID_MILESTONE_TASK`, 존재 여부를 구분하지 않음). 중복 ID는 한 번만 연결. 교체는 빠진 연결 삭제 + 새 연결 추가(남는 연결 행은 유지). 같은 목록 재전송은 version을 보지 않고 200(멱등). 연결이 바뀌면 마일스톤 `version`을 올려 이름 수정과 같은 낙관적 잠금으로 보호한다.
 - 삭제: PM만. 연결 정보(`milestone_tasks`)는 마일스톤에 딸린 데이터라 함께 지우고 작업은 남는다(작업 삭제는 마일스톤 연결이 있으면 409로 막는 것과 짝). 감사 로그 `MILESTONE_DELETED`(대상 `MILESTONE`, 프로젝트·이름·목표일·해제한 연결 수).
 - 목록은 페이지로 나누지 않는다(간트·대시보드가 전체를 그림). 대신 프로젝트당 200개 상한(409 `MILESTONE_LIMIT_EXCEEDED`, AI 초안 반영에도 적용), 마일스톤당 연결 작업 200개. 연결 작업은 조인 쿼리 한 번으로 읽는다(N+1 없음).
-- 범위 밖: 마감 알림(FR-NTF-01, Sprint 3), 마일스톤 지연 예상(FR-AIR-01).
+- 범위 밖: 마감 알림(FR-NTF-01, Sprint 3). 마일스톤 지연·예상 저장은 FR-AIR-01(`MILESTONE_AT_RISK`)이 맡는다(조회 API는 후속).
+
+### 일정 지연 감지 규칙 (FR-AIR-01, SCRUM-127)
+
+- 주체: BE 스케줄러(`DelayRiskAnalysisScheduler`). 기본 cron `0 30 0 * * *`(UTC), `app.risk-analysis.enabled`로 끌 수 있다. 임계값 UI(FR-ADM-03) 전까지 `app.risk-analysis.progress-behind-margin-percent`를 설정·환경변수로 두고 실행 시 `settings_snapshot`에 남긴다.
+- 대상: WBS 기능이 켜진 프로젝트 중 `COMPLETED`·`CANCELLED`가 아닌 것. 업무 날짜는 `BusinessCalendar`(Asia/Seoul).
+- 사유 코드(`detection_type=DELAY`): `OVERDUE`(미완료이고 종료일이 오늘보다 이전), `PROGRESS_BEHIND`(저장된 progress가 기간 경과율−마진보다 낮음, AI 추정 미사용), `PREDECESSOR_DELAY`(선행 마감 경과·미완료 → 미완료 후행, 후행당 최대 지연만), `MILESTONE_AT_RISK`(목표일 도래+미완료 연결, 또는 연결 작업 end_date가 목표일을 넘는 예상).
+- 저장: 하루 1회 `risk_analysis_runs`(UK `run_date`). 성공한 당일 재실행은 건너뛰고, FAILED·중단은 같은 행을 재사용한다. 감지 행은 `risk_detections`.
+- 범위 밖: 조회 API(UC-AIR-02), 병목·편중·파급효과·점수·대응·알림, `project_risk_scores`·`risk_responses` 테이블.
+- ERD: [10. AI 리스크·AI 초안 (ERD)](https://jnu-team-aaptc1y6.atlassian.net/wiki/spaces/CoreviaAI/pages/20512774).
 
 ### AI WBS 초안 규칙 (FR-PRJ-07)
 
@@ -410,7 +421,7 @@ org.wonik
 
 ## 7. Database와 Migration
 
-- 저장소: PostgreSQL (`users`, `local_credentials`, `login_history`, `departments`, `audit_logs`, `projects`, `project_departments`, `project_actors`, `project_features`, `project_members`, `project_phases`, `project_member_histories`, `wbs_tasks`, `wbs_dependencies`, `milestones`, `milestone_tasks`, `task_histories`, `board_columns`, `ai_drafts`, `code_groups`, `codes`, `i18n_labels`, `error_logs`), Redis (세션, AI 초안 토큰). 테이블 정의는 Confluence [BE_ERD](https://jnu-team-aaptc1y6.atlassian.net/wiki/spaces/CoreviaAI/folder/12878096) 도메인 페이지 참고. ERD 원본은 `docs/erd/`(draw.io: `01-user-auth`, `02-admin`, `04-wbs`, `05-task-board`), 시퀀스 원본은 `docs/sequence/`.
+- 저장소: PostgreSQL (`users`, `local_credentials`, `login_history`, `departments`, `audit_logs`, `projects`, `project_departments`, `project_actors`, `project_features`, `project_members`, `project_phases`, `project_member_histories`, `wbs_tasks`, `wbs_dependencies`, `milestones`, `milestone_tasks`, `task_histories`, `board_columns`, `ai_drafts`, `risk_analysis_runs`, `risk_detections`, `code_groups`, `codes`, `i18n_labels`, `error_logs`), Redis (세션, AI 초안 토큰). 테이블 정의는 Confluence [BE_ERD](https://jnu-team-aaptc1y6.atlassian.net/wiki/spaces/CoreviaAI/folder/12878096) 도메인 페이지 참고. ERD 원본은 `docs/erd/`(draw.io: `01-user-auth`, `02-admin`, `04-wbs`, `05-task-board`), 시퀀스 원본은 `docs/sequence/`.
 - 시각은 모두 UTC instant(`timestamptz`)로 저장한다. KST 표시는 응답·화면 경계에서 변환한다.
 - 동시성: 로그인 시 `users` → `local_credentials` 순서로 `SELECT … FOR UPDATE`해 같은 계정의 동시 로그인과 실패 횟수 갱신을 순서대로 처리한다. 비밀번호 변경·초기화는 `local_credentials`만 잠근다. 두 테이블 모두 `version`으로 낙관적 잠금도 건다.
 - 동시성(관리자 기능): `users`·`departments`는 `version` 낙관적 잠금으로 동시 수정을 막고 충돌 시 409 `CONCURRENT_MODIFICATION`. 마지막 관리자 보호는 활성 관리자 행을 `FOR UPDATE`로 잠근 뒤 확인한다. 아이디·부서 이름 중복은 사전 검사 + DB 유니크 제약으로 막는다(최상위 부서 이름은 NULL 특성상 사전 검사만).
@@ -420,6 +431,7 @@ org.wonik
 - V5(`V5__align_projects_with_final_spec.sql`, 요구사항명세 최종안 반영): `users.can_create_project` 삭제, `projects.start_date`·`end_date` NULL 허용, `projects.template` 추가(기존 행은 `IT_PROJECT`), `project_departments` 신설 후 `projects.department_id` 이관·삭제, `projects.pm_user_id` 삭제(PM은 `project_members.actor = PM`), `project_features` 신설(기존 행은 IT 템플릿 기본 모듈), 멤버 이력 CHECK에 `PM_ADDED`·`PM_RELEASED` 추가. 컬럼을 지우므로 같은 버전의 애플리케이션과 함께 배포해야 한다(이전 버전은 지운 컬럼을 읽음). 되돌릴 때는 컬럼을 다시 추가하고 새 테이블에서 값을 채우는 새 버전을 추가한다(roll-forward). 실행 전 운영 DB 백업을 확인한다.
 - V6(`V6__create_wbs.sql`): `wbs_tasks`, `wbs_dependencies`, `milestones`, `milestone_tasks`만 새로 만든다(기존 테이블 변경 없음). 단계(`project_phases`) 연결 컬럼은 두지 않는다(ERD 04). `source`·`dependency_type`은 닫힌 값이라 CHECK, `wbs_tasks.status`는 공통 코드 TASK_STATUS로 값이 늘 수 있어 CHECK 없음. 업무 상세 컬럼(유형·우선순위·칸반 컬럼 등)은 FR-TSK-01·02에서 추가한다. 되돌릴 때는 네 테이블을 지우는 새 버전을 추가한다.
 - V7(`V7__create_ai_drafts.sql`): `ai_drafts`(ERD 10)만 새로 만든다. `feature`·`status`는 닫힌 값이라 CHECK(AI 기능이 늘면 CHECK도 새 버전으로 수정). `output`은 TEXT(AI 결과 JSON). 보관 기간(1년, NFR-07) 정리는 FR-ADM-04. 되돌릴 때는 테이블을 지우는 새 버전을 추가한다.
+- V21(`V21__create_risk_analysis.sql`): `risk_analysis_runs`·`risk_detections`(ERD 10)만 새로 만든다. `status`·`detection_type`·`reason_code`·`target_type` CHECK, `uk_risk_analysis_runs_run_date`, 감지 인덱스 2개. 점수·대응 테이블은 후속. 되돌릴 때는 두 테이블을 지우는 새 버전을 추가한다.
 - V8(`V8__create_code_groups_and_codes.sql`): `code_groups`, `codes`만 새로 만들고 4개 그룹(RISK_LEVEL·TASK_STATUS·REQUEST_RESULT·PROJECT_STATUS)과 코드를 시드한다(기존 테이블 변경 없음). 되돌릴 때는 두 테이블을 지우는 새 버전을 추가한다.
 - 공통 코드 규칙(FR-ADM-07, NFR-20): 화면은 상태값을 하드코딩하지 않고 `GET /api/codes/{groupCode}`의 코드·`labelKey`로 표시한다. 코드 값·라벨 키는 고정이고 관리자는 정렬 순서만 바꾼다(재배포 없음). 코드 추가·삭제와 사용 여부(`active`) 변경은 마이그레이션으로만 한다(FR-ADM-07 인수 기준: 코드 값 수정·삭제 불가). 표시 텍스트는 라벨 키로 다국어 라벨(FR-ADM-06)에서 바꾼다. 라벨 키 규칙: 그룹 `codeGroup.<GROUP>`, 코드 `code.<GROUP>.<CODE>`(서버가 만듦, `CommonCode.groupLabelKey`·`codeLabelKey`). 코드 그룹·코드 추가와 enum과 짝인 그룹(TASK_STATUS = `WbsTaskStatus`, PROJECT_STATUS = `ProjectStatus`)의 값 변경은 기능 수정이라 새 마이그레이션 + enum 변경을 함께 한다(`CodeSeedConsistencyTest`가 어긋나면 실패).
 - V9(`V9__create_i18n_labels.sql`): `i18n_labels`만 새로 만들고 V8 공통 코드의 라벨 키 18개(그룹 4 + 코드 14)를 한국어·영어·번체 중국어로 시드한다(기존 테이블 변경 없음). 되돌릴 때는 테이블을 지우는 새 버전을 추가한다.
