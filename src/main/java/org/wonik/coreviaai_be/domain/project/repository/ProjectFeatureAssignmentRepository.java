@@ -16,4 +16,7 @@ public interface ProjectFeatureAssignmentRepository extends JpaRepository<Projec
 
 	/** 주어진 기능 모듈 중 하나라도 켜져 있는지. 여러 모듈이 함께 쓰는 API(업무 상세 등)에 쓴다. */
 	boolean existsByProjectIdAndFeatureIn(Long projectId, Collection<ProjectFeature> features);
+
+	/** 해당 기능이 켜진 프로젝트 목록(일일 리스크 계산 대상 선정, FR-AIR-01). */
+	List<ProjectFeatureAssignment> findAllByFeature(ProjectFeature feature);
 }
