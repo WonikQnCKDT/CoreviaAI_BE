@@ -7,6 +7,7 @@ package org.wonik.global.audit;
  */
 public enum AuditAction {
 	USER_CREATED,
+    USER_LANGUAGE_CHANGED,
 	USER_PROFILE_CHANGED,
 	USER_ROLE_CHANGED,
 	USER_ACTIVATED,
