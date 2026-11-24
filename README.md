@@ -16,12 +16,12 @@
   - FR-PRJ-01 프로젝트 생성 (Jira SCRUM-98): 생성 권한 제한 없음(활성 일반 사용자 전원), 단계형 생성(기본 정보 → 템플릿·운영 방식 → 사용자 정의 단계 → 액터 → 기능 구성 → 멤버(선택) → 게이트 승인자(선택)), 기간·주관 부서(0~N개) 후입력, 생성자 PM 자동 지정, 템플릿 기본 단계 또는 사용자 지정 단계 생성, 공개 범위에 따른 목록(필터·커서)·상세·멤버 목록(커서) 조회. MVP는 방법론 없음·폭포수, SW 액터만 선택 가능
   - FR-PRJ-06·09 기능 구성·템플릿(일부): 생성 시 기능 모듈 선택(Git 연동 비활성), 빈/IT 프로젝트 템플릿 기본값 제공. 관리자 템플릿 관리 화면과 설정 변경(FR-PRJ-14)은 후속
   - FR-ADM-07 공통 코드 관리 (Jira SCRUM-168): 코드 그룹(위험 수준·업무 진행 상태·요청 처리 결과·프로젝트 상태)과 코드 테이블, 관리자 정렬 순서 변경(코드 값은 고정: 추가·수정·삭제와 사용 여부 변경은 마이그레이션으로만, 감사 로그), 화면용 그룹별 코드 조회
-  - FR-ADM-06 다국어 라벨 관리 (Jira SCRUM-169): 한국어·영어·번체 중국어 라벨 테이블(`i18n_labels`, 라벨 키 + 언어별 컬럼), 화면용 언어별 라벨 묶음 조회(로그인 전 공개, 번역 누락은 한국어), 관리자 라벨 등록·문구 수정(낙관적 잠금)·키/문구 검색·번역 누락 필터, 문구 변경 이력(감사 로그). 표시 언어는 `lang` 파라미터 → `Accept-Language` → 한국어(사용자별 언어 저장 없음)
-  - FR-ADM-09 에러 로그 관리 (Jira SCRUM-170) + NFR-06 패턴 마스킹 일부 (Jira SCRUM-114): 전역 예외 처리기에 도달한 미처리 예외(500)를 `error_logs`에 별도 트랜잭션으로 기록(발생 시각·메서드·경로·사용자 ID·예외 클래스·마스킹한 메시지·원인 포함 스택), 사용자에게는 공통 500만 응답, 시스템 관리자 조회(기간·유형·경로 필터, 커서, 상세). 1년 보관 정리는 미구현
+  - FR-ADM-06 다국어 라벨 관리 (Jira SCRUM-169): 한국어·영어·번체 중국어 라벨 테이블(`i18n_labels`, 라벨 키 + 언어별 컬럼), 화면용 언어별 라벨 묶음 조회(로그인 전 공개, 번역 누락은 한국어), 관리자 라벨 등록·문구 수정(낙관적 잠금)·키/문구 검색·번역 누락 필터, 문구 변경 이력(감사 로그), 사용자별 표시 언어 저장·조회 및 저장 언어 기준 라벨 조회. 해외법인 기본값은 별도 법인 모델 확정 전 범위에서 제외
+  - FR-ADM-09 에러 로그 관리 (Jira SCRUM-170) + NFR-06 패턴 마스킹 일부 (Jira SCRUM-114): 전역 예외 처리기에 도달한 미처리 예외(500)를 `error_logs`에 별도 트랜잭션으로 기록(발생 시각·메서드·경로·사용자 ID·예외 클래스·마스킹한 메시지·원인 포함 스택), 사용자에게는 공통 500만 응답, 시스템 관리자 조회(기간·유형·경로 필터, 커서, 상세), UTC 기준 1년 초과 로그의 시간별 배치 정리
   - FR-WBS-01 계층형 WBS (Jira SCRUM-107): 작업 > 하위작업 2단계 트리 조회(한 번에, 담당자 이름 포함), 작업·하위작업 등록·수정(낙관적 잠금)·삭제(연결 있으면 거부)·드래그 이동(순서·계층 변경), 상위 작업 기간을 하위작업 기간으로 자동 산출(저장값 갱신). 권한은 3.3 WBS-01(PM 전체, 개발자·QA 본인 담당 작업 수정·그 아래 하위작업 추가). '단계' 레벨 표현은 미결
   - FR-WBS-03 선후행 관계 (Jira SCRUM-118): 완료→시작 선행 작업 목록 조회·전체 교체·해제, 같은 프로젝트 작업만 허용하고 자기 참조·간접 순환을 차단. 선행 작업이 종료일을 넘긴 채 미완료이면 한국 날짜 기준 지연 일수와 후행 영향 여부를 계산. 권한은 PM 전체, 개발자·QA 본인 담당 후행 작업 변경, 프로젝트 열람 가능자는 조회
   - FR-WBS-04 마일스톤 (Jira SCRUM-108): 마일스톤 목록(목표일 순)·상세, 등록(출처 MANUAL)·이름·목표일 수정(낙관적 잠금)·삭제(연결 정보 함께 삭제, 감사 로그), 연결 작업 전체 교체(같은 프로젝트 작업만). D-day와 지연 경고(목표일 당일부터, 연결 작업 중 미완료가 있으면)를 조회 때 한국 시간 기준으로 계산(저장 안 함). 권한은 3.3 WBS-04(PM C·U·D, 그 밖 조회). 알림(FR-NTF-01)은 Sprint 3
-  - FR-TSK-01 업무 CRUD (Jira SCRUM-109): 업무 = WBS 작업·하위작업. 업무 상세 조회, 유형(TASK·DEFECT)·우선순위(HIGH·MEDIUM·LOW)·완료 조건 수정(낙관적 잠금, WBS 등록 때 선택 입력 가능), 변경 이력(`task_histories`: 등록·배정·해제·일정·상세·이동·삭제, 업무별 시간순 커서 조회). 등록·담당자 배정·기간·삭제는 FR-WBS-01 API를 그대로 쓴다. 담당자 TODO 반영은 FR-PSN-01(SCRUM-111)이 조회 때 `assignee_user_id`로 합침, 일정(FR-PSN-02)은 Sprint 3, AI 공수 추정(FR-AIR-15)은 Sprint 5
+  - FR-TSK-01 업무 CRUD (Jira SCRUM-109): 업무 = WBS 작업·하위작업. 업무 상세 조회, 유형(TASK·DEFECT)·우선순위(HIGH·MEDIUM·LOW)·완료 조건 수정(낙관적 잠금, WBS 등록 때 선택 입력 가능), 변경 이력(`task_histories`: 등록·배정·해제·일정·상세·이동·삭제, 업무별 시간순 커서 조회). 등록·담당자 배정·기간·삭제는 FR-WBS-01 API를 그대로 쓴다. 담당자 TODO와 개인 통합 일정은 `assignee_user_id` 원본을 조회하므로 배정·재배정·기간·상태 변경이 복제 없이 즉시 반영
   - FR-PRJ-04 멤버·역할 관리 (Jira SCRUM-106): 멤버 초대·역할 변경·제외(PM만), 복수 PM(역할 변경으로 추가·해제, 최소 1명), 멤버 이력, PM 재지정(활성 PM이 없을 때 시스템 관리자). 담당 업무 수는 완료 여부와 관계없이 해당 프로젝트의 담당 업무·하위 업무를 집계하며, 미완료 담당 업무가 있으면 멤버를 제외할 수 없다.
 - 기술 stack: Java 17, Spring Boot 4.1.2 (Web MVC, Security, Data JPA, Data Redis, Validation, Flyway), jjwt 0.13, PostgreSQL, Redis 7.4
 
@@ -198,6 +198,8 @@ org.wonik
 | GET | `/api/admin/error-logs` | SYSTEM_ADMIN | 에러 로그 목록(커서, 최신순, 스택 제외). `cursor`, `size`, `from`(포함)·`to`(제외) ISO-8601 UTC, `errorType`(예외 클래스 정확히 일치), `apiPath`(경로 앞부분 일치). from ≥ to면 400 `INVALID_PERIOD` |
 | GET | `/api/admin/error-logs/{errorLogId}` | SYSTEM_ADMIN | 에러 로그 상세(마스킹된 스택 트레이스 포함). 없으면 404 `ERROR_LOG_NOT_FOUND`. 수정·삭제 API 없음 |
 | GET | `/api/i18n/labels` | 불필요(공개) | 화면용 라벨 묶음 `{lang, labels: {키: 문구}}`. 언어 `lang` → `Accept-Language` → ko, 번역 누락은 한국어. 비밀번호 변경 강제 세션도 허용 |
+| GET·PUT | `/api/me/language` | 로그인 사용자 | 본인의 저장 언어(`ko`·`en`·`zh-TW`, null이면 ko) 조회·변경. PUT은 `version` 낙관적 잠금과 감사 로그를 사용 |
+| GET | `/api/me/language/labels` | 로그인 사용자 | 저장된 사용자 언어로 라벨 묶음 조회. 응답은 `no-store` |
 | GET | `/api/projects/creation-options` | USER·EXECUTIVE | 생성 화면 ②·③·④ 선택지(템플릿 기본값, 운영 방식, 부서 유형별 액터, 기능 모듈. `enabled`·`required`) |
 | GET | `/api/projects/code-availability` | 활성 USER | `?code=` 코드 중복 확인(대문자로 정규화한 코드와 `available`) |
 | POST | `/api/projects` | 활성 USER | 프로젝트 생성. `template`·`features`·`departmentIds`(0~N) 필수 형식, 기간·`phases` 선택. `phases` 생략 시 템플릿 기본값, 빈 배열이면 0개, 값이 있으면 사용자 정의 단계 생성. 생성자 PM 자동 지정, 감사 로그(`PROJECT_CREATED`). 응답은 상세 |
@@ -376,7 +378,8 @@ org.wonik
 - offset 페이지: `page`는 0부터(기본 0), `size`는 1~100(기본 20). `response`는 `{items, page, size, hasNext}`이며 `startAt`, `id` 오름차순이다. `hasNext`일 때 다음 페이지를 요청한다.
 - `POST /api/me/events`는 등록(201), `PATCH /api/me/events/{eventId}`는 전체 필드 교체이다. 타인 일정 수정과 없는 일정은 모두 404이다.
 - V17은 `personal_events`를 추가한다. develop의 기존 V15·V16을 보존한다. 이미 이전 번호로 적용한 DB에는 자동 repair를 실행하지 말고 이력을 점검한다.
-- 담당 업무·마일스톤·회의 일정의 통합 조회, 프로젝트별 색상, 날짜별 업무·노트 연결은 미구현이므로 FR-PSN-02 전체 완료가 아니다.
+- `GET /api/me/calendar?from&to&page&size`는 개인 일정과 현재 담당 업무를 통합 조회한다. 업무 기간은 한국 날짜의 시작부터 종료일 다음 날 00:00까지이며 재배정·기간·상태 변경을 WBS 원본에서 즉시 읽는다.
+- 마일스톤·회의 일정 통합과 프로젝트별 색상은 후속 범위다.
 - API 명세: [06-2. 개인 일정·업무일지](https://jnu-team-aaptc1y6.atlassian.net/wiki/spaces/CoreviaAI/pages/23396356), [PR #32 인수 조건 평가](docs/reviews/SCRUM-120-pr32.md).
 
 ### 업무일지 API (FR-PSN-03, SCRUM-121)
@@ -384,9 +387,10 @@ org.wonik
 - `GET /api/me/worklogs?from&to`: 날짜 양끝 포함 최대 366일의 본인 노트, 저장된 날짜만 반환한다. 날짜당 1건이므로 최대 366건이다.
 - `GET /api/me/worklogs/{logDate}`: 본인 노트 조회, 없으면 404. `PUT`은 생성·교체이며 본문은 최대 10,000자, 같은 내용 재저장 시 수정 시각을 유지한다.
 - 첫 동시 저장은 `users` 행 잠금과 `(user_id, log_date)` 유일 제약으로 직렬화한다. 직접 JPA 잠금의 timeout/실패는 원문·DB 정보를 노출하지 않는 409 `CONCURRENT_MODIFICATION`으로 변환한다.
-- V18은 `worklogs`를 추가한다. V15·V16은 develop의 기존 마이그레이션이고 V17은 개인 일정이다.
-- 업무 연결·진척률·소요 시간·완료 반영, 상위 진척률 갱신과 연결 프로젝트 PM 원문 조회는 미구현이므로 FR-PSN-03 전체 완료가 아니다.
-- [PR #33 인수 조건 평가](docs/reviews/SCRUM-121-pr33.md), [저장 시퀀스](docs/sequence/06-4-worklog-upsert.md).
+- `PUT /api/me/worklogs/{logDate}/tasks/{taskId}`는 본인 담당 업무의 연결 본문·진척률·당일 소요 시간·완료를 한 트랜잭션으로 반영한다. 완료는 100%를 요구하고 하위업무 변경 시 상위 진척률을 가중 집계한다.
+- `GET /api/me/worklogs/{logDate}/tasks`는 본인 연결 기록, `GET /api/projects/{projectId}/worklogs?from&to`는 PM에게 해당 프로젝트의 연결 기록만 반환한다. 개인 날짜별 본문은 PM에게 노출하지 않는다.
+- V18은 `worklogs`, V19는 `worklog_tasks`, V20은 사용자 표시 언어를 추가한다.
+- [연동 결정](docs/adr/SCRUM-109-121-personal-task-integration.md), [개인 본문 저장 시퀀스](docs/sequence/06-4-worklog-upsert.md), [연결 업무 저장 시퀀스](docs/sequence/06-5-worklog-task-save.md).
 
 ### 목록 페이지네이션 (커서)
 

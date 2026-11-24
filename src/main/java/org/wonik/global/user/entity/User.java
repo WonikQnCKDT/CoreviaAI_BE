@@ -65,6 +65,13 @@ public class User extends BaseTimeEntity {
 	@Column(name = "last_login_at")
 	private Instant lastLoginAt;
 
+    @Column(name = "preferred_language", length = 5)
+    private String preferredLanguage;
+
+    public void changePreferredLanguage(final String language) {
+        this.preferredLanguage = language;
+    }
+
 	@Version
 	@Column(name = "version", nullable = false)
 	private long version;
