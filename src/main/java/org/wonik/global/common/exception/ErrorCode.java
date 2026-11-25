@@ -74,6 +74,7 @@ public enum ErrorCode {
 	PROJECT_PM_ONLY(403, "프로젝트 PM만 할 수 있는 작업입니다"),
 	WBS_TASK_ASSIGNEE_ONLY(403, "본인이 담당한 작업만 수정하거나 하위작업을 추가할 수 있습니다"),
 	MEETING_WRITE_FORBIDDEN(403, "회의록은 프로젝트 멤버가 작성하고 작성자 또는 PM이 수정·삭제할 수 있습니다"),
+	OVERLOAD_VIEW_FORBIDDEN(403, "인력 편중은 PM, 본인 담당 개발자·QA, 소속 범위의 경영진만 조회할 수 있습니다"),
 
 	USER_NOT_FOUND(404, "사용자를 찾을 수 없습니다"),
 	NOT_FOUND(404, "페이지를 찾을 수 없습니다"),

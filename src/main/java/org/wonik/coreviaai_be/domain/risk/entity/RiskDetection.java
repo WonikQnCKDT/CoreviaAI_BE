@@ -88,6 +88,24 @@ public class RiskDetection {
 		this.details = details;
 	}
 
+	public static RiskDetection overload(
+		final Long runId,
+		final Long projectId,
+		final Long userId,
+		final BigDecimal allocationPercent,
+		final String details
+	) {
+		return new RiskDetection(
+			runId,
+			projectId,
+			RiskDetectionType.OVERLOAD,
+			RiskReasonCode.OVER_ALLOCATION,
+			RiskTargetType.USER,
+			userId,
+			allocationPercent,
+			details);
+	}
+
 	public static RiskDetection delay(
 		final Long runId,
 		final Long projectId,

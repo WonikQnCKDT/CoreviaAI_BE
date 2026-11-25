@@ -23,6 +23,7 @@ import org.wonik.coreviaai_be.domain.project.entity.type.ProjectVisibility;
 import org.wonik.coreviaai_be.domain.project.repository.ProjectFeatureAssignmentRepository;
 import org.wonik.coreviaai_be.domain.project.repository.ProjectRepository;
 import org.wonik.coreviaai_be.domain.risk.entity.RiskDetection;
+import org.wonik.coreviaai_be.domain.risk.entity.type.RiskDetectionType;
 import org.wonik.coreviaai_be.domain.risk.entity.type.RiskReasonCode;
 import org.wonik.coreviaai_be.domain.risk.entity.type.RiskRunStatus;
 import org.wonik.coreviaai_be.domain.risk.repository.RiskAnalysisRunRepository;
@@ -119,9 +120,10 @@ class RiskAnalysisIntegrationTest extends ApiIntegrationTestSupport {
 
 		final var run = runRepository.findByRunDate(TODAY).orElseThrow();
 		assertThat(run.getStatus()).isEqualTo(RiskRunStatus.SUCCEEDED);
-		assertThat(run.getSettingsSnapshot()).contains("progressBehindMarginPercent");
+		assertThat(run.getSettingsSnapshot()).contains("progressBehindMarginPercent", "overloadThresholdPercent");
 
 		final List<RiskDetection> detections = detectionRepository.findAllByRunIdOrderByIdAsc(run.getId());
+		assertThat(detections).extracting(RiskDetection::getDetectionType).doesNotContain(RiskDetectionType.OVERLOAD);
 		assertThat(detections).extracting(RiskDetection::getReasonCode)
 			.contains(
 				RiskReasonCode.OVERDUE,
