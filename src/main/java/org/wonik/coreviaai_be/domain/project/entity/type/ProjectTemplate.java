@@ -14,7 +14,8 @@ import lombok.Getter;
  *   <li>EMPTY: 단계·게이트 없음. IT 개발 외 일반 업무·회의록·일정·파일 관리용</li>
  *   <li>IT_PROJECT: 기본 5단계 이름·SW 액터·기능 모듈을 제안하며, 생성 전에 단계 구성을 바꿀 수 있음</li>
  * </ul>
- * SW·제조 세부 유형 템플릿과 관리자 템플릿 관리 화면(FR-PRJ-09)은 후속 이슈에서 추가한다.
+ * 생성에 쓰는 기본값은 project_templates에 저장하고 관리자가 고친다(FR-PRJ-09). 이 enum은 템플릿 키와
+ * 최초 시드 설명이다. SW·제조 세부 유형 템플릿은 후속 이슈에서 추가한다.
  */
 @Getter
 public enum ProjectTemplate {

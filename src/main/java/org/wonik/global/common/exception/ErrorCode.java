@@ -38,6 +38,8 @@ public enum ErrorCode {
 	GATE_APPROVER_CANNOT_BE_PM(400, "PM은 게이트 승인자로 지정할 수 없습니다"),
 	DUPLICATE_PROJECT_DEPARTMENT(400, "같은 주관 부서를 두 번 지정할 수 없습니다"),
 	FEATURE_NOT_AVAILABLE(400, "선택한 운영 방식에서 사용할 수 없는 기능 모듈입니다"),
+	TEMPLATE_NOT_FOUND(404, "프로젝트 템플릿을 찾을 수 없습니다"),
+	INVALID_TEMPLATE_CONFIG(400, "템플릿 기본값을 확인해 주세요. 단계 이름·액터·기능 모듈·필수 산출물이 서로 맞아야 합니다"),
 	GATE_APPROVER_NOT_AVAILABLE(400, "단계가 없는 운영 방식에서는 게이트 승인자를 지정할 수 없습니다"),
 	INVALID_PM_TARGET(400, "PM은 활성 멤버만 지정할 수 있습니다"),
 	PM_TARGET_IS_GATE_APPROVER(400, "게이트 승인자는 PM이 될 수 없습니다. 승인자 지정을 먼저 해제해 주세요"),

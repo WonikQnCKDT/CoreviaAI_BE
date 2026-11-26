@@ -27,6 +27,7 @@ import org.wonik.coreviaai_be.domain.project.entity.type.ProjectStatus;
 import org.wonik.coreviaai_be.domain.project.service.ProjectCreationService;
 import org.wonik.coreviaai_be.domain.project.service.ProjectPhaseService;
 import org.wonik.coreviaai_be.domain.project.service.ProjectQueryService;
+import org.wonik.coreviaai_be.domain.project.service.ProjectTemplateService;
 import org.wonik.coreviaai_be.domain.project.service.result.ProjectPhasesResult;
 import org.wonik.global.audit.AuditActor;
 import org.wonik.global.common.pagination.CursorPage;
@@ -53,6 +54,7 @@ public class ProjectController {
 	private final ProjectCreationService projectCreationService;
 	private final ProjectQueryService projectQueryService;
 	private final ProjectPhaseService projectPhaseService;
+	private final ProjectTemplateService projectTemplateService;
 
 	@GetMapping
 	public ApiResponse<CursorPage<ProjectSummaryResponse>> findPage(
@@ -146,7 +148,7 @@ public class ProjectController {
 	/** 생성 화면 ②·③·④의 선택지(템플릿 기본값, 활성·필수 여부 포함). */
 	@GetMapping("/creation-options")
 	public ApiResponse<CreationOptionsResponse> creationOptions() {
-		return ApiResponse.success(CreationOptionsResponse.current());
+		return ApiResponse.success(projectTemplateService.creationOptions());
 	}
 
 	/** 생성 화면 ①의 코드 중복 확인. 프로젝트를 생성할 수 있는 사용자(활성 일반 사용자)만 호출할 수 있다. */

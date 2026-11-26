@@ -6,7 +6,6 @@ import java.util.List;
 import org.wonik.coreviaai_be.domain.project.entity.type.DepartmentType;
 import org.wonik.coreviaai_be.domain.project.entity.type.Methodology;
 import org.wonik.coreviaai_be.domain.project.entity.type.ProjectFeature;
-import org.wonik.coreviaai_be.domain.project.entity.type.ProjectTemplate;
 
 /**
  * 생성 화면 ②·③·④의 선택지. MVP 범위(단계 없음·폭포수, SW 액터)를 FE가 하드코딩하지 않고 서버 enum 설정을 그대로 따르게 한다.
@@ -19,9 +18,9 @@ public record CreationOptionsResponse(
 	List<FeatureOptionResponse> features
 ) {
 
-	public static CreationOptionsResponse current() {
+	public static CreationOptionsResponse of(final List<TemplateOptionResponse> templates) {
 		return new CreationOptionsResponse(
-			Arrays.stream(ProjectTemplate.values()).map(TemplateOptionResponse::from).toList(),
+			templates,
 			Arrays.stream(Methodology.values()).map(MethodologyOptionResponse::from).toList(),
 			Arrays.stream(DepartmentType.values()).map(DepartmentTypeOptionResponse::from).toList(),
 			Arrays.stream(ProjectFeature.values()).map(FeatureOptionResponse::from).toList()
