@@ -25,7 +25,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 /**
- * 프로젝트(FR-PRJ-01). 템플릿·운영 방식·부서 유형은 생성 시 정하고, 생성 후 변경(FR-PRJ-14)은 후속 이슈에서 다룬다.
+ * 프로젝트(FR-PRJ-01). 기간·공개 범위·운영 방식은 생성 후에도 PM이 바꿀 수 있다(FR-PRJ-14).
  * <p>
  * PM은 복수로 지정할 수 있어(FR-PRJ-04) 프로젝트 행이 아니라 PM 역할 멤버(project_members.actor = PM)로 관리한다.
  * createdBy는 최초 생성자 기록일 뿐 권한 판정에 쓰지 않는다. 주관 부서(0~N개)는 ProjectDepartment,
@@ -123,5 +123,15 @@ public class Project extends BaseTimeEntity {
 	) {
 		return new Project(code, name, startDate, endDate, visibility, template, methodology, departmentType,
 			creatorUserId);
+	}
+
+	public void changeBasicInfo(final LocalDate startDate, final LocalDate endDate, final ProjectVisibility visibility) {
+		this.startDate = startDate;
+		this.endDate = endDate;
+		this.visibility = visibility;
+	}
+
+	public void changeMethodology(final Methodology methodology) {
+		this.methodology = methodology;
 	}
 }
