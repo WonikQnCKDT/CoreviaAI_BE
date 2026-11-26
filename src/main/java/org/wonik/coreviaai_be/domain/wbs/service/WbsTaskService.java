@@ -2,10 +2,15 @@ package org.wonik.coreviaai_be.domain.wbs.service;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.wonik.coreviaai_be.domain.notification.entity.NotificationTargetType;
+import org.wonik.coreviaai_be.domain.notification.entity.NotificationType;
+import org.wonik.coreviaai_be.domain.notification.service.NotificationService;
+import org.wonik.coreviaai_be.domain.notification.service.command.PublishNotification;
 import org.wonik.coreviaai_be.domain.project.repository.ProjectPhaseRepository;
 import org.wonik.coreviaai_be.domain.wbs.entity.TaskDetails;
 import org.wonik.coreviaai_be.domain.wbs.entity.TaskSnapshot;
@@ -67,6 +72,7 @@ public class WbsTaskService {
 	private final WbsTreeReader treeReader;
 	private final TaskHistoryRecorder historyRecorder;
 	private final AuditLogger auditLogger;
+	private final NotificationService notificationService;
 
 	@Transactional(readOnly = true)
 	public List<WbsTreeNode> findTree(final Long userId, final Long projectId) {
@@ -111,6 +117,7 @@ public class WbsTaskService {
 		task.placeOnBoard(boardColumnRepository.findInitialColumnId(projectId));
 		taskRepository.saveAndFlush(task);
 		historyRecorder.created(actor.userId(), List.of(task));
+		notifyAssigned(actor.userId(), task);
 		if (parent != null) {
 			deriveParentAggregates(actor.userId(), parent);
 		}
@@ -158,6 +165,9 @@ public class WbsTaskService {
 		}
 		taskRepository.flush();
 		historyRecorder.changed(actor.userId(), before, TaskSnapshot.of(task));
+		if (!Objects.equals(before.assigneeUserId(), task.getAssigneeUserId())) {
+			notifyAssigned(actor.userId(), task);
+		}
 		if (task.isSubtask()) {
 			deriveParentAggregates(actor.userId(), getTask(projectId, task.getParentTaskId()));
 		}
@@ -321,6 +331,19 @@ public class WbsTaskService {
 				taskRepository.updateSortOrder(task.getId(), i + 1);
 			}
 		}
+	}
+
+	private void notifyAssigned(final Long actorUserId, final WbsTask task) {
+		notificationService.publish(new PublishNotification(
+			task.getAssigneeUserId(),
+			actorUserId,
+			NotificationType.ASSIGNED,
+			task.getProjectId(),
+			NotificationTargetType.TASK,
+			task.getId(),
+			"notification.assigned",
+			Map.of("taskName", task.getName())
+		));
 	}
 
 	private WbsTaskChange changed(final Long taskId, final Long projectId) {
