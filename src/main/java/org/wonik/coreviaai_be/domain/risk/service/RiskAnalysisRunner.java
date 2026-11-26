@@ -29,7 +29,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * 일일 리스크 계산 오케스트레이션(UC-AIR-01의 일정 지연 부분, FR-AIR-01).
+ * 일일 리스크 계산 오케스트레이션. 일정 지연(FR-AIR-01)과 인력 편중(FR-AIR-03)을 한 실행에 남긴다.
  * 성공한 당일 실행은 건너뛰고, FAILED·RUNNING(중단)은 같은 run_date 행을 재사용한다.
  */
 @Service
@@ -45,6 +45,7 @@ public class RiskAnalysisRunner {
 	private final ProjectFeatureAssignmentRepository featureAssignmentRepository;
 	private final ProjectRepository projectRepository;
 	private final DelayDetectionService delayDetectionService;
+	private final OverloadDetectionService overloadDetectionService;
 	private final RiskAnalysisProperties properties;
 	private final Clock clock;
 
@@ -84,6 +85,15 @@ public class RiskAnalysisRunner {
 						item.metricValue(),
 						item.detailsJson()));
 				}
+				for (final DetectedRisk item : overloadDetectionService.detectForProject(
+					projectId, properties.overloadThresholdPercent())) {
+					toSave.add(RiskDetection.overload(
+						run.getId(),
+						item.projectId(),
+						item.targetId(),
+						item.metricValue(),
+						item.detailsJson()));
+				}
 			}
 			if (!toSave.isEmpty()) {
 				detectionRepository.saveAll(toSave);
@@ -118,6 +128,7 @@ public class RiskAnalysisRunner {
 
 	private String settingsSnapshotJson() {
 		return "{\"progressBehindMarginPercent\":" + properties.progressBehindMarginPercent()
+			+ ",\"overloadThresholdPercent\":" + properties.overloadThresholdPercent()
 			+ ",\"cron\":\"" + escapeJson(properties.cron()) + "\"}";
 	}
 
