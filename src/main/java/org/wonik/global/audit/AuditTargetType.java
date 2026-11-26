@@ -5,6 +5,8 @@ package org.wonik.global.audit;
  */
 public enum AuditTargetType {
 	USER,
+	/** 계정 신청(account_requests.id) */
+	ACCOUNT_REQUEST,
 	DEPARTMENT,
 	PROJECT,
 	PERSONAL_TODO,

@@ -50,6 +50,7 @@ public class DatabaseCleaner {
 		jdbcTemplate.update("DELETE FROM error_logs");
 		jdbcTemplate.update("DELETE FROM login_history");
 		jdbcTemplate.update("DELETE FROM local_credentials");
+		jdbcTemplate.update("DELETE FROM account_requests");
 		jdbcTemplate.update("DELETE FROM users");
 		// 부서는 상위 참조를 먼저 끊고 지운다.
 		jdbcTemplate.update("UPDATE departments SET parent_id = NULL");
