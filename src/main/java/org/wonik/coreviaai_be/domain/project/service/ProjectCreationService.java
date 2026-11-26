@@ -67,6 +67,7 @@ public class ProjectCreationService {
 	private final ProjectMemberService memberService;
 	private final List<ProjectDefaultDataInitializer> defaultDataInitializers;
 	private final AuditLogger auditLogger;
+	private final ProjectTemplateService templateService;
 
 	/**
 	 * code가 자연 키다. 같은 요청이 재전송되면 두 번째는 DUPLICATE_PROJECT_CODE(409)로 끝나고 프로젝트는 하나만 생긴다.
@@ -74,8 +75,9 @@ public class ProjectCreationService {
 	 * @return 생성한 프로젝트 ID
 	 */
 	@Transactional
-	public Long create(final AuditActor actor, final CreateProjectCommand command) {
+	public Long create(final AuditActor actor, CreateProjectCommand command) {
 		final User creator = requireProjectCreator(actor.userId());
+		command = applyTemplatePhases(command);
 		creationPolicy.validate(command, creator.getId());
 		requireAssignableDepartments(command.departmentIds());
 		memberService.requireInvitableUsers(command.members().stream().map(InitialMember::userId).toList());
@@ -124,6 +126,30 @@ public class ProjectCreationService {
 			.value("memberUserIds", command.members().stream().map(InitialMember::userId).sorted().toList())
 			.value("gateApproverUserId", command.gateApproverUserId()));
 		return project.getId();
+	}
+
+	/** phases를 생략하면 지금 저장된 템플릿 기본 단계를 쓴다. 요청에 단계가 있으면 그 값을 유지한다. */
+	private CreateProjectCommand applyTemplatePhases(final CreateProjectCommand command) {
+		if (command.phases() != null) {
+			return command;
+		}
+		final List<String> phases = templateService.defaultPhases(command.template());
+		return new CreateProjectCommand(
+			command.name(),
+			command.code(),
+			command.startDate(),
+			command.endDate(),
+			command.departmentIds(),
+			command.visibility(),
+			command.template(),
+			command.methodology(),
+			phases,
+			command.departmentType(),
+			command.actors(),
+			command.features(),
+			command.members(),
+			command.gateApproverUserId()
+		);
 	}
 
 	/** ① 단계에서 입력 중인 코드의 중복을 미리 확인한다. 최종 판정은 생성 시점의 UNIQUE 제약이 한다. */

@@ -46,6 +46,7 @@ public class DatabaseCleaner {
 		jdbcTemplate.update("DELETE FROM project_departments");
 		jdbcTemplate.update("DELETE FROM project_features");
 		jdbcTemplate.update("DELETE FROM projects");
+		// project_templates는 V25 시드다. 테스트가 기본값을 바꾸면 그 테스트가 원래 값으로 되돌린다.
 		jdbcTemplate.update("DELETE FROM audit_logs");
 		jdbcTemplate.update("DELETE FROM error_logs");
 		jdbcTemplate.update("DELETE FROM login_history");

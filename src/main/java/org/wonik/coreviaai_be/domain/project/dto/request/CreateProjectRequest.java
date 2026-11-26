@@ -78,7 +78,7 @@ public record CreateProjectRequest(
 	public static final int MAX_PHASES = 20;
 	public static final int MAX_PHASE_NAME_LENGTH = 100;
 
-	/** departmentIds·members를 생략하면 빈 목록으로 본다(주관 부서 없음, PM만 있는 프로젝트). */
+	/** departmentIds·members를 생략하면 빈 목록으로 본다. phases를 생략하면 템플릿에 저장된 기본 단계를 쓴다. */
 	public CreateProjectCommand toCommand() {
 		return new CreateProjectCommand(
 			name,
@@ -89,7 +89,7 @@ public record CreateProjectRequest(
 			visibility,
 			template,
 			methodology,
-			phases == null ? template.getDefaultPhases() : phases.stream().map(String::strip).toList(),
+			phases == null ? null : phases.stream().map(String::strip).toList(),
 			departmentType,
 			Set.copyOf(actors),
 			Set.copyOf(features),

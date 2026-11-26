@@ -7,6 +7,8 @@ public enum AuditTargetType {
 	USER,
 	DEPARTMENT,
 	PROJECT,
+	/** 프로젝트 템플릿(project_templates.id) */
+	PROJECT_TEMPLATE,
 	PERSONAL_TODO,
 	/** 공통 코드(codes.id) */
 	CODE,
