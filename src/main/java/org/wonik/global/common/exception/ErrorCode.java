@@ -87,6 +87,7 @@ public enum ErrorCode {
 	CODE_GROUP_NOT_FOUND(404, "코드 그룹을 찾을 수 없습니다"),
 	CODE_NOT_FOUND(404, "코드를 찾을 수 없습니다"),
 	LABEL_NOT_FOUND(404, "다국어 라벨을 찾을 수 없습니다"),
+	MENU_NOT_FOUND(404, "메뉴를 찾을 수 없습니다"),
 	ERROR_LOG_NOT_FOUND(404, "에러 로그를 찾을 수 없습니다"),
 	WBS_TASK_NOT_FOUND(404, "WBS 작업을 찾을 수 없습니다"),
 	MILESTONE_NOT_FOUND(404, "마일스톤을 찾을 수 없습니다"),

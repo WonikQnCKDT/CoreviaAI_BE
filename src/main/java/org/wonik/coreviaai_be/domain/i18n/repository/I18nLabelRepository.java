@@ -1,5 +1,6 @@
 package org.wonik.coreviaai_be.domain.i18n.repository;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -12,6 +13,8 @@ import org.wonik.coreviaai_be.domain.i18n.entity.I18nLabel;
 public interface I18nLabelRepository extends JpaRepository<I18nLabel, Long> {
 
 	Optional<I18nLabel> findByLabelKey(String labelKey);
+
+	List<I18nLabel> findAllByLabelKeyIn(Collection<String> labelKeys);
 
 	boolean existsByLabelKey(String labelKey);
 
