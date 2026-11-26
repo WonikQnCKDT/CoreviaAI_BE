@@ -39,6 +39,7 @@ public class DatabaseCleaner {
 		jdbcTemplate.update("DELETE FROM wbs_tasks");
 		// 칸반 컬럼은 작업(board_column_id)이 참조하므로 작업 다음에 지운다.
 		jdbcTemplate.update("DELETE FROM board_columns");
+		jdbcTemplate.update("DELETE FROM project_setting_histories");
 		jdbcTemplate.update("DELETE FROM project_member_histories");
 		jdbcTemplate.update("DELETE FROM project_phases");
 		jdbcTemplate.update("DELETE FROM project_members");

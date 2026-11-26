@@ -42,7 +42,8 @@ public record ProjectDetailResponse(
 	List<ProjectFeature> features,
 	int progress,
 	Instant createdAt,
-	Instant updatedAt
+	Instant updatedAt,
+	long version
 ) {
 
 	public static ProjectDetailResponse from(final ProjectDetailResult result) {
@@ -65,7 +66,8 @@ public record ProjectDetailResponse(
 			result.features(),
 			result.progress(),
 			project.getCreatedAt(),
-			project.getUpdatedAt()
+			project.getUpdatedAt(),
+			project.getVersion()
 		);
 	}
 }
