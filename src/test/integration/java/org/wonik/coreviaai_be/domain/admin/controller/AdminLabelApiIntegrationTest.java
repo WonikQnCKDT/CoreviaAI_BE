@@ -234,8 +234,8 @@ class AdminLabelApiIntegrationTest extends AdminApiTestSupport {
 		// _ 는 와일드카드가 아니라 글자: beta_x만 찾고 abx(a?x)는 제외
 		assertThat(ids(readResponse(getAs(adminCookie, LABELS + "?keyword=a_x")))).containsExactly(b.getId());
 		assertThat(ids(readResponse(getAs(adminCookie, LABELS + "?keyword={keyword}", "100%")))).containsExactly(c.getId());
-		// 검색어가 없으면 시드 라벨까지 전체
-		assertThat(readResponse(getAs(adminCookie, LABELS + "?size=100")).get("items").size()).isEqualTo(18 + 3);
+		// 검색어가 없으면 시드 라벨까지 전체. V9 코드 라벨 18개와 V24 메뉴 라벨 5개.
+		assertThat(readResponse(getAs(adminCookie, LABELS + "?size=100")).get("items").size()).isEqualTo(18 + 5 + 3);
 	}
 
 	@Test
