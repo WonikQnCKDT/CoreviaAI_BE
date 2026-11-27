@@ -4,6 +4,9 @@ import org.springframework.stereotype.Service;
 import org.wonik.aiserver.domain.wbs.api.AiWbsDraftResult;
 import org.wonik.aiserver.domain.wbs.api.AiWbsGenerateRequest;
 import org.wonik.aiserver.domain.wbs.api.WbsDraftGenerator;
+import org.wonik.aiserver.domain.wbs.policy.WbsDraftResponseParser;
+import org.wonik.aiserver.domain.wbs.policy.WbsDraftResultNormalizer;
+import org.wonik.aiserver.domain.wbs.policy.WbsDraftResultValidator;
 import org.wonik.aiserver.llm.LlmClient;
 
 /**

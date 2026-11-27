@@ -1,4 +1,4 @@
-package org.wonik.aiserver.domain.wbs.service;
+package org.wonik.aiserver.domain.wbs.policy;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;

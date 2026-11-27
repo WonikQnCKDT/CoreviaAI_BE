@@ -1,4 +1,4 @@
-package org.wonik.aiserver.domain.wbs.service;
+package org.wonik.aiserver.domain.wbs.policy;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
