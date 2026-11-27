@@ -1,4 +1,4 @@
-package org.wonik.aiserver.llm;
+package org.wonik.global.common.time;
 
 import java.time.Duration;
 

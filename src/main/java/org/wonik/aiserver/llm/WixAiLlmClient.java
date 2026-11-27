@@ -25,6 +25,7 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.stereotype.Component;
 import org.wonik.global.common.exception.CustomException;
 import org.wonik.global.common.exception.ErrorCode;
+import org.wonik.global.common.time.Sleeper;
 
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.JsonNode;
