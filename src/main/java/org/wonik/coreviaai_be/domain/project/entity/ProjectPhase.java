@@ -91,4 +91,8 @@ public class ProjectPhase extends BaseTimeEntity {
 	public void reorder(final int newOrder) {
 		this.phaseOrder = newOrder;
 	}
+
+	public void assignGateApprover(final Long gateApproverUserId) {
+		this.gateApproverUserId = gateApproverUserId;
+	}
 }

@@ -24,6 +24,10 @@ public enum AuditAction {
 	PROJECT_CREATION_REVOKED,
 	PASSWORD_RESET,
 	PROJECT_CREATED,
+	/** 프로젝트 템플릿 기본값 변경(FR-PRJ-09). 이후 생성되는 프로젝트에만 적용된다. */
+	PROJECT_TEMPLATE_CHANGED,
+	/** 생성 후 프로젝트 설정 변경(FR-PRJ-14). 변경 전후 값은 project_setting_histories에 남긴다. */
+	PROJECT_SETTINGS_CHANGED,
 	PROJECT_MEMBER_INVITED,
 	PROJECT_MEMBER_ROLE_CHANGED,
 	PROJECT_MEMBER_REMOVED,

@@ -39,13 +39,16 @@ public class DatabaseCleaner {
 		jdbcTemplate.update("DELETE FROM wbs_tasks");
 		// 칸반 컬럼은 작업(board_column_id)이 참조하므로 작업 다음에 지운다.
 		jdbcTemplate.update("DELETE FROM board_columns");
+		jdbcTemplate.update("DELETE FROM project_setting_histories");
 		jdbcTemplate.update("DELETE FROM project_member_histories");
 		jdbcTemplate.update("DELETE FROM project_phases");
 		jdbcTemplate.update("DELETE FROM project_members");
 		jdbcTemplate.update("DELETE FROM project_actors");
 		jdbcTemplate.update("DELETE FROM project_departments");
 		jdbcTemplate.update("DELETE FROM project_features");
+		jdbcTemplate.update("DELETE FROM notifications");
 		jdbcTemplate.update("DELETE FROM projects");
+		// project_templates는 V25 시드다. 테스트가 기본값을 바꾸면 그 테스트가 원래 값으로 되돌린다.
 		jdbcTemplate.update("DELETE FROM audit_logs");
 		jdbcTemplate.update("DELETE FROM error_logs");
 		jdbcTemplate.update("DELETE FROM login_history");

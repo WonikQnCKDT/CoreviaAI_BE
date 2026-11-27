@@ -1,5 +1,6 @@
 package org.wonik.coreviaai_be.domain.wbs.repository;
 
+import java.time.LocalDate;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -77,6 +78,15 @@ public interface WbsTaskRepository extends JpaRepository<WbsTask, Long> {
 
 	/** 컬럼에 놓인 카드 수(idx_wbs_tasks_board_column_id). 카드 이동 WIP 판정·컬럼 삭제 판정에 쓴다. */
 	long countByProjectIdAndBoardColumnId(Long projectId, Long boardColumnId);
+
+	/** 마감일이 그 날짜이고 완료가 아니며 담당자가 있는 작업·하위작업. D-1 알림용. */
+	@Query("""
+		select t from WbsTask t
+		where t.endDate = :endDate
+		  and t.status <> :done
+		  and t.assigneeUserId is not null
+		""")
+	List<WbsTask> findDueOn(@Param("endDate") LocalDate endDate, @Param("done") WbsTaskStatus done);
 
 	/** 컬럼이 비어 있는(board_column_id NULL) 그 상태의 카드 수. 이런 카드는 같은 상태의 첫 컬럼에 보인다(BoardLayout). */
 	long countByProjectIdAndBoardColumnIdIsNullAndStatus(Long projectId, WbsTaskStatus status);
