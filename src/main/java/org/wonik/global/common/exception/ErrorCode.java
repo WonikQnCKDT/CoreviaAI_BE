@@ -97,6 +97,7 @@ public enum ErrorCode {
 	BOARD_COLUMN_NOT_FOUND(404, "보드 컬럼을 찾을 수 없습니다"),
 	PROJECT_PHASE_NOT_FOUND(404, "프로젝트 단계를 찾을 수 없습니다"),
 	MEETING_NOT_FOUND(404, "회의록을 찾을 수 없습니다"),
+	NOTIFICATION_NOT_FOUND(404, "알림을 찾을 수 없습니다"),
 
 	DUPLICATE_LOGIN_ID(409, "이미 사용 중인 아이디입니다"),
 	DUPLICATE_PROJECT_CODE(409, "이미 사용 중인 프로젝트 코드입니다"),

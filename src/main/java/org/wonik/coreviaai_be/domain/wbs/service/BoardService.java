@@ -9,6 +9,10 @@ import java.util.Objects;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.wonik.coreviaai_be.domain.notification.entity.NotificationTargetType;
+import org.wonik.coreviaai_be.domain.notification.entity.NotificationType;
+import org.wonik.coreviaai_be.domain.notification.service.NotificationService;
+import org.wonik.coreviaai_be.domain.notification.service.command.PublishNotification;
 import org.wonik.coreviaai_be.domain.project.repository.ProjectPhaseRepository;
 import org.wonik.coreviaai_be.domain.wbs.entity.BoardColumn;
 import org.wonik.coreviaai_be.domain.wbs.entity.BoardLayout;
@@ -50,6 +54,7 @@ public class BoardService {
 	private final TaskHistoryRecorder historyRecorder;
 	private final UserNameReader userNameReader;
 	private final Clock clock;
+	private final NotificationService notificationService;
 
 	/**
 	 * 컬럼(표시 순서)과 컬럼별 카드. assigneeUserId를 주면 그 담당자의 카드만 보이고, 컬럼 카드 수·WIP 초과는 필터와 관계없이 전체 기준이다.
@@ -104,6 +109,21 @@ public class BoardService {
 			task.moveToColumn(target, clock.instant());
 			taskRepository.flush();
 			historyRecorder.changed(actor.userId(), before, TaskSnapshot.of(task));
+			if (before.status() != task.getStatus()) {
+				notificationService.publish(new PublishNotification(
+					task.getAssigneeUserId(),
+					actor.userId(),
+					NotificationType.STATUS_CHANGED,
+					projectId,
+					NotificationTargetType.TASK,
+					task.getId(),
+					"notification.statusChanged",
+					Map.of(
+						"taskName", task.getName(),
+						"status", task.getStatus().name()
+					)
+				));
+			}
 			if (task.isSubtask() && before.progress() != task.getProgress()) {
 				final WbsTask parent = taskRepository.findByIdAndProjectId(task.getParentTaskId(), projectId)
 					.orElseThrow(() -> new CustomException(ErrorCode.WBS_TASK_NOT_FOUND));
