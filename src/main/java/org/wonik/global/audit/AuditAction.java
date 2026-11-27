@@ -7,7 +7,13 @@ package org.wonik.global.audit;
  */
 public enum AuditAction {
 	USER_CREATED,
-    USER_LANGUAGE_CHANGED,
+	USER_LANGUAGE_CHANGED,
+	/** 계정 신청(FR-ADM-10). 신청자는 아직 사용자가 아니라 actor는 비어 있고 IP만 남긴다. */
+	ACCOUNT_REQUEST_SUBMITTED,
+	/** 계정 신청 승인. 같은 트랜잭션에서 사용자 생성·활성화도 기록한다. */
+	ACCOUNT_REQUEST_APPROVED,
+	/** 계정 신청 반려. 사유는 신청 행과 이 로그에만 남긴다. */
+	ACCOUNT_REQUEST_REJECTED,
 	USER_PROFILE_CHANGED,
 	USER_ROLE_CHANGED,
 	USER_ACTIVATED,
