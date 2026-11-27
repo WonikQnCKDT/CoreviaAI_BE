@@ -31,15 +31,15 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
- * OpenAI 호환 API(/chat/completions)로 사내 LLM을 호출하는 유일한 창구.
+ * OpenAI 호환 API(/chat/completions)로 Wix AI(BizRouter) LLM을 호출하는 클라이언트.
  * 시간 제한(연결·응답·전체)과 재시도(일시 오류만, 지수 백오프 + 지터)를 여기서만 처리해서
  * 기능 코드는 HTTP나 재시도를 몰라도 되게 한다.
  */
 @Component
 @EnableConfigurationProperties(AiLlmProperties.class)
-public class OpenAiCompatibleLlmClient implements LlmClient {
+public class WixAiLlmClient implements LlmClient {
 
-	private static final Logger log = LoggerFactory.getLogger(OpenAiCompatibleLlmClient.class);
+	private static final Logger log = LoggerFactory.getLogger(WixAiLlmClient.class);
 
 	/** LLM 서버가 잠깐 바쁘거나 재시작 중일 때 나오는 응답이라 다시 보내 볼 가치가 있다. */
 	private static final Set<Integer> RETRYABLE_STATUS = Set.of(429, 502, 503, 504);
@@ -52,7 +52,7 @@ public class OpenAiCompatibleLlmClient implements LlmClient {
 	private final RandomGenerator random;
 
 	@Autowired
-	public OpenAiCompatibleLlmClient(final AiLlmProperties properties, final JsonMapper jsonMapper,
+	public WixAiLlmClient(final AiLlmProperties properties, final JsonMapper jsonMapper,
 		final Clock clock) {
 		// 서버에서는 하나의 객체를 여러 요청이 함께 쓰므로, 스레드마다 안전한 무작위 값을 쓴다
 		this(properties, jsonMapper, clock, newHttpClient(properties), Sleeper.SYSTEM,
@@ -60,7 +60,7 @@ public class OpenAiCompatibleLlmClient implements LlmClient {
 	}
 
 	/** 테스트에서 가짜 쉬기·가짜 무작위를 끼우기 위한 생성자. */
-	OpenAiCompatibleLlmClient(final AiLlmProperties properties, final JsonMapper jsonMapper, final Clock clock,
+	WixAiLlmClient(final AiLlmProperties properties, final JsonMapper jsonMapper, final Clock clock,
 		final HttpClient httpClient, final Sleeper sleeper, final RandomGenerator random) {
 		this.properties = properties;
 		this.jsonMapper = jsonMapper;
@@ -185,8 +185,8 @@ public class OpenAiCompatibleLlmClient implements LlmClient {
 	/** 응답 JSON에서 choices[0].message.content만 꺼낸다. 모양이 다르면 생성 실패(502)로 본다. */
 	private String extractContent(final String responseBody) {
 		try {
-			final JsonNode content = jsonMapper.readTree(responseBody)
-				.path("choices").path(0).path("message").path("content");
+			final JsonNode root = jsonMapper.readTree(responseBody);
+			final JsonNode content = root.path("choices").path(0).path("message").path("content");
 			if (content.isMissingNode() || content.isNull() || !content.isValueNode()) {
 				throw new CustomException(ErrorCode.AI_GENERATION_FAILED);
 			}
@@ -194,10 +194,24 @@ public class OpenAiCompatibleLlmClient implements LlmClient {
 			if (text == null || text.isBlank()) {
 				throw new CustomException(ErrorCode.AI_GENERATION_FAILED);
 			}
+			logUsage(root.path("usage"));
 			return text;
 		} catch (JacksonException e) {
 			throw new CustomException(ErrorCode.AI_GENERATION_FAILED, e);
 		}
+	}
+
+	/** 사용한 토큰 수만 남긴다. 질문·답 내용이나 키는 남기지 않는다. 서버가 값을 안 주면 ?로 표시한다. */
+	private void logUsage(final JsonNode usage) {
+		log.info("LLM 사용량: model={}, promptTokens={}, completionTokens={}, totalTokens={}",
+			properties.model(),
+			tokenCount(usage.path("prompt_tokens")),
+			tokenCount(usage.path("completion_tokens")),
+			tokenCount(usage.path("total_tokens")));
+	}
+
+	private static String tokenCount(final JsonNode node) {
+		return node.isNumber() ? node.asString() : "?";
 	}
 
 	/**

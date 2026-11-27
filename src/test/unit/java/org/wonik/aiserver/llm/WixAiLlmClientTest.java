@@ -31,7 +31,7 @@ import com.sun.net.httpserver.HttpServer;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
-class OpenAiCompatibleLlmClientTest {
+class WixAiLlmClientTest {
 
 	private static final String OK_BODY =
 		"{\"choices\":[{\"message\":{\"role\":\"assistant\",\"content\":\"초안 JSON\"}}]}";
@@ -82,7 +82,7 @@ class OpenAiCompatibleLlmClientTest {
 	@DisplayName("주소 끝에 슬래시가 있어도 호출된다")
 	void trailingSlashInBaseUrl() {
 		server.reply(200, OK_BODY);
-		final OpenAiCompatibleLlmClient client = client(
+		final WixAiLlmClient client = client(
 			props(server.baseUrl() + "/", API_KEY, 0, Duration.ofSeconds(2), Duration.ofSeconds(10)));
 
 		assertThat(client.chat("s", "u")).isEqualTo("초안 JSON");
@@ -92,7 +92,7 @@ class OpenAiCompatibleLlmClientTest {
 	@DisplayName("키가 비어 있으면 Authorization 머리말을 보내지 않는다")
 	void noAuthorizationWithoutKey() {
 		server.reply(200, OK_BODY);
-		final OpenAiCompatibleLlmClient client = client(
+		final WixAiLlmClient client = client(
 			props(server.baseUrl(), "", 0, Duration.ofSeconds(2), Duration.ofSeconds(10)));
 
 		client.chat("s", "u");
@@ -172,7 +172,7 @@ class OpenAiCompatibleLlmClientTest {
 	void readTimeoutIsNotRetried() {
 		// 진짜 시간이 필요한 유일한 시험: 서버가 0.6초 뒤에 답하고, 클라이언트는 0.1초만 기다린다
 		server.reply(200, OK_BODY, 600);
-		final OpenAiCompatibleLlmClient client = client(
+		final WixAiLlmClient client = client(
 			props(server.baseUrl(), API_KEY, 2, Duration.ofMillis(100), Duration.ofSeconds(10)));
 
 		assertErrorCode(() -> client.chat("s", "u"), ErrorCode.AI_TIMEOUT);
@@ -185,7 +185,7 @@ class OpenAiCompatibleLlmClientTest {
 	@DisplayName("재시도까지 합친 전체 제한 시간을 넘기게 되면 504(AI_TIMEOUT)")
 	void overallDeadlineExceeded() {
 		server.reply(503, "busy");
-		final OpenAiCompatibleLlmClient client = client(
+		final WixAiLlmClient client = client(
 			props(server.baseUrl(), API_KEY, 5, Duration.ofSeconds(2), Duration.ofMillis(250)));
 
 		assertErrorCode(() -> client.chat("s", "u"), ErrorCode.AI_TIMEOUT);
@@ -199,7 +199,7 @@ class OpenAiCompatibleLlmClientTest {
 	@DisplayName("서버에 연결할 수 없으면 재시도한 뒤 503(AI_NOT_READY)")
 	void connectionRefused() throws IOException {
 		final String deadUrl = "http://127.0.0.1:" + freePort();
-		final OpenAiCompatibleLlmClient client = client(
+		final WixAiLlmClient client = client(
 			props(deadUrl, API_KEY, 2, Duration.ofSeconds(2), Duration.ofSeconds(10)));
 
 		assertErrorCode(() -> client.chat("s", "u"), ErrorCode.AI_NOT_READY);
@@ -214,7 +214,7 @@ class OpenAiCompatibleLlmClientTest {
 		server.reply(200, "{\"choices\":[]}");
 		server.reply(200, "{\"choices\":[{\"message\":{\"content\":null}}]}");
 		server.reply(200, "{\"choices\":[{\"message\":{\"content\":\"   \"}}]}");
-		final OpenAiCompatibleLlmClient client = defaultClient(2);
+		final WixAiLlmClient client = defaultClient(2);
 
 		for (int i = 0; i < 4; i++) {
 			assertErrorCode(() -> client.chat("s", "u"), ErrorCode.AI_GENERATION_FAILED);
@@ -227,9 +227,9 @@ class OpenAiCompatibleLlmClientTest {
 	@Test
 	@DisplayName("주소나 모델이 비어 있으면 서버를 부르지 않고 503(AI_NOT_READY)")
 	void notConfigured() {
-		final OpenAiCompatibleLlmClient noUrl = client(
+		final WixAiLlmClient noUrl = client(
 			props(null, API_KEY, 2, Duration.ofSeconds(2), Duration.ofSeconds(10)));
-		final OpenAiCompatibleLlmClient blankUrl = client(
+		final WixAiLlmClient blankUrl = client(
 			props("  ", API_KEY, 2, Duration.ofSeconds(2), Duration.ofSeconds(10)));
 
 		assertErrorCode(() -> noUrl.chat("s", "u"), ErrorCode.AI_NOT_READY);
@@ -242,7 +242,7 @@ class OpenAiCompatibleLlmClientTest {
 	@DisplayName("주소 형식이 잘못되면(스킴 없음·http 아님·호스트 없음) 서버를 부르지 않고 503(AI_NOT_READY)")
 	void invalidBaseUrl() {
 		for (final String url : List.of("llm.example", "ftp://llm.example", "file:///etc/passwd", "http://")) {
-			final OpenAiCompatibleLlmClient client = client(
+			final WixAiLlmClient client = client(
 				props(url, API_KEY, 2, Duration.ofSeconds(2), Duration.ofSeconds(10)));
 
 			assertErrorCode(() -> client.chat("s", "u"), ErrorCode.AI_NOT_READY);
@@ -254,7 +254,7 @@ class OpenAiCompatibleLlmClientTest {
 	@Test
 	@DisplayName("지시문이 null이거나 처리할 내용이 비어 있으면 서버를 부르지 않고 거부")
 	void rejectsEmptyPrompts() {
-		final OpenAiCompatibleLlmClient client = defaultClient(2);
+		final WixAiLlmClient client = defaultClient(2);
 
 		assertThatThrownBy(() -> client.chat(null, "u")).isInstanceOf(IllegalArgumentException.class);
 		assertThatThrownBy(() -> client.chat("s", null)).isInstanceOf(IllegalArgumentException.class);
@@ -275,16 +275,16 @@ class OpenAiCompatibleLlmClientTest {
 			overallDeadline, maxRetries, Duration.ofMillis(200), Duration.ofSeconds(1));
 	}
 
-	private OpenAiCompatibleLlmClient client(final AiLlmProperties properties) {
+	private WixAiLlmClient client(final AiLlmProperties properties) {
 		final HttpClient httpClient = HttpClient.newBuilder()
 			.connectTimeout(properties.connectTimeout())
 			.version(HttpClient.Version.HTTP_1_1)
 			.build();
 		// 무작위 값은 항상 0으로 고정해 쉬는 시간을 예측 가능하게 한다(상한의 절반)
-		return new OpenAiCompatibleLlmClient(properties, jsonMapper, clock, httpClient, sleeper, () -> 0L);
+		return new WixAiLlmClient(properties, jsonMapper, clock, httpClient, sleeper, () -> 0L);
 	}
 
-	private OpenAiCompatibleLlmClient defaultClient(final int maxRetries) {
+	private WixAiLlmClient defaultClient(final int maxRetries) {
 		return client(props(server.baseUrl(), API_KEY, maxRetries, Duration.ofSeconds(2), Duration.ofSeconds(10)));
 	}
 
