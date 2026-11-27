@@ -39,6 +39,9 @@ services:
       INITIAL_ADMIN_LOGIN_ID: ${INITIAL_ADMIN_LOGIN_ID:-}
       INITIAL_ADMIN_PASSWORD: ${INITIAL_ADMIN_PASSWORD:-}
       INITIAL_ADMIN_NAME: ${INITIAL_ADMIN_NAME:-}
+      AI_LLM_BASE_URL: ${AI_LLM_BASE_URL:-}
+      AI_LLM_MODEL: ${AI_LLM_MODEL:-}
+      AI_LLM_API_KEY: ${AI_LLM_API_KEY:-}
     depends_on:
       redis:
         condition: service_healthy
