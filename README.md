@@ -77,6 +77,9 @@ docker compose up -d redis
 | `REDIS_HOST` / `REDIS_PORT` | 선택(기본 localhost/6379) | Redis 주소. compose에서는 자동 설정 | |
 | `BE_PORT` | 선택(기본 8080) | compose가 호스트에 여는 포트 | |
 | `INITIAL_ADMIN_LOGIN_ID` / `_PASSWORD` / `_NAME` | 최초 1회 | 시스템 관리자가 없을 때 첫 관리자 생성. 생성 후 비워 둔다 | 비밀번호는 영문·숫자·특수문자 포함 8자 이상 |
+| `AI_LLM_BASE_URL` | AI 초안 사용 시 필수 | LLM 서버 주소. OpenAI 호환 `POST {주소}/chat/completions`의 앞부분이며 `/chat/completions`는 붙이지 않는다. 비어 있으면 AI 초안은 503 `AI_NOT_READY` | `https://api.bizrouter.ai/v1` |
+| `AI_LLM_MODEL` | AI 초안 사용 시 필수 | 요청에 보낼 모델 코드. 현재 키로 쓸 수 있는 모델은 `openai/gpt-6.2-sol`, `anthropic/claude-haiku-5.5` 두 개다 | |
+| `AI_LLM_API_KEY` | 서버가 요구할 때 | LLM API 키. 있으면 `Authorization: Bearer`로 보낸다. 코드·로그·문서·테스트에 남기지 않는다 | |
 
 - 로컬은 `.env`(커밋 금지, `.gitignore` 등록)로 주입한다. 저장소에는 값이 없는 `.env.example`만 둔다.
 - 테스트 설정은 `src/test/integration/resources/application-test.properties` (테스트 전용 키, 운영 비밀값 아님).
@@ -106,9 +109,11 @@ org.wonik
 │  ├─ domain/credential              LocalCredential(local_credentials): 비밀번호 해시·실패 횟수·잠금·변경 강제
 │  └─ security                       AuthServerSecurityConfig, AuthSessionLoginResolver, AuthSessionTerminator
 ├─ aiserver/                         AI 모듈. FastAPI(CoreviaAI_AI) 코드를 Java로 옮기는 중. 업무 모듈을 import하지 않는다
+│  ├─ llm                            LLM 호출 부품: LlmClient(인터페이스), WixAiLlmClient(Wix AI 호출, timeout·재시도, 사용 토큰 로그), AiLlmProperties(app.ai.llm.*)
 │  └─ domain/wbs
 │     ├─ api                         업무 모듈에 공개하는 계약: WbsDraftGenerator + 요청·응답 record(AiWbs*, 02. AI 생성 API 형태)
-│     └─ service                     NotReadyWbsDraftGenerator: 이식 전 임시 구현(항상 503 AI_NOT_READY)
+│     ├─ service                     LlmWbsDraftGenerator: 질문(WbsPromptBuilder) → LLM 호출 → 답 읽기 → 공수 반올림 → 결과 검사를 순서대로 실행(읽기·반올림·검사 규칙은 policy)
+│     └─ policy                      WBS 초안 규칙: WbsDraftResponseParser(답 읽기), WbsDraftResultNormalizer(공수 반올림), WbsDraftResultValidator(결과 검사)
 ├─ coreviaai_be/                     업무 모듈
 │  ├─ domain/department              Department(departments): 부서 계층(parentId). 사용자 소속·이후 프로젝트 주관 부서의 기준
 │  ├─ common/web                     CoreviaExceptionHandler: 업무 모듈 전체의 동시 수정 충돌 → 409 (authserver 응답은 그대로)
@@ -373,7 +378,7 @@ org.wonik
 
 ### AI WBS 초안 규칙 (FR-PRJ-07)
 
-- 흐름: FE → `coreviaai_be`(권한·토큰·반영) → `aiserver` 계약 `WbsDraftGenerator`(같은 프로세스 호출). LLM 호출은 aiserver만 한다. FastAPI `/generate/wbs`의 Java 이식 전까지 aiserver는 503 `AI_NOT_READY`를 돌려준다. 민감정보 마스킹은 팀 결정으로 미구현이라 요구사항 원문이 aiserver로 그대로 간다.
+- 흐름: FE → `coreviaai_be`(권한·토큰·반영) → `aiserver` 계약 `WbsDraftGenerator`(같은 프로세스 호출). LLM 호출은 aiserver만 한다. aiserver는 `LlmWbsDraftGenerator`가 초안을 만든다(아래 'aiserver 생성 흐름'). LLM 연결 정보(`AI_LLM_BASE_URL`·`AI_LLM_MODEL`)가 없으면 503 `AI_NOT_READY`를 돌려준다. 민감정보 마스킹은 팀 결정으로 미구현이라 요구사항 원문이 aiserver로 그대로 간다.
 - 대상: PM(복수 PM 누구나), 단계가 하나 이상인 프로젝트(0개면 404 `PHASES_NOT_AVAILABLE`), WBS 기능을 켠 프로젝트(끄면 404 `FEATURE_DISABLED`). 방법론과 단계 구성은 독립적이며 프로젝트 기간은 없어도 된다(aiserver에는 null로 보내고, 반영 검증은 있는 쪽만 적용).
 - 초안 기록과 승인(NFR-07·08): 생성 결과는 `ai_drafts`에 `DRAFT`(feature `WBS_DRAFT`, AI 결과 JSON·응답 시간)로, AI 실패는 `FAILED`로 남긴다. WBS 테이블은 바꾸지 않는다. 반영하면 같은 트랜잭션에서 `ACCEPTED`(제외 항목이 있으면 `PARTIALLY_ACCEPTED`)와 결정자·시각을 남긴다. 반영하지 않은 초안은 `DRAFT`로 남는다(거절 API 없음). 요구사항 원문 등 사용자 입력은 저장하지 않는다.
 - 반영 토큰: Redis에 `draftToken`(프로젝트·PM·`ai_drafts.id`에 묶임, 1시간)을 둔다. 반영 API는 FE가 보낸 승인 항목만 WBS에 저장한다.
@@ -381,7 +386,12 @@ org.wonik
 - 단계 연결: `wbs_tasks.phase_id`로 사용자 정의 단계에 연결한다. AI 초안 생성에는 기존 작업의 `phaseId`를 보내고, 반영 요청의 `phaseId`를 최상위 작업과 하위작업에 함께 저장한다.
 - 감사 로그: `AI_WBS_DRAFT_REQUESTED`(`aiDraftId`, 입력 길이·결과·제안 개수. 원문 미기록, AI 호출 뒤 별도 트랜잭션), `AI_WBS_DRAFT_APPLIED`(`aiDraftId`, 반영·제외 개수, 반영과 같은 트랜잭션).
 - 반영도 직접 편집과 같은 프로젝트 행 잠금·항목 수 상한(2,000개, 409 `WBS_TASK_LIMIT_EXCEEDED`)을 쓰고, 하위작업이 있는 작업의 기간은 하위작업 기간으로 맞춘다(FR-WBS-01).
-- AI 오류는 사용자에게 고정 메시지만 준다: 502 `AI_GENERATION_FAILED`(생성 실패·형식 오류·프로젝트에 없는 단계), 503 `AI_NOT_READY`(이식 전), 504 `AI_TIMEOUT`(이식 후 LLM 시간 초과에 사용).
+- AI 오류는 사용자에게 고정 메시지만 준다: 502 `AI_GENERATION_FAILED`(생성 실패·AI 답이 비었거나 JSON 형식이 아님·결과 검사 위반·프로젝트에 없는 단계), 503 `AI_NOT_READY`(LLM 연결 정보 없음·잘못된 주소·연결 실패와 재시도 소진·인증 거부 같은 재시도 불가 4xx), 504 `AI_TIMEOUT`(LLM 응답 시간 초과·전체 제한 시간 초과).
+- aiserver 생성 흐름(SCRUM-112): `LlmWbsDraftGenerator.generate`가 ① 질문 만들기(`WbsPromptBuilder`) → ② LLM 호출(`LlmClient`) → ③ 답 읽기(`WbsDraftResponseParser`) → ④ 공수 반올림(`WbsDraftResultNormalizer`) → ⑤ 결과 검사(`WbsDraftResultValidator`) 순서로 실행한다. 각 부품이 던지는 `CustomException`은 바꾸지 않고 그대로 올린다. 목적·요구사항이 모두 비어 있으면 질문을 만들 수 없어 `IllegalArgumentException`이 나므로 업무 모듈이 먼저 걸러야 한다.
+- LLM 호출: OpenAI 호환 `POST {AI_LLM_BASE_URL}/chat/completions`(`stream=false`, system·user 메시지 2개, 키가 있으면 `Authorization: Bearer`), 답은 `choices[0].message.content`. HTTP는 `aiserver.llm`의 클라이언트에서만 쓴다. API 키와 LLM 원문 답은 로그·예외 메시지에 남기지 않는다(답 읽기·결과 검사 실패는 원인 없이 502만 던진다). 응답에 담긴 사용 토큰 수만 `LLM 사용량:` 로그로 남기고 질문·답 내용은 남기지 않는다.
+- 프롬프트: 시스템 지시에 역할·목적·입력 설명·작업 순서·출력 JSON 형식·규칙·점검표·예시 1개를 담고, 사용자 질문은 프로젝트 정보를 JSON으로 보낸다(오늘 날짜 포함, 기존 단계·작업·멤버는 없으면 빈 목록). 출력은 JSON만 요구하고, 읽기 단계는 첫 `{`부터 마지막 `}`까지만 읽는다. 프롬프트 작성 방식은 팀 규칙이 아니라 외부 자료를 참고한 이 구현의 선택이며, 실제 LLM 출력을 본 뒤 조정한다.
+- 공수 반올림: 업무 모듈 반영 규칙(인일, 0.1 이상·소수 첫째 자리)에 맞추려고 AI가 준 공수를 소수 첫째 자리로 반올림(HALF_UP)한 뒤 검사한다. 0.04처럼 반올림하면 0.1 미만이 되는 값은 검사에서 거부한다. 이 단계는 팀 규칙이 아니라 안전장치이며, 실제 LLM이 항상 규칙을 지키거나 업무 모듈이 알아서 처리하면 없앨 수 있다.
+- 결과 검사: 단계(`phaseId`)가 요청의 기존 단계에 있는지, `tempId` 존재·길이·중복, 이름·설명 길이, 공수 ≥ 0.1, 기간(시작 ≤ 종료, 프로젝트 기간은 있는 쪽만), 선후행(작업끼리만·자기 참조·순환 없음), 마일스톤 날짜·연결 작업, 개수 상한(작업 200·하위작업 작업당 50·마일스톤 50), `feasibility.status` 값, 빈 초안을 본다. 업무 모듈 반영 검증(`WbsDraftValidator`)과 별개로, AI 답을 PM에게 보여 주기 전에 걸러 낸다.
 
 ### 개인 일정 API (FR-PSN-02, SCRUM-120)
 
@@ -449,9 +459,12 @@ org.wonik
 | Redis (세션) | connect 2s, command 2s | 없음 (인증 판정을 추측으로 대신하지 않음) | 503 `외부 서비스에 일시적으로 연결할 수 없습니다` |
 | PostgreSQL | HikariCP 기본값 | 없음 | 500 |
 | Redis (AI 초안 토큰) | 세션과 같음 | 없음 | 503 |
+| LLM 서버 (aiserver) | connect 5s, read 120s, 전체 180s (`app.ai.llm.*`) | 최대 2회. 연결 오류와 429·502·503·504만 재시도(읽기 시간 초과·400번대 요청 오류는 재시도 없음), 지수 대기(0.5s→최대 4s)+지터 | 시간 초과 504 `AI_TIMEOUT`, 연결 정보·연결 실패·재시도 불가 4xx 503 `AI_NOT_READY`, 답 오류 502 `AI_GENERATION_FAILED` |
 
-- timeout 값 근거: 세션 조회는 모든 요청 경로에 있어 NFR-01(2초 응답)을 넘기지 않도록 2초로 정했다. overall deadline은 아직 따로 두지 않았다(미정).
-- test 대체: `InMemoryAuthSessionStore`·`InMemoryWbsDraftTokenStore`(src/test/integration), AI 호출은 통합 테스트에서 `WbsDraftAiClient`를 `@MockitoBean`으로 대체, H2. LLM timeout·retry는 aiserver 이식 때 정한다.
+- timeout 값 근거: 세션 조회는 모든 요청 경로에 있어 NFR-01(2초 응답)을 넘기지 않도록 2초로 정했다. Redis의 overall deadline은 아직 따로 두지 않았다(미정).
+- LLM timeout 값 근거: WBS 초안은 출력이 길어 응답이 1분을 넘을 수 있어 read 120초, 재시도를 포함한 전체 180초로 정했다. 요구사항 NFR-03(30초 목표)과 맞지 않으므로 실제 호출(`gpt-6.2-sol`, 작업 8개 이내 제한 입력 1회)에서 약 32초가 걸려 작은 입력에서도 30초를 넘었다. 팀이 목표 또는 값을 조정해야 한다(미정). 재시도는 같은 요청을 다시 보내도 부수효과가 없는 조건(연결 오류·일시 오류 상태)에서만 한다.
+- LLM timeout 알려진 한계: JDK `HttpClient`의 요청 시간 제한은 응답 본문을 천천히 받는 중에는 전체 제한을 보장하지 못할 수 있다. 문제가 되면 `sendAsync`와 `orTimeout`으로 바꾼다.
+- test 대체: `InMemoryAuthSessionStore`·`InMemoryWbsDraftTokenStore`(src/test/integration), AI 호출은 통합 테스트에서 `WbsDraftAiClient`를 `@MockitoBean`으로 대체, H2. LLM 호출 부품은 로컬 가짜 HTTP 서버로, 생성기는 가짜 `LlmClient`로 단위 테스트하며 실제 LLM 서버가 필요 없다.
 
 ## 9. 오류 처리와 관측성
 
@@ -485,7 +498,8 @@ org.wonik
 - integration(FR-ADM-01): `AuthApiIntegrationTest` (시간 이동 가능한 Clock). 미인증 차단, 로그인 성공·실패 기록, 5회 잠금, 비활성 계정, 30분 무활동 만료·연장, 로그아웃, 비밀번호 변경, 관리자 초기화 흐름, 로컬 로그인 정보가 없는 사용자, 모듈별 보안 체인.
 - integration(FR-ADM-02): `AdminUserApiIntegrationTest`(추가→비밀번호 발급→로그인·초기화 감사 로그, 중복 재전송, 부서 필수·비활성 부서, 비활성화 로그인 차단·세션 종료, 역할 변경·세션 종료, 본인 변경 금지, 마지막 관리자 보호, 생성 권한 API 폐지, 이력, 커서 목록·필터·잘못된 커서), `AdminDepartmentApiIntegrationTest`, `AdminSessionTerminationFailureTest`
 - integration(FR-PRJ-01): `ProjectCreateApiIntegrationTest`(생성자 PM·5단계·승인자·기능·감사 로그, 기간·주관 부서 생략, 복수 주관 부서, 단계 없음 생성, 단계 없음 규칙·Git 비활성, 코드 정규화·중복, 필수 항목, 생성 권한 개방·경영진 403·관리자 404, 비활성 부서, 선택지), `ProjectQueryApiIntegrationTest`(공개 범위, 복수·무 주관 부서 공개 범위, 상세 404, 멤버·단계 API, 필터, 커서 경계)
-- unit(FR-PRJ-07): `AiDraftTest`(DRAFT에서 한 번만 결정, FAILED·결정된 초안은 409), `WbsDraftValidatorTest`(tempId 중복, 참조, 기간·프로젝트 기간 없음·한쪽만 있음, 순환, 담당자), `WbsDraftAiClientTest`(aiserver 계약 변환, 기간 null·기존 작업 단계 null, 없는 단계 502), `NotReadyWbsDraftGeneratorTest`
+- unit(FR-PRJ-07): `AiDraftTest`(DRAFT에서 한 번만 결정, FAILED·결정된 초안은 409), `WbsDraftValidatorTest`(tempId 중복, 참조, 기간·프로젝트 기간 없음·한쪽만 있음, 순환, 담당자), `WbsDraftAiClientTest`(aiserver 계약 변환, 기간 null·기존 작업 단계 null, 없는 단계 502)
+- unit(SCRUM-112 aiserver): `AiLlmPropertiesTest`(설정 값 검증), `WixAiLlmClientTest`(요청 형식, 재시도, 시간 초과, 오류 매핑), `WbsPromptBuilderTest`(질문 JSON 구성, 빈 입력 거부), `WbsDraftResponseParserTest`(JSON 읽기, 느슨한 숫자·엄격한 날짜, 형식 오류 502), `WbsDraftResultValidatorTest`(검사 규칙별 통과·위반·경계), `WbsDraftResultNormalizerTest`(공수 반올림 경계, null, 원본 불변), `LlmWbsDraftGeneratorTest`(성공, LLM 오류 전달, 답 형식 오류·검사 위반 502, 빈 입력 시 LLM 미호출)
 - integration(FR-PRJ-07): `WbsAiDraftApiIntegrationTest`(ai_drafts DRAFT·FAILED·ACCEPTED·PARTIALLY_ACCEPTED 기록, 생성·반영·토큰 1회용·만료·다른 프로젝트 토큰, 검증 실패 후 같은 토큰으로 재반영, 멤버 아닌 담당자, 기간 없는 프로젝트, 단계 없음·WBS 기능 꺼짐 404, PM 아님 403, AI 사용 불가 503, 감사 로그)
 - unit(FR-WBS-01): `WbsTaskTest`(상위 기간 산출·하위작업 없음, 같은 값 판정·공수 scale, 상태 유지), `WbsEditorTest`(역할별 허용·거부: PM, 개발자·QA 본인/남의 작업, 현업 담당자, 역할 없음), `WbsTaskRulesTest`(기간 경계·프로젝트 기간 없음/한쪽, 활성 멤버 담당자)
 - integration(FR-WBS-01): `WbsTaskApiIntegrationTest`(3레벨 등록 후 재조회 유지, 조회 권한·404·기능 꺼짐·관리자, 쓰기 권한 매트릭스, 3단계 중첩 거부, 이동·승격·재조회·상위 기간 재산출·형제 version 유지, 같은 위치 재전송 멱등·낡은 version 409·위치 경계, 수정 409·상위 기간 직접 변경 400, 값 검증 경계·다른 프로젝트 작업 404, 항목 수 상한, 삭제 거부·재산출·감사 로그)
@@ -504,7 +518,7 @@ org.wonik
 - integration(FR-ADM-09): `AdminErrorLogApiIntegrationTest`(관리자 전용 404·401, 미처리 예외 500 공통 응답·내부 정보 미노출·요청 정보·마스킹·쿼리/헤더 미저장, checked 예외, 업무 롤백과 기록 분리, 업무 예외·입력 오류·권한·매핑 없는 경로·415 미기록, 최신순 커서·목록 스택 제외·상세·404, 기간·유형·경로 필터와 경계·400), `ErrorLogRecordFailureTest`(기록 실패 시 같은 500). 예외는 테스트 전용 `support.ErrorTriggerTestController`(/api/test-errors)로 일으킨다
 - 미검증: 같은 사용자 동시 초대·같은 코드 동시 생성의 유니크 제약 경쟁은 DB 제약으로 막지만 자동 테스트는 없다. H2로 검증하므로 PostgreSQL 고유 동작(잠금 대기 시간 등)은 운영 DB에서 확인이 필요하다.
 - 테스트 공통(`src/test/integration`): `support.ApiIntegrationTestSupport`(로그인·요청·오류 검증), `support.DatabaseCleaner`(테스트 클래스 간 공유 H2를 FK 역순으로 비움. 테이블을 추가하면 여기도 추가)
-- 미검증: `RedisAuthSessionStore`·`RedisWbsDraftTokenStore`는 실제 Redis가 필요해 자동 테스트가 없다(Testcontainers 도입 시 추가). aiserver의 실제 WBS 생성은 FastAPI 이식 후 테스트한다.
+- 미검증: `RedisAuthSessionStore`·`RedisWbsDraftTokenStore`는 실제 Redis가 필요해 자동 테스트가 없다(Testcontainers 도입 시 추가). aiserver의 실제 LLM 연결은 수동 테스트 `LlmWbsDraftGeneratorLiveTest`로 1회 확인했다(`AI_LLM_API_KEY`가 없으면 건너뛰고, 자동 테스트는 가짜 LLM 응답만 쓴다). 기간 없는 프로젝트·긴 요구사항 같은 다양한 입력의 안정성과 프롬프트·시간 제한 조정은 남아 있다.
 - CI gate: `.github/workflows/DevelopCI.yml`이 PR마다 `./gradlew clean check bootJar`(단위 + 통합 테스트)를 실행한다.
 
 ## 11. Build·배포·운영
