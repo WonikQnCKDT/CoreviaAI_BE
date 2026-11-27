@@ -19,7 +19,7 @@ public class WbsPromptBuilder {
 
 	private static final String SYSTEM_PROMPT = """
 		[역할]
-		너는 소프트웨어 프로젝트의 WBS(작업 분해 구조)를 설계하는 전문가다.
+		너는 해당 프로젝트의 WBS(작업 분해 구조)를 설계하는 전문가다.
 
 		[목적]
 		요구사항으로 단계별 작업과 마일스톤의 초안을 만든다. 이 초안은 프로젝트 관리자(PM)가 검토하고, 필요한 항목만 골라 WBS에 반영한다.
