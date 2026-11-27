@@ -109,10 +109,11 @@ org.wonik
 │  ├─ domain/credential              LocalCredential(local_credentials): 비밀번호 해시·실패 횟수·잠금·변경 강제
 │  └─ security                       AuthServerSecurityConfig, AuthSessionLoginResolver, AuthSessionTerminator
 ├─ aiserver/                         AI 모듈. FastAPI(CoreviaAI_AI) 코드를 Java로 옮기는 중. 업무 모듈을 import하지 않는다
-│  ├─ llm                            LLM 호출 부품: LlmClient(인터페이스), WixAiLlmClient(Wix AI 호출, timeout·재시도, 사용 토큰 로그), AiLlmProperties(app.ai.llm.*), Sleeper
+│  ├─ llm                            LLM 호출 부품: LlmClient(인터페이스), WixAiLlmClient(Wix AI 호출, timeout·재시도, 사용 토큰 로그), AiLlmProperties(app.ai.llm.*)
 │  └─ domain/wbs
 │     ├─ api                         업무 모듈에 공개하는 계약: WbsDraftGenerator + 요청·응답 record(AiWbs*, 02. AI 생성 API 형태)
-│     └─ service                     LlmWbsDraftGenerator: 질문(WbsPromptBuilder) → LLM 호출 → 답 읽기(WbsDraftResponseParser) → 공수 반올림(WbsDraftResultNormalizer) → 결과 검사(WbsDraftResultValidator)
+│     ├─ service                     LlmWbsDraftGenerator: 질문(WbsPromptBuilder) → LLM 호출 → 답 읽기 → 공수 반올림 → 결과 검사를 순서대로 실행(읽기·반올림·검사 규칙은 policy)
+│     └─ policy                      WBS 초안 규칙: WbsDraftResponseParser(답 읽기), WbsDraftResultNormalizer(공수 반올림), WbsDraftResultValidator(결과 검사)
 ├─ coreviaai_be/                     업무 모듈
 │  ├─ domain/department              Department(departments): 부서 계층(parentId). 사용자 소속·이후 프로젝트 주관 부서의 기준
 │  ├─ common/web                     CoreviaExceptionHandler: 업무 모듈 전체의 동시 수정 충돌 → 409 (authserver 응답은 그대로)
