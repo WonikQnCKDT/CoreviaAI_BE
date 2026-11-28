@@ -1,5 +1,7 @@
 package org.wonik.coreviaai_be.domain.admin.controller;
 
+import org.springframework.http.CacheControl;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -12,6 +14,7 @@ import org.wonik.coreviaai_be.domain.admin.dto.request.ChangeSystemRoleRequest;
 import org.wonik.coreviaai_be.domain.admin.dto.request.ChangeUserStatusRequest;
 import org.wonik.coreviaai_be.domain.admin.dto.request.CreateUserRequest;
 import org.wonik.coreviaai_be.domain.admin.dto.request.UpdateUserProfileRequest;
+import org.wonik.coreviaai_be.domain.admin.dto.response.AdminUserCreatedResponse;
 import org.wonik.coreviaai_be.domain.admin.dto.response.AdminUserResponse;
 import org.wonik.coreviaai_be.domain.admin.dto.response.UserHistoryResponse;
 import org.wonik.coreviaai_be.domain.admin.service.AdminUserService;
@@ -64,11 +67,13 @@ public class AdminUserController {
 	}
 
 	@PostMapping
-	public ApiResponse<AdminUserResponse> create(
+	public ResponseEntity<ApiResponse<AdminUserCreatedResponse>> create(
 		final AuditActor actor,
 		@Valid @RequestBody final CreateUserRequest request
 	) {
-		return ApiResponse.success(AdminUserResponse.from(adminUserService.create(actor, request.toCommand())));
+		return ResponseEntity.ok()
+			.cacheControl(CacheControl.noStore())
+			.body(ApiResponse.success(AdminUserCreatedResponse.from(adminUserService.create(actor, request.toCommand()))));
 	}
 
 	@PatchMapping("/{userId}")
