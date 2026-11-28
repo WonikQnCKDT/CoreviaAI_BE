@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.wonik.coreviaai_be.domain.admin.dto.request.CreateLabelRequest;
 import org.wonik.coreviaai_be.domain.admin.dto.request.UpdateLabelRequest;
+import org.wonik.coreviaai_be.domain.admin.dto.response.AdminHistoryResponse;
 import org.wonik.coreviaai_be.domain.admin.dto.response.AdminLabelResponse;
 import org.wonik.coreviaai_be.domain.admin.service.AdminLabelService;
 import org.wonik.global.audit.AuditActor;
@@ -23,6 +24,7 @@ import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
 import lombok.RequiredArgsConstructor;
+import tools.jackson.databind.json.JsonMapper;
 
 /**
  * 시스템 관리자의 다국어 라벨 관리 API(FR-ADM-06). 접근 제어(SYSTEM_ADMIN)는 CoreviaSecurityConfig의 /api/admin/** 규칙이 맡는다.
@@ -34,8 +36,10 @@ import lombok.RequiredArgsConstructor;
 public class AdminLabelController {
 
 	private static final int MAX_KEYWORD_LENGTH = 100;
+	private static final int MAX_CURSOR_LENGTH = 256;
 
 	private final AdminLabelService adminLabelService;
+	private final JsonMapper jsonMapper;
 
 	/** missing=en|zh-TW면 그 언어 번역이 없는 라벨만 준다(인수 기준 "관리 화면에서 누락 필터 조회"). */
 	@GetMapping
@@ -70,5 +74,18 @@ public class AdminLabelController {
 		return ApiResponse.success(AdminLabelResponse.from(adminLabelService.update(
 			actor, labelId, request.textKo(), request.textEn(), request.textZhTw(), request.version()
 		)));
+	}
+
+	@GetMapping("/{labelId}/histories")
+	public ApiResponse<CursorPage<AdminHistoryResponse>> findHistories(
+		@PathVariable @Positive final Long labelId,
+		@RequestParam(required = false) @Size(max = MAX_CURSOR_LENGTH) final String cursor,
+		@RequestParam(defaultValue = "" + CursorPageRequest.DEFAULT_SIZE)
+		@Min(1) @Max(CursorPageRequest.MAX_SIZE) final int size
+	) {
+		return ApiResponse.success(
+			adminLabelService.findHistories(labelId, CursorPageRequest.of(cursor, size))
+				.map(result -> AdminHistoryResponse.from(result, jsonMapper))
+		);
 	}
 }
