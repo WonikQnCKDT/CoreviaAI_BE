@@ -14,6 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.wonik.coreviaai_be.domain.admin.service.command.CreateUserCommand;
 import org.wonik.coreviaai_be.domain.admin.service.command.UpdateUserProfileCommand;
+import org.wonik.coreviaai_be.domain.admin.service.result.AdminUserCreatedResult;
 import org.wonik.coreviaai_be.domain.admin.service.result.AdminUserResult;
 import org.wonik.coreviaai_be.domain.admin.service.result.UserHistoryResult;
 import org.wonik.coreviaai_be.domain.department.entity.Department;
@@ -30,6 +31,7 @@ import org.wonik.global.common.exception.ErrorCode;
 import org.wonik.global.common.pagination.CursorPage;
 import org.wonik.global.common.pagination.CursorPageRequest;
 import org.wonik.global.common.type.SystemRole;
+import org.wonik.global.security.InitialPasswordIssuer;
 import org.wonik.global.security.UserSessionTerminator;
 import org.wonik.global.user.entity.User;
 import org.wonik.global.user.entity.UserStatus;
@@ -55,6 +57,7 @@ public class AdminUserService {
 	private final DepartmentRepository departmentRepository;
 	private final AuditLogRepository auditLogRepository;
 	private final AuditLogger auditLogger;
+	private final InitialPasswordIssuer initialPasswordIssuer;
 	private final UserSessionTerminator sessionTerminator;
 	private final TransactionTemplate transactionTemplate;
 
@@ -111,7 +114,7 @@ public class AdminUserService {
 
 	/** loginId가 자연 키다. 같은 요청이 재전송되면 두 번째는 DUPLICATE_LOGIN_ID(409)로 끝나고 계정은 하나만 생긴다. */
 	@Transactional
-	public AdminUserResult create(final AuditActor actor, final CreateUserCommand command) {
+	public AdminUserCreatedResult create(final AuditActor actor, final CreateUserCommand command) {
 		final String name = command.name().strip();
 		final String jobTitle = normalizeOptional(command.jobTitle());
 
@@ -125,13 +128,14 @@ public class AdminUserService {
 
 		final User user = User.create(command.loginId(), name, command.systemRole(), command.departmentId(), jobTitle);
 		final User saved = saveAndFlushNewUser(user);
+		final String temporaryPassword = initialPasswordIssuer.issueInitialPassword(saved.getId());
 		auditLogger.record(actor, AuditAction.USER_CREATED, AuditTargetType.USER, saved.getId(), AuditChanges.create()
 			.value("loginId", saved.getLoginId())
 			.value("name", saved.getName())
 			.value("systemRole", saved.getSystemRole())
 			.value("departmentId", saved.getDepartmentId())
 			.value("jobTitle", saved.getJobTitle()));
-		return toResult(saved);
+		return new AdminUserCreatedResult(toResult(saved), temporaryPassword);
 	}
 
 	/** 같은 값이면 아무것도 바꾸지 않아, 재전송된 요청이 이력을 늘리지 않는다. */

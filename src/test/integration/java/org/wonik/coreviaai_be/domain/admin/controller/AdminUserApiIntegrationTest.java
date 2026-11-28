@@ -2,6 +2,7 @@ package org.wonik.coreviaai_be.domain.admin.controller;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -60,7 +61,7 @@ class AdminUserApiIntegrationTest extends AdminApiTestSupport {
 	// ---- 사용자 추가 ----
 
 	@Test
-	@DisplayName("사용자 추가 후 관리자 비밀번호 초기화로 발급한 임시 비밀번호로 로그인할 수 있다")
+	@DisplayName("사용자 추가 응답에 임시 비밀번호가 1회 포함되고, 이 비밀번호로 바로 로그인할 수 있다")
 	void createUserThenIssuePassword() throws Exception {
 		final JsonNode created = readResponse(postJson(USERS, adminCookie, body(
 			"loginId", "hong.gd",
@@ -68,7 +69,7 @@ class AdminUserApiIntegrationTest extends AdminApiTestSupport {
 			"systemRole", "USER",
 			"departmentId", devTeam.getId(),
 			"jobTitle", "백엔드 개발"
-		)));
+		)).andExpect(header().string("Cache-Control", org.hamcrest.Matchers.containsString("no-store"))));
 
 		assertThat(created.get("loginId").asString()).isEqualTo("hong.gd");
 		assertThat(created.get("name").asString()).isEqualTo("홍길동");
@@ -76,10 +77,20 @@ class AdminUserApiIntegrationTest extends AdminApiTestSupport {
 		assertThat(created.get("departmentName").asString()).isEqualTo("개발팀");
 		assertThat(created.has("canCreateProject")).as("최종안에서 생성 권한 필드는 폐지됐다").isFalse();
 
-		// 비밀번호가 아직 없으므로 로그인 불가
-		expectError(login("hong.gd", "anything1!"), ErrorCode.INVALID_CREDENTIALS);
+		final String initialPassword = created.get("temporaryPassword").asString();
+		assertThat(initialPassword).isNotBlank();
 
+		// 생성 직후 발급된 임시 비밀번호로 바로 로그인할 수 있으며, 첫 로그인 시 비밀번호 변경이 필요하다
+		login("hong.gd", initialPassword)
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.response.mustChangePassword").value(true));
+
+		// 조회 응답에는 임시 비밀번호를 다시 노출하지 않는다
 		final long userId = created.get("id").asLong();
+		final JsonNode fetched = readResponse(getAs(adminCookie, USERS + "/" + userId));
+		assertThat(fetched.has("temporaryPassword")).isFalse();
+
+		// 이후 비밀번호 초기화를 호출하면 새 임시 비밀번호가 발급된다
 		final JsonNode reset = readResponse(
 			mockMvc.perform(post("/api/admin/users/{id}/password-reset", userId).cookie(adminCookie))
 		);
@@ -94,6 +105,7 @@ class AdminUserApiIntegrationTest extends AdminApiTestSupport {
 		assertThat(createdLog.getTargetType()).isEqualTo(AuditTargetType.USER);
 		assertThat(createdLog.getTargetId()).isEqualTo(userId);
 		assertThat(createdLog.getIpAddress()).isNotBlank();
+		assertThat(createdLog.getDetails()).doesNotContain(initialPassword);
 		// 기록 시각은 주입된 Clock(UTC instant)을 따른다
 		assertThat(createdLog.getOccurredAt()).isEqualTo(TestClockConfig.START);
 
