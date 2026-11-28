@@ -21,6 +21,12 @@ public interface WbsTaskRepository extends JpaRepository<WbsTask, Long> {
 		long getTaskCount();
 	}
 
+	interface SubtaskStatus {
+		Long getParentTaskId();
+
+		WbsTaskStatus getStatus();
+	}
+
 	/** 최상위 작업을 표시 순서대로. 하위작업은 제외한다. */
 	List<WbsTask> findAllByProjectIdAndParentTaskIdIsNullOrderBySortOrderAscIdAsc(Long projectId);
 
@@ -72,6 +78,14 @@ public interface WbsTaskRepository extends JpaRepository<WbsTask, Long> {
 
 	/** 주어진 ID 중 그 프로젝트의 항목 수. 마일스톤 연결 작업이 모두 같은 프로젝트에 있는지 확인한다. */
 	long countByProjectIdAndIdIn(Long projectId, Collection<Long> ids);
+
+	/** 여러 상위 작업의 하위작업 상태만 한 번에 읽는다(마일스톤 완료 판정 N+1 방지). */
+	@Query("""
+		select t.parentTaskId as parentTaskId, t.status as status
+		from WbsTask t
+		where t.parentTaskId in :parentTaskIds
+		""")
+	List<SubtaskStatus> findSubtaskStatusesByParentTaskIdIn(@Param("parentTaskIds") Collection<Long> parentTaskIds);
 
 	/** 선행 작업 응답을 한 번에 조립한다(N+1 방지). */
 	List<WbsTask> findAllByProjectIdAndIdInOrderByIdAsc(Long projectId, Collection<Long> ids);

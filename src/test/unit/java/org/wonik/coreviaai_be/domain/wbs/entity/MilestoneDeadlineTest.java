@@ -73,4 +73,32 @@ class MilestoneDeadlineTest {
 		assertThat(MilestoneDeadline.evaluate(TARGET, TARGET, List.of(REVIEW)).delayed()).isTrue();
 		assertThat(MilestoneDeadline.evaluate(TARGET, TARGET, List.of(IN_PROGRESS)).incompleteTaskCount()).isEqualTo(1);
 	}
+
+	@ParameterizedTest(name = "오늘 {0} → 부모 TODO·하위 전부 DONE이면 경고 없음")
+	@CsvSource({
+		"2026-12-19",
+		"2026-12-20",
+		"2026-12-21"
+	})
+	@DisplayName("부모 저장 상태가 미완료여도 하위작업이 모두 DONE이면 경계일(D-1·D·D+1) 모두 경고하지 않는다")
+	void derivedDoneParentNotDelayed(final LocalDate today) {
+		final WbsTaskStatus effective = WbsTaskStatus.deriveFromSubtasks(TODO, List.of(DONE, DONE));
+		final MilestoneDeadline deadline = MilestoneDeadline.evaluate(TARGET, today, List.of(effective));
+		assertThat(deadline.delayed()).isFalse();
+		assertThat(deadline.incompleteTaskCount()).isZero();
+	}
+
+	@ParameterizedTest(name = "오늘 {0} → 부모 DONE·하위 일부 미완료면 경고 {1}")
+	@CsvSource({
+		"2026-12-19, false",
+		"2026-12-20, true",
+		"2026-12-21, true"
+	})
+	@DisplayName("부모 저장 상태가 DONE이어도 하위작업 일부가 미완료면 당일(D)·다음날(D+1) 경고하고 전날(D-1)은 경고하지 않는다")
+	void derivedIncompleteParentDelayedOnBoundary(final LocalDate today, final boolean expected) {
+		final WbsTaskStatus effective = WbsTaskStatus.deriveFromSubtasks(DONE, List.of(DONE, TODO));
+		final MilestoneDeadline deadline = MilestoneDeadline.evaluate(TARGET, today, List.of(effective));
+		assertThat(deadline.delayed()).isEqualTo(expected);
+		assertThat(deadline.incompleteTaskCount()).isEqualTo(1);
+	}
 }

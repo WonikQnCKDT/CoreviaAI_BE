@@ -228,6 +228,80 @@ class MilestoneApiIntegrationTest extends ProjectApiTestSupport {
 		assertThat(readResponse(getAs(pm, MILESTONE, projectId, mixed)).get("delayed").asBoolean()).isTrue();
 	}
 
+	@Test
+	@DisplayName("상위 작업 파생 상태: 하위작업 전부 DONE이면 부모 저장 상태가 미완료여도 경고 없음, 일부 미완료면 부모가 DONE이어도 경계일(D·D+1) 경고, 하위 없는 작업은 기존 동작")
+	void derivedParentStatusAndBoundary() throws Exception {
+		// 1) 부모 저장 TODO + 하위작업 2건 전부 DONE → 완료로 판정(경고 없음)
+		final long parentAllSubDone = createTask("설계", null, "2026-12-01", "2026-12-15");
+		final long subDone1 = createTask("화면 설계", parentAllSubDone, "2026-12-01", "2026-12-10");
+		final long subDone2 = createTask("DB 설계", parentAllSubDone, "2026-12-05", "2026-12-15");
+		setStatus(parentAllSubDone, "TODO");
+		setStatus(subDone1, "DONE");
+		setStatus(subDone2, "DONE");
+
+		// 2) 부모 저장 DONE + 하위작업 일부 미완료(DONE + REVIEW) → REVIEW(미완료)로 판정
+		final long parentSubPartial = createTask("개발", null, "2026-12-01", "2026-12-20");
+		final long subPartial1 = createTask("API 개발", parentSubPartial, "2026-12-01", "2026-12-15");
+		final long subPartial2 = createTask("코드 리뷰", parentSubPartial, "2026-12-10", "2026-12-20");
+		setStatus(parentSubPartial, "DONE");
+		setStatus(subPartial1, "DONE");
+		setStatus(subPartial2, "REVIEW");
+
+		// 3) 하위작업 없는 작업: 저장 상태 그대로
+		final long leafDone = createTask("단독 완료", null, "2026-12-01", "2026-12-10");
+		final long leafOpen = createTask("단독 미완료", null, "2026-12-01", "2026-12-20");
+		setStatus(leafDone, "DONE");
+		setStatus(leafOpen, "TODO");
+
+		final long msAllSubDone = createMilestone("설계 완료", "2026-12-20", List.of(parentAllSubDone));
+		final long msSubPartial = createMilestone("개발 완료", "2026-12-20", List.of(parentSubPartial));
+		final long msLeafDone = createMilestone("단독 완료 MS", "2026-12-20", List.of(leafDone));
+		final long msLeafOpen = createMilestone("단독 미완료 MS", "2026-12-20", List.of(leafOpen));
+
+		// D-1 (2026-12-19): 모두 경고 없음, 미완료 수·파생 상태는 반영
+		today(LocalDateTime.of(2026, 12, 19, 12, 0));
+		JsonNode list = milestones(pm);
+		assertThat(find(list, msAllSubDone).get("delayed").asBoolean()).isFalse();
+		assertThat(find(list, msAllSubDone).get("incompleteTaskCount").asInt()).isZero();
+		assertThat(find(list, msAllSubDone).get("tasks").get(0).get("status").asString()).isEqualTo("DONE");
+
+		assertThat(find(list, msSubPartial).get("delayed").asBoolean()).isFalse();
+		assertThat(find(list, msSubPartial).get("incompleteTaskCount").asInt()).isEqualTo(1);
+		assertThat(find(list, msSubPartial).get("tasks").get(0).get("status").asString()).isEqualTo("REVIEW");
+
+		assertThat(find(list, msLeafDone).get("delayed").asBoolean()).isFalse();
+		assertThat(find(list, msLeafOpen).get("delayed").asBoolean()).isFalse();
+
+		// D-day (2026-12-20): 하위 전부 DONE·단독 DONE은 경고 없음, 하위 일부 미완료·단독 미완료는 경고
+		today(LocalDateTime.of(2026, 12, 20, 0, 0));
+		list = milestones(pm);
+		assertThat(find(list, msAllSubDone).get("dDay").asLong()).isZero();
+		assertThat(find(list, msAllSubDone).get("delayed").asBoolean()).isFalse();
+		assertThat(find(list, msSubPartial).get("delayed").asBoolean()).isTrue();
+		assertThat(find(list, msLeafDone).get("delayed").asBoolean()).isFalse();
+		assertThat(find(list, msLeafOpen).get("delayed").asBoolean()).isTrue();
+
+		// D+1 (2026-12-21): 상세 조회도 목록과 동일
+		today(LocalDateTime.of(2026, 12, 21, 9, 0));
+		final JsonNode detailAllSubDone = readResponse(getAs(pm, MILESTONE, projectId, msAllSubDone));
+		assertThat(detailAllSubDone.get("dDay").asLong()).isEqualTo(-1);
+		assertThat(detailAllSubDone.get("delayed").asBoolean()).isFalse();
+		assertThat(detailAllSubDone.get("incompleteTaskCount").asInt()).isZero();
+		assertThat(detailAllSubDone.get("tasks").get(0).get("status").asString()).isEqualTo("DONE");
+
+		final JsonNode detailSubPartial = readResponse(getAs(pm, MILESTONE, projectId, msSubPartial));
+		assertThat(detailSubPartial.get("dDay").asLong()).isEqualTo(-1);
+		assertThat(detailSubPartial.get("delayed").asBoolean()).isTrue();
+		assertThat(detailSubPartial.get("incompleteTaskCount").asInt()).isEqualTo(1);
+
+		// 남은 하위작업도 DONE으로 바꾸면 부모 저장 상태와 무관하게 즉시 경고 해제
+		setStatus(subPartial2, "DONE");
+		final JsonNode resolved = readResponse(getAs(pm, MILESTONE, projectId, msSubPartial));
+		assertThat(resolved.get("delayed").asBoolean()).isFalse();
+		assertThat(resolved.get("incompleteTaskCount").asInt()).isZero();
+		assertThat(resolved.get("tasks").get(0).get("status").asString()).isEqualTo("DONE");
+	}
+
 	// ---- 수정 ----
 
 	@Test

@@ -3,6 +3,7 @@ package org.wonik.coreviaai_be.domain.wbs.service;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -17,6 +18,7 @@ import org.wonik.coreviaai_be.domain.wbs.entity.Milestone;
 import org.wonik.coreviaai_be.domain.wbs.entity.MilestoneDeadline;
 import org.wonik.coreviaai_be.domain.wbs.entity.MilestoneTask;
 import org.wonik.coreviaai_be.domain.wbs.entity.type.WbsItemSource;
+import org.wonik.coreviaai_be.domain.wbs.entity.type.WbsTaskStatus;
 import org.wonik.coreviaai_be.domain.wbs.policy.WbsEditor;
 import org.wonik.coreviaai_be.domain.wbs.policy.WbsTaskAccessPolicy;
 import org.wonik.coreviaai_be.domain.wbs.repository.MilestoneRepository;
@@ -208,15 +210,22 @@ public class MilestoneService {
 		return views(List.of(milestone)).get(0);
 	}
 
-	/** 연결 작업은 한 번의 조인 조회로 읽는다(N+1 방지). 오늘은 업무 시간대 기준으로 한 번만 정한다. */
+	/**
+	 * 연결 작업과 하위작업 상태를 각각 한 번의 조회로 읽는다(N+1 방지).
+	 * 하위작업이 있는 상위 작업의 상태는 하위작업 상태에서 파생한다(FE wbsRules.deriveDisplayStatus와 같은 규칙).
+	 * 오늘은 업무 시간대 기준으로 한 번만 정한다.
+	 */
 	private List<MilestoneView> views(final List<Milestone> milestones) {
 		if (milestones.isEmpty()) {
 			return List.of();
 		}
 		final Map<Long, List<MilestoneLinkedTask>> linked = new LinkedHashMap<>();
 		milestones.forEach(milestone -> linked.put(milestone.getId(), new ArrayList<>()));
-		milestoneTaskRepository.findLinkedTasks(linked.keySet())
-			.forEach(task -> linked.get(task.milestoneId()).add(task));
+		final List<MilestoneLinkedTask> rawLinked = milestoneTaskRepository.findLinkedTasks(linked.keySet());
+		final Map<Long, List<WbsTaskStatus>> subtaskStatusesByParent = loadSubtaskStatuses(rawLinked);
+		for (final MilestoneLinkedTask task : rawLinked) {
+			linked.get(task.milestoneId()).add(applyDerivedStatus(task, subtaskStatusesByParent));
+		}
 
 		final LocalDate today = BusinessCalendar.today(clock);
 		return milestones.stream().map(milestone -> {
@@ -225,5 +234,31 @@ public class MilestoneService {
 				tasks.stream().map(MilestoneLinkedTask::status).toList());
 			return new MilestoneView(milestone, deadline, tasks);
 		}).toList();
+	}
+
+	private Map<Long, List<WbsTaskStatus>> loadSubtaskStatuses(final List<MilestoneLinkedTask> linkedTasks) {
+		final Set<Long> topLevelTaskIds = linkedTasks.stream()
+			.filter(task -> task.parentTaskId() == null)
+			.map(MilestoneLinkedTask::taskId)
+			.collect(Collectors.toSet());
+		if (topLevelTaskIds.isEmpty()) {
+			return Map.of();
+		}
+		final Map<Long, List<WbsTaskStatus>> byParent = new HashMap<>();
+		for (final WbsTaskRepository.SubtaskStatus row : taskRepository.findSubtaskStatusesByParentTaskIdIn(topLevelTaskIds)) {
+			byParent.computeIfAbsent(row.getParentTaskId(), key -> new ArrayList<>()).add(row.getStatus());
+		}
+		return byParent;
+	}
+
+	private static MilestoneLinkedTask applyDerivedStatus(
+		final MilestoneLinkedTask task,
+		final Map<Long, List<WbsTaskStatus>> subtaskStatusesByParent
+	) {
+		if (task.parentTaskId() != null) {
+			return task;
+		}
+		final List<WbsTaskStatus> subtaskStatuses = subtaskStatusesByParent.get(task.taskId());
+		return task.withStatus(WbsTaskStatus.deriveFromSubtasks(task.status(), subtaskStatuses));
 	}
 }
