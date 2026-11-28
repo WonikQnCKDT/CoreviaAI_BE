@@ -27,6 +27,9 @@ public interface DepartmentRepository extends JpaRepository<Department, Long> {
 		Pageable pageable
 	);
 
+	/** 일반 사용자용 부서 목록. 이름 오름차순, 같은 이름(다른 상위 부서)은 ID 오름차순. 호출자가 상한을 pageable로 준다. */
+	List<Department> findByStatusOrderByNameAscIdAsc(DepartmentStatus status, Pageable pageable);
+
 	boolean existsByParentIdAndName(Long parentId, String name);
 
 	/** UNIQUE(parent_id, name)은 NULL끼리 다르다고 보므로 최상위 부서끼리의 이름 중복은 DB가 막지 못한다. */
