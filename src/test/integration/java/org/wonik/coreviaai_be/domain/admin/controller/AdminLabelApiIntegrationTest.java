@@ -233,9 +233,11 @@ class AdminLabelApiIntegrationTest extends AdminApiTestSupport {
 		assertThat(ids(readResponse(getAs(adminCookie, LABELS + "?keyword=알파")))).containsExactly(a.getId());
 		// _ 는 와일드카드가 아니라 글자: beta_x만 찾고 abx(a?x)는 제외
 		assertThat(ids(readResponse(getAs(adminCookie, LABELS + "?keyword=a_x")))).containsExactly(b.getId());
-		assertThat(ids(readResponse(getAs(adminCookie, LABELS + "?keyword={keyword}", "100%")))).containsExactly(c.getId());
-		// 검색어가 없으면 시드 라벨까지 전체. V9 코드 라벨 18개와 V24 메뉴 라벨 5개.
-		assertThat(readResponse(getAs(adminCookie, LABELS + "?size=100")).get("items").size()).isEqualTo(18 + 5 + 3);
+		assertThat(ids(readResponse(getAs(adminCookie, LABELS + "?keyword={keyword}", "감마 100%")))).containsExactly(c.getId());
+		// 검색어가 없으면 시드 라벨까지 전체(V9 + V24 + V29 + 테스트 3건). size=100 요청은 100건과 다음 페이지를 돌려준다.
+		final JsonNode allFirstPage = readResponse(getAs(adminCookie, LABELS + "?size=100"));
+		assertThat(allFirstPage.get("items").size()).isEqualTo(100);
+		assertThat(allFirstPage.get("hasNext").asBoolean()).isTrue();
 	}
 
 	@Test
@@ -246,13 +248,45 @@ class AdminLabelApiIntegrationTest extends AdminApiTestSupport {
 		final I18nLabel c = saveLabel("test.list.gamma", "감마", "Gamma", null);
 		final I18nLabel d = saveLabel("test.list.delta", "델타", null, null);
 
-		assertThat(ids(readResponse(getAs(adminCookie, LABELS + "?missing=en&size=100"))))
+		assertThat(ids(readResponse(getAs(adminCookie, LABELS + "?missing=en&keyword=test.list.&size=100"))))
 			.containsExactly(b.getId(), d.getId());
-		assertThat(ids(readResponse(getAs(adminCookie, LABELS + "?missing=zh-TW&keyword=test.&size=100"))))
+		assertThat(ids(readResponse(getAs(adminCookie, LABELS + "?missing=zh-TW&keyword=test.list.&size=100"))))
 			.containsExactly(c.getId(), d.getId());
-		assertThat(ids(readResponse(getAs(adminCookie, LABELS + "?missing=zh-tw&size=100"))))
+		assertThat(ids(readResponse(getAs(adminCookie, LABELS + "?missing=zh-tw&keyword=test.list.&size=100"))))
 			.containsExactly(c.getId(), d.getId())
 			.doesNotContain(a.getId());
+	}
+
+	@Test
+	@DisplayName("FE 다국어 라벨 키 목록(docs/i18n/label-keys.md)이 모두 DB(i18n_labels)에 시드되어 있다")
+	void allFeLabelKeysExistInDatabase() throws Exception {
+		final java.nio.file.Path feDoc = java.nio.file.Path.of("../CoreviaAI_FE/docs/i18n/label-keys.md");
+		final String content = java.nio.file.Files.isRegularFile(feDoc)
+			? java.nio.file.Files.readString(feDoc, java.nio.charset.StandardCharsets.UTF_8)
+			: new String(
+				getClass().getClassLoader().getResourceAsStream("i18n/label-keys.md").readAllBytes(),
+				java.nio.charset.StandardCharsets.UTF_8
+			);
+		final java.util.regex.Pattern rowPattern = java.util.regex.Pattern.compile("^\\|\\s*`([^`]+)`\\s*\\|");
+		final List<String> feKeys = content.lines()
+			.map(String::trim)
+			.map(rowPattern::matcher)
+			.filter(java.util.regex.Matcher::find)
+			.map(matcher -> matcher.group(1))
+			.toList();
+
+		assertThat(feKeys).hasSizeGreaterThanOrEqualTo(1000);
+
+		final java.util.Set<String> dbKeys = i18nLabelRepository.findAll().stream()
+			.map(I18nLabel::getLabelKey)
+			.collect(java.util.stream.Collectors.toSet());
+
+		assertThat(dbKeys).containsAll(feKeys);
+
+		// V24 메뉴 라벨의 기존 영문·번체 중국어 번역은 ON CONFLICT DO NOTHING으로 보존된다.
+		final I18nLabel menuNav = i18nLabelRepository.findByLabelKey("menu.nav.myWork").orElseThrow();
+		assertThat(menuNav.getTextEn()).isEqualTo("My work");
+		assertThat(menuNav.getTextZhTw()).isEqualTo("我的工作");
 	}
 
 	@Test

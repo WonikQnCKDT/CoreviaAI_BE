@@ -29,6 +29,9 @@ jobs:
       - name: Make gradlew executable
         run: chmod +x ./gradlew
 
+      - name: Verify FE i18n label keys exist in DB migrations
+        run: python3 scripts/generate_i18n_seed.py --verify
+
       - name: Verify formatting, static analysis, tests, and build
         run: ./gradlew clean check bootJar --no-daemon
 
