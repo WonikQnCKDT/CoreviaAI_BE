@@ -12,6 +12,7 @@ public enum ErrorCode {
 	TODO_NOT_FOUND(404, "할 일을 찾을 수 없습니다"),
 	TODO_REQUEST_CONFLICT(409, "같은 요청 ID로 다른 할 일을 등록할 수 없습니다"),
 	TODO_DELETED(409, "삭제한 할 일의 등록 요청입니다. 새 할 일은 새 요청 ID로 등록해 주세요"),
+	INVALID_USER_SEARCH_KEYWORD(400, "검색어는 앞뒤 공백을 뺀 2~50자로 입력해 주세요. 제어 문자는 쓸 수 없습니다"),
 	INVALID_CURSOR(400, "목록 조회 위치(cursor)가 올바르지 않습니다"),
 	INVALID_SCHEDULE_PERIOD(400, "일정 종료 시각은 시작 시각보다 뒤여야 합니다"),
 	SCHEDULE_NOT_FOUND(404, "일정을 찾을 수 없습니다"),
