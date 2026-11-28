@@ -196,6 +196,7 @@ public abstract class ApiIntegrationTestSupport {
 		actions
 			.andExpect(status().is(errorCode.getStatus()))
 			.andExpect(jsonPath("$.success").value(false))
+			.andExpect(jsonPath("$.error.code").value(errorCode.name()))
 			.andExpect(jsonPath("$.error.status").value(errorCode.getStatus()))
 			.andExpect(jsonPath("$.error.message").value(errorCode.getMessage()));
 	}
