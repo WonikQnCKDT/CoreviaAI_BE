@@ -9,7 +9,9 @@ import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.web.SecurityFilterChain;
 import org.wonik.coreviaai_be.domain.account.controller.AccountRequestController;
+import org.wonik.coreviaai_be.domain.department.controller.DepartmentController;
 import org.wonik.coreviaai_be.domain.i18n.controller.LabelController;
+import org.wonik.coreviaai_be.domain.user.controller.UserSearchController;
 import org.wonik.global.common.type.SystemRole;
 import org.wonik.global.security.AllowedRequest;
 import org.wonik.global.security.ApiSecuritySupport;
@@ -23,6 +25,7 @@ import org.wonik.global.security.ApiSecuritySupport;
  * 공개 경로는 화면용 다국어 라벨 조회와 계정 신청·본인 상태 조회다. 신청자는 승인 전이라 로그인할 수 없다(FR-ADM-10).
  * 상태 조회는 아이디와 이름이 모두 일치하는 신청만 돌려주고, 그 외는 없는 신청과 같은 404다.
  * 승인·반려(/api/admin/account-requests)는 시스템 관리자만 가능하다.
+ * 일반 사용자용 사용자 이름 검색(/api/users/search)·부서 목록(/api/departments)은 프로젝트 API와 같이 시스템 관리자를 막는다.
  */
 @Configuration
 public class CoreviaSecurityConfig {
@@ -47,6 +50,9 @@ public class CoreviaSecurityConfig {
 			.requestMatchers("/api/admin/**").hasRole(SystemRole.SYSTEM_ADMIN.name())
 			// 시스템 관리자는 프로젝트 데이터에 접근할 수 없다(요구사항 명세서 3.1). PM 재지정 예외는 FR-PRJ-04에서 다룬다.
 			.requestMatchers("/api/projects/**").hasAnyRole(SystemRole.USER.name(), SystemRole.EXECUTIVE.name())
+			// 초대할 사용자·주관 부서를 고르는 조회도 프로젝트 API와 같은 대상만 쓴다(시스템 관리자 차단).
+			.requestMatchers(HttpMethod.GET, UserSearchController.PATH, DepartmentController.PATH)
+			.hasAnyRole(SystemRole.USER.name(), SystemRole.EXECUTIVE.name())
 			.anyRequest().authenticated()
 		);
 		return http.build();

@@ -57,6 +57,26 @@ public interface UserRepository extends JpaRepository<User, Long> {
 	);
 
 	/**
+	 * 일반 사용자용 이름 검색(초대 대상). 이름 부분 일치이며 namePattern은 소문자로 바꾸고 %, _, 역슬래시를 이스케이프한
+	 * LIKE 패턴이다. excludedUserId(검색하는 본인)는 제외한다. 정렬은 이름 오름차순, 같은 이름은 ID 오름차순이다.
+	 */
+	@Query("""
+		select u from User u
+		where u.status = :status
+		  and u.systemRole = :systemRole
+		  and u.id <> :excludedUserId
+		  and lower(u.name) like :namePattern escape '\\'
+		order by u.name asc, u.id asc
+		""")
+	List<User> searchByNameForInvite(
+		@Param("namePattern") String namePattern,
+		@Param("status") UserStatus status,
+		@Param("systemRole") SystemRole systemRole,
+		@Param("excludedUserId") Long excludedUserId,
+		Pageable pageable
+	);
+
+	/**
 	 * 활성 시스템 관리자 전원을 행 잠금으로 읽는다. 관리자 두 명이 서로를 동시에 강등·비활성화해
 	 * 활성 관리자가 0명이 되는 경쟁을 막는다.
 	 */
