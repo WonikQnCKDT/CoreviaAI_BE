@@ -7,19 +7,27 @@ import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.wonik.coreviaai_be.domain.admin.dto.request.UpdateCodeRequest;
 import org.wonik.coreviaai_be.domain.admin.dto.response.AdminCodeGroupResponse;
 import org.wonik.coreviaai_be.domain.admin.dto.response.AdminCodeResponse;
+import org.wonik.coreviaai_be.domain.admin.dto.response.AdminHistoryResponse;
 import org.wonik.coreviaai_be.domain.admin.service.AdminCodeService;
 import org.wonik.coreviaai_be.domain.code.entity.CommonCode;
 import org.wonik.coreviaai_be.domain.code.service.result.GroupCodes;
 import org.wonik.global.audit.AuditActor;
+import org.wonik.global.common.pagination.CursorPage;
+import org.wonik.global.common.pagination.CursorPageRequest;
 import org.wonik.global.common.response.ApiResponse;
 
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Size;
 import lombok.RequiredArgsConstructor;
+import tools.jackson.databind.json.JsonMapper;
 
 /**
  * 시스템 관리자의 공통 코드 관리 API(FR-ADM-07). 접근 제어(SYSTEM_ADMIN)는 CoreviaSecurityConfig의 /api/admin/** 규칙이 맡는다.
@@ -31,7 +39,10 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class AdminCodeController {
 
+	private static final int MAX_CURSOR_LENGTH = 256;
+
 	private final AdminCodeService adminCodeService;
+	private final JsonMapper jsonMapper;
 
 	@GetMapping
 	public ApiResponse<List<AdminCodeGroupResponse>> findGroups() {
@@ -59,5 +70,19 @@ public class AdminCodeController {
 			groupCode,
 			adminCodeService.changeSortOrder(actor, groupCode, code, request.sortOrder())
 		));
+	}
+
+	@GetMapping("/{groupCode}/codes/{code}/histories")
+	public ApiResponse<CursorPage<AdminHistoryResponse>> findHistories(
+		@PathVariable @Pattern(regexp = CommonCode.GROUP_CODE_PATTERN) final String groupCode,
+		@PathVariable @Pattern(regexp = CommonCode.CODE_PATTERN) final String code,
+		@RequestParam(required = false) @Size(max = MAX_CURSOR_LENGTH) final String cursor,
+		@RequestParam(defaultValue = "" + CursorPageRequest.DEFAULT_SIZE)
+		@Min(1) @Max(CursorPageRequest.MAX_SIZE) final int size
+	) {
+		return ApiResponse.success(
+			adminCodeService.findHistories(groupCode, code, CursorPageRequest.of(cursor, size))
+				.map(result -> AdminHistoryResponse.from(result, jsonMapper))
+		);
 	}
 }

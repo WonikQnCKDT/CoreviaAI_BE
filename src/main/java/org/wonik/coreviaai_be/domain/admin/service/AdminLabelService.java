@@ -7,6 +7,7 @@ import java.util.Objects;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.wonik.coreviaai_be.domain.admin.service.result.AdminHistoryResult;
 import org.wonik.coreviaai_be.domain.i18n.entity.I18nLabel;
 import org.wonik.coreviaai_be.domain.i18n.entity.type.LabelLanguage;
 import org.wonik.coreviaai_be.domain.i18n.repository.I18nLabelRepository;
@@ -37,6 +38,7 @@ public class AdminLabelService {
 
 	private final I18nLabelRepository i18nLabelRepository;
 	private final AuditLogger auditLogger;
+	private final AdminAuditHistoryReader auditHistoryReader;
 
 	/**
 	 * @param keyword  라벨 키·한국어 문구 부분 일치(대소문자 무시). 없거나 비면 전체
@@ -53,6 +55,15 @@ public class AdminLabelService {
 			page.fetchPageable()
 		);
 		return CursorPage.of(fetched, page.size(), I18nLabel::getId);
+	}
+
+	/** 라벨 변경 이력(최신순, 커서 페이지). */
+	@Transactional(readOnly = true)
+	public CursorPage<AdminHistoryResult> findHistories(final Long labelId, final CursorPageRequest page) {
+		if (!i18nLabelRepository.existsById(labelId)) {
+			throw new CustomException(ErrorCode.LABEL_NOT_FOUND);
+		}
+		return auditHistoryReader.findByTarget(AuditTargetType.I18N_LABEL, labelId, page);
 	}
 
 	/** 같은 라벨 키가 있으면 409(재전송도 하나만 생김). */

@@ -39,6 +39,7 @@ class AdminCodeApiIntegrationTest extends AdminApiTestSupport {
 	private static final String GROUPS = "/api/admin/code-groups";
 	private static final String CODES = GROUPS + "/{groupCode}/codes";
 	private static final String CODE = CODES + "/{code}";
+	private static final String CODE_HISTORIES = CODE + "/histories";
 	private static final String TEST_GROUP = "TEST_GROUP";
 
 	@Autowired
@@ -62,8 +63,10 @@ class AdminCodeApiIntegrationTest extends AdminApiTestSupport {
 				patchJson(cookie, body("sortOrder", 9), CODE, "RISK_LEVEL", "NORMAL"),
 				ErrorCode.NOT_FOUND
 			);
+			expectError(getAs(cookie, CODE_HISTORIES, "RISK_LEVEL", "NORMAL"), ErrorCode.NOT_FOUND);
 		}
 		expectError(getAs(null, GROUPS), ErrorCode.UNAUTHORIZED);
+		expectError(getAs(null, CODE_HISTORIES, "RISK_LEVEL", "NORMAL"), ErrorCode.UNAUTHORIZED);
 		assertThat(commonCodeRepository.findAllByGroupIdOrderBySortOrderAscIdAsc(groupId(TEST_GROUP))).isEmpty();
 		assertThat(findCode("RISK_LEVEL", "NORMAL").getSortOrder()).isEqualTo(1);
 	}
@@ -200,6 +203,80 @@ class AdminCodeApiIntegrationTest extends AdminApiTestSupport {
 
 		assertThat(findCode("RISK_LEVEL", "NORMAL").getLabelKey()).isEqualTo("code.RISK_LEVEL.NORMAL");
 		assertThat(codeGroupRepository.findByGroupCode("RISK_LEVEL")).isPresent();
+	}
+
+	@Test
+	@DisplayName("코드 변경 이력은 최신순 커서 페이지로 조회되며, 다른 코드 이력은 섞이지 않는다")
+	void histories() throws Exception {
+		saveTestCodeGroup(TEST_GROUP);
+		saveTestCode(TEST_GROUP, "ALPHA", 1, true);
+		saveTestCode(TEST_GROUP, "BETA", 2, true);
+
+		// 변경 전 빈 이력
+		final JsonNode empty = readResponse(getAs(adminCookie, CODE_HISTORIES, TEST_GROUP, "ALPHA"));
+		assertThat(empty.get("items").isEmpty()).isTrue();
+		assertThat(empty.get("hasNext").asBoolean()).isFalse();
+		assertThat(empty.get("nextCursor").isNull()).isTrue();
+
+		// ALPHA 3회 변경, BETA 1회 변경
+		patchJson(adminCookie, body("sortOrder", 2), CODE, TEST_GROUP, "ALPHA").andExpect(status().isOk());
+		patchJson(adminCookie, body("sortOrder", 9), CODE, TEST_GROUP, "BETA").andExpect(status().isOk());
+		patchJson(adminCookie, body("sortOrder", 5), CODE, TEST_GROUP, "ALPHA").andExpect(status().isOk());
+		patchJson(adminCookie, body("sortOrder", 8), CODE, TEST_GROUP, "ALPHA").andExpect(status().isOk());
+
+		final JsonNode page1 = readResponse(getAs(adminCookie, CODE_HISTORIES + "?size=2", TEST_GROUP, "ALPHA"));
+		assertThat(page1.get("items").size()).isEqualTo(2);
+		assertThat(page1.get("hasNext").asBoolean()).isTrue();
+		assertThat(page1.get("nextCursor").asString()).isNotBlank();
+
+		final JsonNode latest = page1.get("items").get(0);
+		assertThat(latest.get("action").asString()).isEqualTo("CODE_CHANGED");
+		assertThat(latest.get("actorUserId").asLong()).isEqualTo(adminId);
+		assertThat(latest.get("actorName").asString()).isEqualTo(ADMIN_ID + " 이름");
+		assertThat(latest.get("ipAddress").asString()).isNotBlank();
+		assertThat(latest.get("occurredAt").asString()).isNotBlank();
+		assertThat(latest.get("details").get("groupCode").asString()).isEqualTo(TEST_GROUP);
+		assertThat(latest.get("details").get("code").asString()).isEqualTo("ALPHA");
+		assertThat(latest.get("details").get("sortOrder").get("before").asInt()).isEqualTo(5);
+		assertThat(latest.get("details").get("sortOrder").get("after").asInt()).isEqualTo(8);
+
+		final JsonNode second = page1.get("items").get(1);
+		assertThat(second.get("id").asLong()).isLessThan(latest.get("id").asLong());
+		assertThat(second.get("details").get("sortOrder").get("before").asInt()).isEqualTo(2);
+		assertThat(second.get("details").get("sortOrder").get("after").asInt()).isEqualTo(5);
+
+		final String nextCursor = page1.get("nextCursor").asString();
+		final JsonNode page2 = readResponse(getAs(
+			adminCookie, CODE_HISTORIES + "?size=2&cursor=" + nextCursor, TEST_GROUP, "ALPHA"
+		));
+		assertThat(page2.get("items").size()).isEqualTo(1);
+		assertThat(page2.get("hasNext").asBoolean()).isFalse();
+		assertThat(page2.get("nextCursor").isNull()).isTrue();
+		assertThat(page2.get("items").get(0).get("details").get("sortOrder").get("before").asInt()).isEqualTo(1);
+		assertThat(page2.get("items").get(0).get("details").get("sortOrder").get("after").asInt()).isEqualTo(2);
+
+		// size 경계값 1·100 허용
+		getAs(adminCookie, CODE_HISTORIES + "?size=1", TEST_GROUP, "ALPHA").andExpect(status().isOk());
+		getAs(adminCookie, CODE_HISTORIES + "?size=100", TEST_GROUP, "ALPHA").andExpect(status().isOk());
+	}
+
+	@Test
+	@DisplayName("코드 변경 이력 조회 오류: 없는 그룹·코드는 404, 경로 형식·size·커서 오류는 400")
+	void historiesRejected() throws Exception {
+		saveTestCodeGroup(TEST_GROUP);
+		saveTestCode(TEST_GROUP, "ALPHA", 1, true);
+
+		expectError(getAs(adminCookie, CODE_HISTORIES, "NO_SUCH_GROUP", "ALPHA"), ErrorCode.CODE_GROUP_NOT_FOUND);
+		expectError(getAs(adminCookie, CODE_HISTORIES, TEST_GROUP, "NO_SUCH_CODE"), ErrorCode.CODE_NOT_FOUND);
+
+		getAs(adminCookie, CODE_HISTORIES, "bad-group", "ALPHA").andExpect(status().isBadRequest());
+		getAs(adminCookie, CODE_HISTORIES, TEST_GROUP, "bad-code").andExpect(status().isBadRequest());
+		getAs(adminCookie, CODE_HISTORIES + "?size=0", TEST_GROUP, "ALPHA").andExpect(status().isBadRequest());
+		getAs(adminCookie, CODE_HISTORIES + "?size=101", TEST_GROUP, "ALPHA").andExpect(status().isBadRequest());
+		expectError(
+			getAs(adminCookie, CODE_HISTORIES + "?cursor=not-a-cursor", TEST_GROUP, "ALPHA"),
+			ErrorCode.INVALID_CURSOR
+		);
 	}
 
 	private String codesUrl() {

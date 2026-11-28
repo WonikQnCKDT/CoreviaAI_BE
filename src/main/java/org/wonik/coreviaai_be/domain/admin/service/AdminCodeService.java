@@ -4,6 +4,7 @@ import java.util.List;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.wonik.coreviaai_be.domain.admin.service.result.AdminHistoryResult;
 import org.wonik.coreviaai_be.domain.code.entity.CodeGroup;
 import org.wonik.coreviaai_be.domain.code.entity.CommonCode;
 import org.wonik.coreviaai_be.domain.code.repository.CodeGroupRepository;
@@ -16,6 +17,8 @@ import org.wonik.global.audit.AuditLogger;
 import org.wonik.global.audit.AuditTargetType;
 import org.wonik.global.common.exception.CustomException;
 import org.wonik.global.common.exception.ErrorCode;
+import org.wonik.global.common.pagination.CursorPage;
+import org.wonik.global.common.pagination.CursorPageRequest;
 
 import lombok.RequiredArgsConstructor;
 
@@ -33,6 +36,7 @@ public class AdminCodeService {
 	private final CodeGroupRepository codeGroupRepository;
 	private final CommonCodeRepository commonCodeRepository;
 	private final AuditLogger auditLogger;
+	private final AdminAuditHistoryReader auditHistoryReader;
 
 	@Transactional(readOnly = true)
 	public List<CodeGroup> findGroups() {
@@ -64,6 +68,19 @@ public class AdminCodeService {
 		commonCodeRepository.flush();
 		auditLogger.record(actor, AuditAction.CODE_CHANGED, AuditTargetType.CODE, commonCode.getId(), changes);
 		return commonCode;
+	}
+
+	/** 코드 변경 이력(최신순, 커서 페이지). */
+	@Transactional(readOnly = true)
+	public CursorPage<AdminHistoryResult> findHistories(
+		final String groupCode,
+		final String code,
+		final CursorPageRequest page
+	) {
+		final CodeGroup group = getGroup(groupCode);
+		final CommonCode commonCode = commonCodeRepository.findByGroupIdAndCode(group.getId(), code)
+			.orElseThrow(() -> new CustomException(ErrorCode.CODE_NOT_FOUND));
+		return auditHistoryReader.findByTarget(AuditTargetType.CODE, commonCode.getId(), page);
 	}
 
 	private CodeGroup getGroup(final String groupCode) {

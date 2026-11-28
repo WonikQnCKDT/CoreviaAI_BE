@@ -37,6 +37,7 @@ class AdminLabelApiIntegrationTest extends AdminApiTestSupport {
 
 	private static final String LABELS = "/api/admin/i18n/labels";
 	private static final String LABEL = LABELS + "/{labelId}";
+	private static final String LABEL_HISTORIES = LABEL + "/histories";
 
 	@Autowired
 	private I18nLabelRepository i18nLabelRepository;
@@ -53,9 +54,11 @@ class AdminLabelApiIntegrationTest extends AdminApiTestSupport {
 			expectError(getAs(cookie, LABELS), ErrorCode.NOT_FOUND);
 			expectError(postJson(LABELS, cookie, body("labelKey", "test.x", "textKo", "엑스")), ErrorCode.NOT_FOUND);
 			expectError(patchJson(cookie, body("textKo", "바꿈", "version", 0), LABEL, label.getId()), ErrorCode.NOT_FOUND);
+			expectError(getAs(cookie, LABEL_HISTORIES, label.getId()), ErrorCode.NOT_FOUND);
 		}
 		expectError(getAs(null, LABELS), ErrorCode.UNAUTHORIZED);
 		expectError(postJson(LABELS, null, body("labelKey", "test.x", "textKo", "엑스")), ErrorCode.UNAUTHORIZED);
+		expectError(getAs(null, LABEL_HISTORIES, label.getId()), ErrorCode.UNAUTHORIZED);
 
 		assertThat(i18nLabelRepository.existsByLabelKey("test.x")).isFalse();
 		assertThat(i18nLabelRepository.findById(label.getId()).orElseThrow().getTextKo()).isEqualTo("홈");
@@ -300,6 +303,89 @@ class AdminLabelApiIntegrationTest extends AdminApiTestSupport {
 		getAs(adminCookie, LABELS + "?keyword=" + "k".repeat(101)).andExpect(status().isBadRequest());
 		expectError(getAs(adminCookie, LABELS + "?cursor=not-a-cursor"), ErrorCode.INVALID_CURSOR);
 		getAs(adminCookie, LABELS + "?size=1&missing=").andExpect(status().isOk());
+	}
+
+	@Test
+	@DisplayName("라벨 변경 이력은 등록·수정 이력을 최신순 커서 페이지로 반환하며, 다른 라벨 이력은 섞이지 않는다")
+	void histories() throws Exception {
+		// 감사 로그가 없는 기존 라벨은 빈 이력
+		final I18nLabel seeded = saveLabel("test.hist.empty", "초기", null, null);
+		final JsonNode empty = readResponse(getAs(adminCookie, LABEL_HISTORIES, seeded.getId()));
+		assertThat(empty.get("items").isEmpty()).isTrue();
+		assertThat(empty.get("hasNext").asBoolean()).isFalse();
+		assertThat(empty.get("nextCursor").isNull()).isTrue();
+
+		// 등록 1건 + 다른 라벨 등록 1건 + ko·en 2개 언어 동시 수정(2건) => 대상 라벨 총 3건
+		final JsonNode created = readResponse(postJson(
+			LABELS, adminCookie, body("labelKey", "test.hist.target", "textKo", "원래 문구", "textEn", "Old")
+		));
+		final long targetId = created.get("id").asLong();
+		postJson(LABELS, adminCookie, body("labelKey", "test.hist.other", "textKo", "다른 라벨"))
+			.andExpect(status().isOk());
+		patchJson(
+			adminCookie,
+			body("textKo", "바뀐 문구", "textEn", "New", "version", created.get("version").asLong()),
+			LABEL,
+			targetId
+		).andExpect(status().isOk());
+
+		final JsonNode page1 = readResponse(getAs(adminCookie, LABEL_HISTORIES + "?size=2", targetId));
+		assertThat(page1.get("items").size()).isEqualTo(2);
+		assertThat(page1.get("hasNext").asBoolean()).isTrue();
+		assertThat(page1.get("nextCursor").asString()).isNotBlank();
+
+		// 최신 2건은 모두 수정 이력(I18N_LABEL_CHANGED)이며 id 내림차순
+		final JsonNode first = page1.get("items").get(0);
+		final JsonNode second = page1.get("items").get(1);
+		assertThat(first.get("id").asLong()).isGreaterThan(second.get("id").asLong());
+		assertThat(first.get("action").asString()).isEqualTo("I18N_LABEL_CHANGED");
+		assertThat(second.get("action").asString()).isEqualTo("I18N_LABEL_CHANGED");
+		assertThat(first.get("actorUserId").asLong()).isEqualTo(adminId);
+		assertThat(first.get("actorName").asString()).isEqualTo(ADMIN_ID + " 이름");
+		assertThat(first.get("ipAddress").asString()).isNotBlank();
+		assertThat(first.get("occurredAt").asString()).isNotBlank();
+		assertThat(first.get("details").get("labelKey").asString()).isEqualTo("test.hist.target");
+		assertThat(first.get("details").get("lang").asString()).isEqualTo("en");
+		assertThat(first.get("details").get("text").get("before").asString()).isEqualTo("Old");
+		assertThat(first.get("details").get("text").get("after").asString()).isEqualTo("New");
+		assertThat(second.get("details").get("lang").asString()).isEqualTo("ko");
+		assertThat(second.get("details").get("text").get("before").asString()).isEqualTo("원래 문구");
+		assertThat(second.get("details").get("text").get("after").asString()).isEqualTo("바뀐 문구");
+
+		// 2페이지: 최초 등록 이력(I18N_LABEL_CREATED)
+		final String nextCursor = page1.get("nextCursor").asString();
+		final JsonNode page2 = readResponse(getAs(
+			adminCookie, LABEL_HISTORIES + "?size=2&cursor=" + nextCursor, targetId
+		));
+		assertThat(page2.get("items").size()).isEqualTo(1);
+		assertThat(page2.get("hasNext").asBoolean()).isFalse();
+		assertThat(page2.get("nextCursor").isNull()).isTrue();
+		final JsonNode createdLog = page2.get("items").get(0);
+		assertThat(createdLog.get("action").asString()).isEqualTo("I18N_LABEL_CREATED");
+		assertThat(createdLog.get("details").get("labelKey").asString()).isEqualTo("test.hist.target");
+		assertThat(createdLog.get("details").get("textKo").asString()).isEqualTo("원래 문구");
+		assertThat(createdLog.get("details").get("textEn").asString()).isEqualTo("Old");
+		assertThat(createdLog.get("details").get("textZhTw").isNull()).isTrue();
+
+		// size 경계값 1·100 허용
+		getAs(adminCookie, LABEL_HISTORIES + "?size=1", targetId).andExpect(status().isOk());
+		getAs(adminCookie, LABEL_HISTORIES + "?size=100", targetId).andExpect(status().isOk());
+	}
+
+	@Test
+	@DisplayName("라벨 변경 이력 조회 오류: 없는 라벨은 404, labelId·size·커서 오류는 400")
+	void historiesRejected() throws Exception {
+		final I18nLabel label = saveLabel("test.hist.err", "오류", null, null);
+
+		expectError(getAs(adminCookie, LABEL_HISTORIES, 999_999L), ErrorCode.LABEL_NOT_FOUND);
+		getAs(adminCookie, LABEL_HISTORIES, 0).andExpect(status().isBadRequest());
+		getAs(adminCookie, LABEL_HISTORIES, -1).andExpect(status().isBadRequest());
+		getAs(adminCookie, LABEL_HISTORIES + "?size=0", label.getId()).andExpect(status().isBadRequest());
+		getAs(adminCookie, LABEL_HISTORIES + "?size=101", label.getId()).andExpect(status().isBadRequest());
+		expectError(
+			getAs(adminCookie, LABEL_HISTORIES + "?cursor=not-a-cursor", label.getId()),
+			ErrorCode.INVALID_CURSOR
+		);
 	}
 
 	private I18nLabel saveLabel(final String key, final String ko, final String en, final String zhTw) {
