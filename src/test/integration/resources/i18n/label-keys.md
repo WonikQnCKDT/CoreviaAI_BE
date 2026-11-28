@@ -10,7 +10,7 @@
 - 등록하지 않은 키도 FE는 한국어 기본 문구로 표시하므로 화면이 깨지지 않습니다.
 - `{name}`처럼 중괄호로 감싼 부분은 FE가 값을 넣는 자리입니다. 번역문에도 같은 이름으로 남겨 주세요.
 
-## 등록 필요 (1035개)
+## 등록 필요 (1209개)
 
 | 라벨 키 | 한국어 기본 문구 | 구분 |
 | --- | --- | --- |
@@ -156,6 +156,28 @@
 | `admin.notice.userSaved` | {name} 사용자 정보를 저장했습니다. | admin.notice |
 | `admin.notice.userStatusChanged` | {name} 계정을 {status} 상태로 바꿨습니다. | admin.notice |
 | `admin.ownAccountLocked` | 본인 계정의 역할과 상태는 바꿀 수 없습니다. | admin |
+| `admin.pmReassign.clearSelection` | 선택 해제 | admin.pmReassign |
+| `admin.pmReassign.code` | 프로젝트 코드 | admin.pmReassign |
+| `admin.pmReassign.codeFormat` | 프로젝트 코드는 영문·숫자로 시작하는 영문·숫자·하이픈(-) 2~20자입니다. | admin.pmReassign |
+| `admin.pmReassign.codePlaceholder` | 예) PRT-2026-001 | admin.pmReassign |
+| `admin.pmReassign.codeRequired` | 프로젝트 코드를 입력해 주세요. | admin.pmReassign |
+| `admin.pmReassign.confirmBody` | {code} 프로젝트의 PM으로 {name}을(를) 지정합니다. | admin.pmReassign |
+| `admin.pmReassign.confirmNote` | 활성 PM이 남아 있는 프로젝트이거나 코드가 없으면 서버가 거부합니다. 남아 있던 비활성 PM은 멤버에서 제외됩니다. | admin.pmReassign |
+| `admin.pmReassign.confirmTitle` | PM을 재지정하시겠습니까? | admin.pmReassign |
+| `admin.pmReassign.description` | 활성 PM이 한 명도 남지 않은 프로젝트(퇴사·비활성화 등)에만 새 PM을 지정합니다. 남아 있던 비활성 PM은 멤버에서 제외되고, 처리 내용은 프로젝트 멤버 이력과 감사 로그에 남습니다. | admin.pmReassign |
+| `admin.pmReassign.done` | {code} 프로젝트의 PM을 재지정했습니다. 현재 PM: {names} | admin.pmReassign |
+| `admin.pmReassign.notAllowed` | 재지정할 수 없습니다. 활성 PM이 남아 있는 프로젝트이거나 없는 프로젝트 코드입니다. 코드를 확인하고, 활성 PM이 있으면 그 PM이 직접 PM을 추가·해제하도록 안내해 주세요. | admin.pmReassign |
+| `admin.pmReassign.privacyNote` | 시스템 관리자는 프로젝트 데이터를 볼 수 없어 프로젝트 코드로만 지정합니다. 활성 PM이 있는 프로젝트는 PM이 직접 PM을 추가·해제합니다. | admin.pmReassign |
+| `admin.pmReassign.selected` | 선택됨: {name} | admin.pmReassign |
+| `admin.pmReassign.submit` | PM 재지정 | admin.pmReassign |
+| `admin.pmReassign.title` | PM 재지정 | admin.pmReassign |
+| `admin.pmReassign.user` | 새 PM | admin.pmReassign |
+| `admin.pmReassign.userEmpty` | 조건에 맞는 활성 일반 사용자가 없습니다 | admin.pmReassign |
+| `admin.pmReassign.userFailed` | 사용자 목록을 불러오지 못했습니다 | admin.pmReassign |
+| `admin.pmReassign.userLoading` | 사용자를 찾는 중입니다 | admin.pmReassign |
+| `admin.pmReassign.userRequired` | 새 PM으로 지정할 사용자를 선택해 주세요. | admin.pmReassign |
+| `admin.pmReassign.userSearch` | 새 PM 이름 또는 아이디 검색 | admin.pmReassign |
+| `admin.pmReassign.userSearchHint` | 활성 일반 사용자만 PM으로 지정할 수 있습니다. | admin.pmReassign |
 | `admin.resetFilters` | 필터 초기화 | admin |
 | `admin.retry` | 다시 시도 | admin |
 | `admin.roleChangeConfirmBody` | 역할을 바꾸면 대상 사용자의 모든 세션이 즉시 종료되어 다시 로그인해야 합니다. | admin |
@@ -511,10 +533,12 @@
 | `menu.admin.hintDepartments` | 조직 트리 | menu.admin |
 | `menu.admin.hintErrorLogs` | 미처리 예외 조회 | menu.admin |
 | `menu.admin.hintLabels` | 문구·번역 | menu.admin |
+| `menu.admin.hintPmReassign` | 활성 PM 없는 프로젝트 | menu.admin |
 | `menu.admin.hintRisk` | 임계값·가중치·이력 | menu.admin |
 | `menu.admin.hintUsers` | 계정·부서·역할 | menu.admin |
 | `menu.admin.labels` | 다국어 라벨 | menu.admin |
 | `menu.admin.nav` | 시스템 관리 | menu.admin |
+| `menu.admin.pmReassign` | PM 재지정 | menu.admin |
 | `menu.admin.risk` | AI · 리스크 설정 | menu.admin |
 | `menu.admin.users` | 사용자 | menu.admin |
 | `menu.admin.usersAndOrg` | 사용자 · 조직 | menu.admin |
@@ -735,9 +759,16 @@
 | `notification.typeSuffix` | {type} 알림 | notification |
 | `notification.unreadCount` | 읽지 않음 {count}건 | notification |
 | `notification.unreadNotice` | 확인하지 않은 알림 {count}건이 있습니다 | notification |
+| `project.create.actorInUse` | 멤버 역할로 쓰는 액터는 해제할 수 없습니다. 그 멤버의 역할을 바꾸거나 제외해 주세요. | project.create |
 | `project.create.actorsHint` | PM은 필수 액터라 해제할 수 없습니다. | project.create |
 | `project.create.actorsRequired` | PM 액터는 반드시 포함되어야 합니다. | project.create |
 | `project.create.actorsSection` | 액터 | project.create |
+| `project.create.approverHint` | 초대한 멤버 중 PM이 아닌 한 명을 고르거나 지정하지 않을 수 있습니다. | project.create |
+| `project.create.approverLabel` | 게이트 승인자 | project.create |
+| `project.create.approverNoMembers` | 멤버를 초대하면 그중에서 승인자를 고를 수 있습니다. | project.create |
+| `project.create.approverNone` | 지정 안 함 | project.create |
+| `project.create.approverNoPhases` | 단계가 없는 운영 방식이라 게이트 승인자를 지정하지 않습니다. | project.create |
+| `project.create.approverNotMember` | 게이트 승인자는 초대한 멤버 중에서만 지정할 수 있습니다. | project.create |
 | `project.create.approverSection` | 게이트 승인자 (선택) | project.create |
 | `project.create.basicSection` | 기본 정보 | project.create |
 | `project.create.blockedTitle` | 다음 필수 항목을 선택할 수 없어 만들 수 없습니다 | project.create |
@@ -752,13 +783,30 @@
 | `project.create.codeTaken` | {code}는 이미 사용 중입니다. | project.create |
 | `project.create.codeTakenGeneric` | 이미 사용 중인 프로젝트 코드입니다. | project.create |
 | `project.create.created` | {name} 프로젝트를 만들었습니다. | project.create |
+| `project.create.departmentsEmpty` | 고를 수 있는 활성 부서가 없습니다. | project.create |
+| `project.create.departmentsFailed` | 부서 목록을 불러오지 못했습니다. 주관 부서 없이 만들거나 다시 시도해 주세요. | project.create |
+| `project.create.departmentsFilter` | 부서 이름으로 거르기 | project.create |
+| `project.create.departmentsHint` | 여러 부서를 고를 수 있고(최대 20개), 비워 두고 만든 뒤 지정할 수도 있습니다. | project.create |
+| `project.create.departmentsLimit` | 주관 부서는 최대 20개까지 지정할 수 있습니다. | project.create |
+| `project.create.departmentsLoading` | 부서 목록을 불러오는 중입니다 | project.create |
+| `project.create.departmentsNoMatch` | 이름이 맞는 부서가 없습니다. | project.create |
 | `project.create.departmentsSection` | 주관 부서 (선택) | project.create |
+| `project.create.departmentsSelected` | {count}개 선택 (최대 20개) | project.create |
 | `project.create.description` | 입력한 내용으로 서버에 프로젝트를 만듭니다. 만든 사람이 첫 PM이 됩니다. | project.create |
 | `project.create.endDate` | 종료일 (선택) | project.create |
-| `project.create.featuresHint` | 선택한 운영 방식에서 쓸 수 있는 기능만 고를 수 있습니다. | project.create |
+| `project.create.featureNeedsPhases` | 단계 필요 | project.create |
+| `project.create.featuresHint` | 템플릿 기본 기능이 체크됩니다. 만들기 전에 하나씩 바꿀 수 있고, 산출물·게이트처럼 단계가 필요한 기능은 단계가 있는 운영 방식(폭포수)에서만 고를 수 있습니다. | project.create |
 | `project.create.featuresSection` | 기능 구성 | project.create |
+| `project.create.featureUnavailable` | 준비 중 | project.create |
 | `project.create.forbidden` | 이 계정은 프로젝트를 만들 수 없습니다. 활성 일반 사용자만 만들 수 있습니다. | project.create |
 | `project.create.loadingOptions` | 생성 선택지를 불러오는 중입니다 | project.create |
+| `project.create.memberRole` | {name} 역할 | project.create |
+| `project.create.memberRoleInvalid` | 지정하지 않은 액터를 역할로 가진 멤버가 있습니다. 역할을 다시 골라 주세요. | project.create |
+| `project.create.membersEmpty` | 아직 초대한 멤버가 없습니다. | project.create |
+| `project.create.membersHint` | 이름으로 찾아 추가합니다. 역할은 위에서 지정한 액터 중 PM을 뺀 것에서 고릅니다. 비워 두고 만든 뒤 초대할 수도 있습니다. | project.create |
+| `project.create.membersLimit` | 생성 시 초대할 수 있는 멤버는 최대 100명입니다. | project.create |
+| `project.create.membersNeedActor` | PM 외 액터를 하나 이상 지정해야 멤버를 초대할 수 있습니다. | project.create |
+| `project.create.membersSearch` | 초대할 사용자 찾기 | project.create |
 | `project.create.membersSection` | 멤버 초대 (선택) | project.create |
 | `project.create.methodology` | 운영 방식 | project.create |
 | `project.create.name` | 프로젝트명 | project.create |
@@ -769,13 +817,14 @@
 | `project.create.noMethodology` | 운영 방식 — 고를 수 있는(활성) 운영 방식이 없습니다. | project.create |
 | `project.create.noPmActor` | 액터 — 필수 PM 액터를 고를 수 없습니다. | project.create |
 | `project.create.noTemplate` | 템플릿 — 서버가 고를 수 있는 템플릿을 주지 않았습니다. | project.create |
-| `project.create.omittedNote` | 선택 항목이라 비운 채로 만들 수 있습니다. | project.create |
 | `project.create.openCreated` | 프로젝트 열기 | project.create |
 | `project.create.optionsFailed` | 생성 선택지(템플릿·운영 방식·액터·기능)를 불러오지 못했습니다. 필수 항목이라 이 정보 없이는 만들 수 없습니다. | project.create |
 | `project.create.periodHint` | 기간은 비워 두고 만든 뒤 입력할 수 있습니다. | project.create |
 | `project.create.periodInvalid` | 시작일은 종료일보다 늦을 수 없습니다. | project.create |
 | `project.create.pmSection` | PM | project.create |
 | `project.create.pmSelf` | {name} (나) — 만든 사람이 첫 PM이 됩니다. | project.create |
+| `project.create.removeDepartment` | {name} 주관 부서 해제 | project.create |
+| `project.create.removeMember` | {name} 멤버 제외 | project.create |
 | `project.create.startDate` | 시작일 (선택) | project.create |
 | `project.create.structureSection` | 템플릿·운영 방식 | project.create |
 | `project.create.submit` | 프로젝트 만들기 | project.create |
@@ -783,9 +832,6 @@
 | `project.create.template` | 템플릿 | project.create |
 | `project.create.title` | 새 프로젝트 | project.create |
 | `project.create.visibility` | 공개 범위 | project.create |
-| `project.directory.approverUnavailable` | 게이트 승인자는 초대한 멤버 중에서 고르므로, 멤버 초대를 할 수 없는 지금은 지정할 수 없습니다. | project.directory |
-| `project.directory.departmentsUnavailable` | 주관 부서를 고를 수 있는 부서 조회 API가 아직 없어 부서 없이 만듭니다. 서버에 일반 사용자용 부서 목록 API가 생기면 선택할 수 있습니다. | project.directory |
-| `project.directory.usersUnavailable` | 초대할 사용자를 찾는 사용자 검색 API가 아직 없어 멤버 초대를 할 수 없습니다. 서버에 일반 사용자용 사용자 검색 API가 생기면 초대할 수 있습니다. | project.directory |
 | `project.feature.board` | 게시판 | project.feature |
 | `project.feature.deliverable` | 산출물·게이트 | project.feature |
 | `project.feature.file` | 파일 | project.feature |
@@ -794,14 +840,89 @@
 | `project.feature.kanban` | 칸반 | project.feature |
 | `project.feature.meeting` | 회의록 | project.feature |
 | `project.feature.wbs` | WBS·간트 | project.feature |
+| `project.member.actor.customerLiaison` | 고객 담당자 | project.member.actor |
+| `project.member.actor.deptStaff` | 부서 담당자 | project.member.actor |
+| `project.member.alreadyMember` | 이미 프로젝트 멤버인 사용자가 있어 아무도 초대하지 않았습니다. 멤버 목록을 다시 불러왔으니 확인 후 다시 시도해 주세요. | project.member |
+| `project.member.approver` | 승인자 | project.member |
+| `project.member.approverHint` | 게이트 승인자는 PM이 될 수 없고 멤버에서 제외할 수 없습니다. 승인자를 먼저 변경해 주세요. | project.member |
+| `project.member.assignedTasks` | 담당 업무 {count}건 | project.member |
+| `project.member.cancel` | 취소 | project.member |
+| `project.member.change.invited` | 초대 | project.member.change |
+| `project.member.change.pmAdded` | PM 추가 | project.member.change |
+| `project.member.change.pmDelegated` | PM 위임(이전 기록) | project.member.change |
+| `project.member.change.pmReassigned` | PM 재지정(관리자) | project.member.change |
+| `project.member.change.pmReleased` | PM 해제 | project.member.change |
+| `project.member.change.removed` | 제외 | project.member.change |
+| `project.member.change.roleChanged` | 역할 변경 | project.member.change |
+| `project.member.confirmChange` | 변경 | project.member |
+| `project.member.confirmPmAddTitle` | PM으로 추가하시겠습니까? | project.member |
+| `project.member.confirmPmReleaseTitle` | PM을 해제하시겠습니까? | project.member |
+| `project.member.confirmRemove` | 제외 | project.member |
+| `project.member.confirmRemoveBody` | {name}을(를) 프로젝트 멤버에서 제외합니다. 제외한 기록은 변경 이력에 남습니다. | project.member |
+| `project.member.confirmRemoveTitle` | 멤버에서 제외하시겠습니까? | project.member |
+| `project.member.confirmRoleBody` | {name}의 역할을 {before}에서 {after}(으)로 바꿉니다. | project.member |
+| `project.member.confirmRoleTitle` | 역할을 변경하시겠습니까? | project.member |
+| `project.member.empty` | 아직 멤버가 없습니다 | project.member |
+| `project.member.hasTasks` | 담당 중인 업무가 있어 제외할 수 없습니다. 아래 업무를 다른 멤버에게 먼저 재배정해 주세요. | project.member |
+| `project.member.historyBy` | 처리: {name} | project.member |
+| `project.member.historyDescription` | 초대·역할 변경·PM 추가·해제·재지정·제외를 최신순으로 보여 줍니다. | project.member |
+| `project.member.historyEmpty` | 아직 멤버 변경 이력이 없습니다 | project.member |
+| `project.member.historyFailed` | 변경 이력을 불러오지 못했습니다 | project.member |
+| `project.member.historyLoading` | 변경 이력을 불러오는 중입니다 | project.member |
+| `project.member.historyTitle` | 멤버·역할 변경 이력 | project.member |
+| `project.member.invited` | {count}명을 초대했습니다. | project.member |
+| `project.member.inviteEmpty` | 아직 고른 사용자가 없습니다. | project.member |
+| `project.member.inviteHint` | 이름으로 찾아 추가하고 각자 역할을 고른 뒤 한 번에 초대합니다. 역할은 프로젝트에 지정한 액터 중 PM을 뺀 것에서 고릅니다. PM은 초대한 뒤 역할 변경으로 추가합니다. | project.member |
+| `project.member.inviteLimit` | 한 번에 최대 {max}명까지 초대할 수 있습니다. | project.member |
+| `project.member.inviteNeedActor` | PM 외 액터가 지정되어 있지 않아 초대할 수 없습니다. | project.member |
+| `project.member.inviteRejected` | 초대할 수 없는 사용자이거나 고를 수 없는 역할이 있어 아무도 초대하지 않았습니다. | project.member |
+| `project.member.inviteRemove` | {name}을(를) 초대 목록에서 빼기 | project.member |
+| `project.member.inviteRole` | {name} 초대 역할 | project.member |
+| `project.member.inviteSearch` | 초대할 사용자 찾기 | project.member |
+| `project.member.inviteSubmit` | {count}명 초대 | project.member |
+| `project.member.inviting` | 초대 중 | project.member |
+| `project.member.lastPm` | 프로젝트에는 PM이 1명 이상 있어야 해서 마지막 PM은 해제하거나 제외할 수 없습니다. 다른 멤버를 먼저 PM으로 추가해 주세요. | project.member |
+| `project.member.lastPmHint` | 마지막 PM이라 역할을 바꾸거나 제외할 수 없습니다. 다른 멤버를 먼저 PM으로 추가해 주세요. | project.member |
+| `project.member.loadFailed` | 멤버 목록을 불러오지 못했습니다 | project.member |
+| `project.member.loading` | 멤버를 불러오는 중입니다 | project.member |
+| `project.member.loadingMore` | 더 불러오는 중 | project.member |
+| `project.member.loadMore` | 더 보기 | project.member |
+| `project.member.me` | 나 | project.member |
+| `project.member.memberGone` | 이미 제외되었거나 없는 멤버입니다. 목록을 다시 불러왔습니다. | project.member |
+| `project.member.noActor` | 없음 | project.member |
+| `project.member.pmAddNote` | PM이 되면 멤버·단계·업무를 편집할 수 있습니다. 게이트 승인자로 지정된 멤버는 PM이 될 수 없습니다. | project.member |
+| `project.member.pmCount` | PM {count}명 | project.member |
+| `project.member.pmGuide` | PM 추가·해제는 아래 멤버 목록에서 역할을 PM으로 바꾸거나 PM에서 다른 역할로 바꿔 합니다. PM은 1명 이상 남아야 합니다. 활성 PM이 모두 없어진 프로젝트는 시스템 관리자가 PM을 재지정합니다. | project.member |
+| `project.member.pmGuideReadOnly` | PM 추가·해제는 현재 PM만 할 수 있습니다. 활성 PM이 모두 없어진 프로젝트는 시스템 관리자가 PM을 재지정합니다. | project.member |
+| `project.member.pmOnly` | PM 권한이 없어 처리하지 못했습니다. 다른 PM이 먼저 역할을 바꿨을 수 있어 목록을 다시 불러왔습니다. | project.member |
+| `project.member.pmReleaseSelfNote` | 본인의 PM을 해제하면 이 프로젝트의 PM 권한이 바로 사라집니다. | project.member |
+| `project.member.pmTargetRejected` | 이 멤버는 PM으로 지정할 수 없습니다. 게이트 승인자이거나 비활성 계정인지 확인해 주세요. | project.member |
+| `project.member.readOnly` | 읽기 전용 · 역할 변경과 제외는 PM만 할 수 있습니다 | project.member |
+| `project.member.remove` | 제외 | project.member |
+| `project.member.removeAria` | {name}을(를) 멤버에서 제외 | project.member |
+| `project.member.removeConflict` | 마지막 PM이거나 게이트 승인자라 제외할 수 없습니다. 다른 PM을 먼저 추가하거나 승인자를 먼저 변경해 주세요. | project.member |
+| `project.member.removed` | {name}을(를) 멤버에서 제외했습니다. | project.member |
+| `project.member.retry` | 다시 시도 | project.member |
+| `project.member.roleChanged` | {name}의 역할을 {after}(으)로 바꿨습니다. | project.member |
+| `project.member.roleRejected` | 선택한 역할로 바꿀 수 없습니다. 프로젝트에 지정한 액터인지 확인해 주세요. | project.member |
+| `project.member.roleSelect` | {name}의 역할 | project.member |
+| `project.member.submitting` | 처리 중 | project.member |
+| `project.member.title` | 현재 멤버 ({count}명) | project.member |
+| `project.member.unknownName` | (이름 없음) | project.member |
 | `project.settings.approverNotConnected` | 게이트 승인자 변경은 서버 API가 아직 없어 이 화면에서 바꿀 수 없습니다(FR-PRJ-05). | project.settings |
-| `project.settings.inviteDisabled` | 초대 기능 사용 불가 | project.settings |
 | `project.settings.inviteTitle` | 멤버 초대 | project.settings |
-| `project.settings.pmChangeNotConnected` | 서버 프로젝트의 PM 추가·해제는 멤버 역할 변경으로 합니다. 이 화면은 아직 서버와 연결되지 않아 바꿀 수 없습니다(이전 위임 API는 서버에서 없어졌습니다). | project.settings |
 | `project.settings.pmOnlyInvite` | 멤버 초대는 프로젝트 PM만 할 수 있습니다. | project.settings |
 | `project.settings.serverMembers` | 서버 멤버 목록 기준 | project.settings |
 | `project.template.empty` | 빈 템플릿 | project.template |
 | `project.template.itProject` | IT 프로젝트 템플릿 | project.template |
+| `project.userSearch.empty` | '{keyword}'(으)로 초대할 수 있는 사용자를 찾지 못했습니다. | project.userSearch |
+| `project.userSearch.failed` | 사용자를 찾지 못했습니다. | project.userSearch |
+| `project.userSearch.limitNote` | 최대 20명까지 보여 줍니다. 이름을 더 입력해 좁혀 주세요. | project.userSearch |
+| `project.userSearch.loading` | 찾는 중입니다 | project.userSearch |
+| `project.userSearch.noDepartment` | 부서 없음 | project.userSearch |
+| `project.userSearch.placeholder` | 이름으로 찾기 (2자 이상) | project.userSearch |
+| `project.userSearch.resultCount` | {count}명을 찾았습니다. | project.userSearch |
+| `project.userSearch.tooShort` | 이름을 2자 이상 입력하면 찾습니다. | project.userSearch |
 | `status.activityIssue.open` | 접수 | status.activityIssue |
 | `status.activityIssue.progress` | 처리중 | status.activityIssue |
 | `status.activityIssue.resolved` | 해결 | status.activityIssue |
@@ -1000,6 +1121,59 @@
 | `wbs.form.startDate` | 시작일 | wbs.form |
 | `wbs.form.submit` | 저장 | wbs.form |
 | `wbs.form.submitting` | 저장 중 | wbs.form |
+| `wbs.milestone.add` | 마일스톤 추가 | wbs.milestone |
+| `wbs.milestone.aiSource` | AI 초안 | wbs.milestone |
+| `wbs.milestone.cancel` | 취소 | wbs.milestone |
+| `wbs.milestone.columnActions` | 관리 | wbs.milestone |
+| `wbs.milestone.columnDday` | D-day | wbs.milestone |
+| `wbs.milestone.columnName` | 마일스톤 | wbs.milestone |
+| `wbs.milestone.columnTargetDate` | 목표일 | wbs.milestone |
+| `wbs.milestone.columnTasks` | 연결 작업 | wbs.milestone |
+| `wbs.milestone.concurrent` | 다른 사용자가 먼저 수정했습니다. 최신 마일스톤을 다시 불러왔으니 확인한 뒤 다시 시도해 주세요. | wbs.milestone |
+| `wbs.milestone.confirmDelete` | '{name}' 마일스톤을 삭제할까요? 연결 정보만 지워지고 작업은 남습니다. 되돌릴 수 없습니다. | wbs.milestone |
+| `wbs.milestone.created` | '{name}' 마일스톤을 등록했습니다. | wbs.milestone |
+| `wbs.milestone.createTitle` | 마일스톤 추가 | wbs.milestone |
+| `wbs.milestone.dateRequired` | 목표일을 입력해 주세요. | wbs.milestone |
+| `wbs.milestone.dDayLeft` | D-{days} | wbs.milestone |
+| `wbs.milestone.dDayPassed` | D+{days} | wbs.milestone |
+| `wbs.milestone.dDayToday` | D-day | wbs.milestone |
+| `wbs.milestone.dDayUnknown` | - | wbs.milestone |
+| `wbs.milestone.delayed` | 지연 | wbs.milestone |
+| `wbs.milestone.delayedTitle` | 연결 작업이 끝나지 않았는데 목표일이 도래했습니다. | wbs.milestone |
+| `wbs.milestone.delete` | 삭제 | wbs.milestone |
+| `wbs.milestone.deleted` | '{name}' 마일스톤을 삭제했습니다. | wbs.milestone |
+| `wbs.milestone.edit` | 수정 | wbs.milestone |
+| `wbs.milestone.editTasks` | 연결 작업 | wbs.milestone |
+| `wbs.milestone.editTitle` | 마일스톤 수정 | wbs.milestone |
+| `wbs.milestone.empty` | 등록된 마일스톤이 없습니다. | wbs.milestone |
+| `wbs.milestone.emptyHintPm` | 단계 종료일·오픈일처럼 기준이 되는 날짜를 마일스톤으로 추가하세요. | wbs.milestone |
+| `wbs.milestone.emptyHintViewer` | PM이 마일스톤을 등록하면 여기에 표시됩니다. | wbs.milestone |
+| `wbs.milestone.invalid` | 입력값을 확인해 주세요. | wbs.milestone |
+| `wbs.milestone.limitExceeded` | 프로젝트 마일스톤은 최대 200개까지 등록할 수 있습니다. | wbs.milestone |
+| `wbs.milestone.loadFailed` | 마일스톤을 불러오지 못했습니다. | wbs.milestone |
+| `wbs.milestone.loading` | 마일스톤을 불러오는 중입니다 | wbs.milestone |
+| `wbs.milestone.name` | 마일스톤명 | wbs.milestone |
+| `wbs.milestone.nameRequired` | 마일스톤명을 입력해 주세요. | wbs.milestone |
+| `wbs.milestone.nameTooLong` | 마일스톤명은 200자 이하로 입력해 주세요. | wbs.milestone |
+| `wbs.milestone.noTasks` | 연결 작업 없음 | wbs.milestone |
+| `wbs.milestone.notFound` | 마일스톤을 찾을 수 없습니다. 다른 사용자가 삭제했을 수 있어 목록을 새로 불러왔습니다. | wbs.milestone |
+| `wbs.milestone.noWbsTasks` | 연결할 WBS 작업이 없습니다. 먼저 WBS에 작업을 추가하세요. | wbs.milestone |
+| `wbs.milestone.pmOnly` | 마일스톤은 프로젝트 PM만 바꿀 수 있습니다. 권한이 바뀌었을 수 있어 마일스톤을 새로 불러왔습니다. | wbs.milestone |
+| `wbs.milestone.retry` | 다시 시도 | wbs.milestone |
+| `wbs.milestone.submit` | 저장 | wbs.milestone |
+| `wbs.milestone.submitting` | 저장 중 | wbs.milestone |
+| `wbs.milestone.targetDate` | 목표일 | wbs.milestone |
+| `wbs.milestone.tasks` | 연결 작업 (선택) | wbs.milestone |
+| `wbs.milestone.tasksHint` | WBS 작업·하위작업 중에서 고르세요. 최대 {max}개까지 연결할 수 있습니다. | wbs.milestone |
+| `wbs.milestone.tasksLimitReached` | 연결 작업은 최대 {max}개까지 고를 수 있습니다. | wbs.milestone |
+| `wbs.milestone.tasksSaved` | '{name}' 마일스톤의 연결 작업을 저장했습니다. | wbs.milestone |
+| `wbs.milestone.tasksSelected` | {count}개 선택 | wbs.milestone |
+| `wbs.milestone.tasksTitle` | '{name}' 연결 작업 | wbs.milestone |
+| `wbs.milestone.taskSummary` | 미완료 {incomplete} / 연결 {linked} | wbs.milestone |
+| `wbs.milestone.title` | 마일스톤 | wbs.milestone |
+| `wbs.milestone.unavailable` | 이 프로젝트에서는 마일스톤을 사용할 수 없습니다. | wbs.milestone |
+| `wbs.milestone.updated` | '{name}' 마일스톤을 수정했습니다. | wbs.milestone |
+| `wbs.milestone.viewerNote` | 마일스톤은 PM만 추가·수정·삭제할 수 있습니다. | wbs.milestone |
 | `wbs.server.addSubtask` | 하위작업 추가 | wbs.server |
 | `wbs.server.addTask` | 작업 추가 | wbs.server |
 | `wbs.server.aiDraftLink` | AI WBS 초안 | wbs.server |
@@ -1015,6 +1189,7 @@
 | `wbs.server.created` | '{name}'을(를) 등록했습니다. | wbs.server |
 | `wbs.server.delete` | 삭제 | wbs.server |
 | `wbs.server.deleted` | '{name}'을(를) 삭제했습니다. | wbs.server |
+| `wbs.server.dependencyNote` | 선후행 관계 편집은 아직 서버와 연결하지 않았습니다. | wbs.server |
 | `wbs.server.derivedProgress` | 하위작업 공수 가중 평균 | wbs.server |
 | `wbs.server.derivedSchedule` | 하위작업 기간으로 산출 | wbs.server |
 | `wbs.server.edit` | 수정 | wbs.server |
@@ -1029,7 +1204,6 @@
 | `wbs.server.loadFailed` | WBS를 불러오지 못했습니다. | wbs.server |
 | `wbs.server.loading` | WBS를 불러오는 중입니다 | wbs.server |
 | `wbs.server.memberNote` | 본인이 담당한 작업만 수정하고 그 아래 하위작업을 추가할 수 있습니다. | wbs.server |
-| `wbs.server.milestoneNote` | 선후행 관계·마일스톤 편집은 아직 서버와 연결하지 않았습니다. | wbs.server |
 | `wbs.server.moved` | 순서를 바꿨습니다. | wbs.server |
 | `wbs.server.moveDown` | 아래로 | wbs.server |
 | `wbs.server.moveUp` | 위로 | wbs.server |
