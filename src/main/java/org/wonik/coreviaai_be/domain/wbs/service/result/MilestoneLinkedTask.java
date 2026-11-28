@@ -17,4 +17,12 @@ public record MilestoneLinkedTask(
 	WbsTaskStatus status,
 	LocalDate endDate
 ) {
+
+	/** 하위작업 기준 파생 상태를 반영한 사본을 돌려준다. 상태가 같으면 그대로 반환한다. */
+	public MilestoneLinkedTask withStatus(final WbsTaskStatus effectiveStatus) {
+		if (status == effectiveStatus) {
+			return this;
+		}
+		return new MilestoneLinkedTask(milestoneId, taskId, parentTaskId, name, effectiveStatus, endDate);
+	}
 }
