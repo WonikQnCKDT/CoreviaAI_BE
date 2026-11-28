@@ -10,44 +10,78 @@
 - 등록하지 않은 키도 FE는 한국어 기본 문구로 표시하므로 화면이 깨지지 않습니다.
 - `{name}`처럼 중괄호로 감싼 부분은 FE가 값을 넣는 자리입니다. 번역문에도 같은 이름으로 남겨 주세요.
 
-## 등록 필요 (1209개)
+## 등록 필요 (1495개)
 
 | 라벨 키 | 한국어 기본 문구 | 구분 |
 | --- | --- | --- |
 | `admin.activateConfirmBody` | 활성화하면 다시 로그인할 수 있습니다. | admin |
 | `admin.activateConfirmTitle` | 계정 활성화 | admin |
+| `admin.activateDepartmentLead` | {name} 부서를 활성화합니다. | admin |
+| `admin.activateDepartmentTitle` | 부서 활성화 | admin |
+| `admin.activeMembersNote` | 활성 인원은 그 부서에 직접 소속된 사람만 셉니다. | admin |
+| `admin.actorUnknown` | 알 수 없는 사용자 | admin |
 | `admin.addChildDepartment` | 하위 부서 추가 | admin |
 | `admin.addDepartment` | 부서 추가 | admin |
 | `admin.addUser` | 사용자 추가 | admin |
 | `admin.allDepartments` | 부서 전체 | admin |
 | `admin.allRoles` | 시스템 역할 전체 | admin |
 | `admin.allStatuses` | 상태 전체 | admin |
+| `admin.apiHeaderNote` | 시스템 관리자 전용 · 사용자·부서·공통 코드·다국어 라벨 변경은 서버에 바로 반영되고 감사 로그에 기록됩니다 | admin |
+| `admin.booleanFalse` | 없음 | admin |
+| `admin.booleanTrue` | 있음 | admin |
 | `admin.cancel` | 취소 | admin |
 | `admin.close` | 닫기 | admin |
+| `admin.code.codeListAria` | 코드 목록 | admin.code |
+| `admin.code.colActive` | 사용 여부 | admin.code |
+| `admin.code.colCodeValue` | 코드 값 | admin.code |
+| `admin.code.colLabelKey` | 라벨 키 | admin.code |
+| `admin.code.colSortOrder` | 정렬 순서 | admin.code |
+| `admin.code.colUpdatedAt` | 수정일 | admin.code |
 | `admin.code.description` | 상태값을 코드로 관리합니다. 관리자는 그룹 안 표시 순서만 바꿀 수 있습니다. | admin.code |
 | `admin.code.displayText` | 표시 문구 | admin.code |
 | `admin.code.emptyCodes` | 이 그룹에는 코드가 없습니다 | admin.code |
 | `admin.code.emptyGroups` | 등록된 코드 그룹이 없습니다 | admin.code |
 | `admin.code.emptyGroupsHint` | 코드 그룹은 서버 마이그레이션으로만 추가됩니다. | admin.code |
 | `admin.code.fixedNote` | 코드 값·라벨 키·사용 여부는 바꿀 수 없습니다(서버 마이그레이션으로만 변경). 표시 텍스트는 다국어 라벨에서 라벨 키로 관리합니다. 정렬 순서를 바꾸면 감사 로그에 기록됩니다. | admin.code |
+| `admin.code.groupCodeListAria` | {groupCode} 코드 목록 | admin.code |
 | `admin.code.groupsLabel` | 코드 그룹 | admin.code |
+| `admin.code.historyButtonAria` | {code} 변경 이력 | admin.code |
+| `admin.code.historyDescription` | 정렬 순서 변경 이력을 최신순으로 봅니다. | admin.code |
 | `admin.code.inUse` | 사용 | admin.code |
 | `admin.code.lastWriteWins` | 다른 관리자가 같은 코드의 순서를 동시에 바꾸면 나중에 저장한 값이 남습니다. | admin.code |
 | `admin.code.loadCodesFailed` | 코드를 불러오지 못했습니다 | admin.code |
 | `admin.code.loadGroupsFailed` | 코드 그룹을 불러오지 못했습니다 | admin.code |
 | `admin.code.notInUse` | 사용 안 함 | admin.code |
 | `admin.code.selectGroup` | 왼쪽에서 코드 그룹을 고르세요 | admin.code |
+| `admin.code.sortOrderInputAria` | {code} 정렬 순서 | admin.code |
 | `admin.code.sortOrderRange` | 정렬 순서는 0 이상 9999 이하의 정수로 입력해 주세요. | admin.code |
 | `admin.code.sortOrderRequired` | 정렬 순서를 입력해 주세요. | admin.code |
 | `admin.code.title` | 공통 코드 | admin.code |
+| `admin.colActiveMembers` | 활성 인원 | admin |
+| `admin.colDepartment` | 부서 | admin |
+| `admin.colJobTitle` | 직무 | admin |
+| `admin.colLastLogin` | 마지막 로그인 | admin |
+| `admin.colManage` | 관리 | admin |
+| `admin.colStatus` | 상태 | admin |
+| `admin.colSystemRole` | 시스템 역할 | admin |
+| `admin.colUser` | 사용자 | admin |
 | `admin.createdThenReset` | 계정을 만들었습니다. 비밀번호가 없어 아직 로그인할 수 없으니 이어서 임시 비밀번호를 발급해 주세요. | admin |
 | `admin.deactivateConfirmBody` | 비활성화하면 대상 사용자의 모든 세션이 즉시 종료되고 이후 로그인할 수 없습니다. | admin |
 | `admin.deactivateConfirmTitle` | 계정 비활성화 | admin |
+| `admin.deactivateDepartmentBody` | 비활성 부서에는 사용자를 새로 배치하거나 하위 부서를 만들 수 없습니다. 활성 사용자나 활성 하위 부서가 있으면 비활성화할 수 없습니다. | admin |
+| `admin.deactivateDepartmentLead` | {name} 부서를 비활성화합니다. | admin |
+| `admin.deactivateDepartmentTitle` | 부서 비활성화 | admin |
+| `admin.demoHeaderNote` | 시스템 관리자 전용 · 변경 사항은 데모 저장소에만 반영됩니다 | admin |
+| `admin.departmentCreateDescription` | 같은 상위 부서 안에서는 이름이 겹칠 수 없습니다. | admin |
+| `admin.departmentEditDescription` | 이름을 바꾸거나 다른 상위 부서 밑으로 옮깁니다. | admin |
 | `admin.departmentNameRequired` | 부서 이름을 입력해 주세요. | admin |
 | `admin.departmentNameTooLong` | 부서 이름은 50자 이하로 입력해 주세요. | admin |
 | `admin.departmentRequired` | 시스템 관리자가 아니면 부서를 선택해야 합니다. | admin |
 | `admin.departmentsDescription` | 부서를 트리로 관리합니다. 부서는 삭제하지 않고 비활성화합니다. | admin |
+| `admin.departmentsListAria` | 부서 목록 | admin |
 | `admin.departmentsTitle` | 부서 | admin |
+| `admin.deptFilterExcludesChildren` | 부서 필터는 하위 부서를 포함하지 않습니다. | admin |
+| `admin.depthSubDepartment` | {depth}단계 하위 부서 | admin |
 | `admin.editDepartment` | 부서 수정 | admin |
 | `admin.editUser` | 사용자 정보 수정 | admin |
 | `admin.emptyDepartments` | 등록된 부서가 없습니다 | admin |
@@ -88,7 +122,17 @@
 | `admin.errorLog.toDate` | 종료일 | admin.errorLog |
 | `admin.errorLog.user` | 사용자 | admin.errorLog |
 | `admin.errorLog.userIdFallback` | 사용자 #{id} | admin.errorLog |
+| `admin.fieldDepartmentName` | 부서 이름 | admin |
+| `admin.fieldDepartmentOptional` | 부서 (선택) | admin |
+| `admin.fieldDepartmentSelect` | 부서 선택 | admin |
+| `admin.fieldJobTitleOptional` | 직무 (선택) | admin |
+| `admin.fieldLoginId` | 아이디 | admin |
+| `admin.fieldName` | 이름 | admin |
+| `admin.fieldParentDepartment` | 상위 부서 | admin |
 | `admin.history` | 변경 이력 | admin |
+| `admin.history.action.CODE_CHANGED` | 정렬 순서 변경 | admin.history.action |
+| `admin.history.action.I18N_LABEL_CHANGED` | 문구 수정 | admin.history.action |
+| `admin.history.action.I18N_LABEL_CREATED` | 라벨 등록 | admin.history.action |
 | `admin.history.action.PASSWORD_RESET` | 비밀번호 초기화 | admin.history.action |
 | `admin.history.action.PROJECT_CREATION_GRANTED` | 프로젝트 생성 권한 부여 (폐지된 기능) | admin.history.action |
 | `admin.history.action.PROJECT_CREATION_REVOKED` | 프로젝트 생성 권한 회수 (폐지된 기능) | admin.history.action |
@@ -105,6 +149,9 @@
 | `admin.history.field.name` | 이름 | admin.history.field |
 | `admin.history.field.status` | 상태 | admin.history.field |
 | `admin.history.field.systemRole` | 시스템 역할 | admin.history.field |
+| `admin.historyArrowAria` | 에서 | admin |
+| `admin.historyDescription` | 최신 변경이 위에 옵니다. 비밀번호 초기화는 기록만 남고 내용은 저장하지 않습니다. | admin |
+| `admin.inactiveSuffix` |  (비활성) | admin |
 | `admin.jobTitleTooLong` | 직무는 50자 이하로 입력해 주세요. | admin |
 | `admin.label.add` | 라벨 등록 | admin.label |
 | `admin.label.applyNow` | 지금 화면에 적용 | admin.label |
@@ -115,6 +162,8 @@
 | `admin.label.empty` | 조건에 맞는 라벨이 없습니다 | admin.label |
 | `admin.label.emptyHint` | 검색어나 누락 필터를 바꿔 보세요. | admin.label |
 | `admin.label.emptyMeansMissing` | 영어·번체 중국어를 비우면 번역 누락으로 저장되고 화면에는 한국어로 표시됩니다. | admin.label |
+| `admin.label.historyButtonAria` | {key} 변경 이력 | admin.label |
+| `admin.label.historyDescription` | 라벨 등록 및 언어별 문구 수정 이력을 최신순으로 봅니다. | admin.label |
 | `admin.label.key` | 라벨 키 | admin.label |
 | `admin.label.keyFixed` | 라벨 키는 바꿀 수 없습니다. | admin.label |
 | `admin.label.keyFormat` | 라벨 키는 영문자로 시작하고 점(.)으로 구분한 영문·숫자·밑줄·하이픈 100자 이하로 입력해 주세요. | admin.label |
@@ -142,11 +191,15 @@
 | `admin.loadingMore` | 더 불러오는 중 | admin |
 | `admin.loadMore` | 더 보기 | admin |
 | `admin.loadUsersFailed` | 사용자 목록을 불러오지 못했습니다 | admin |
+| `admin.loginIdFixedNote` | 아이디 {loginId}는 바꿀 수 없습니다. | admin |
 | `admin.loginIdFormat` | 아이디는 50자 이하의 영문·숫자·마침표(.)·밑줄(_)·하이픈(-)만 쓸 수 있습니다. | admin |
 | `admin.loginIdRequired` | 아이디를 입력해 주세요. | admin |
+| `admin.memberCountUnit` | {count}명 | admin |
 | `admin.nameRequired` | 이름을 입력해 주세요. | admin |
 | `admin.nameTooLong` | 이름은 50자 이하로 입력해 주세요. | admin |
 | `admin.neverLoggedIn` | 로그인 기록 없음 | admin |
+| `admin.noAccessDescription` | 시스템 관리는 시스템 관리자 역할에게만 표시되는 메뉴입니다. 권한이 필요하면 관리자에게 요청해 주세요. 시스템 관리자 역할은 프로젝트 데이터 접근 권한을 자동으로 부여하지 않습니다. | admin |
+| `admin.noAccessTitle` | 시스템 관리 권한이 없습니다 | admin |
 | `admin.none` | 없음 | admin |
 | `admin.notice.codeSortOrderChanged` | {code} 코드의 정렬 순서를 {sortOrder}(으)로 바꿨습니다. | admin.notice |
 | `admin.notice.departmentCreated` | {name} 부서를 추가했습니다. | admin.notice |
@@ -156,6 +209,8 @@
 | `admin.notice.userSaved` | {name} 사용자 정보를 저장했습니다. | admin.notice |
 | `admin.notice.userStatusChanged` | {name} 계정을 {status} 상태로 바꿨습니다. | admin.notice |
 | `admin.ownAccountLocked` | 본인 계정의 역할과 상태는 바꿀 수 없습니다. | admin |
+| `admin.parentDepartmentCreateHint` | 활성 부서만 상위 부서로 고를 수 있습니다. | admin |
+| `admin.parentDepartmentEditHint` | 활성 부서만 상위 부서로 고를 수 있습니다. 자기 자신과 하위 부서 밑으로는 옮길 수 없습니다. | admin |
 | `admin.pmReassign.clearSelection` | 선택 해제 | admin.pmReassign |
 | `admin.pmReassign.code` | 프로젝트 코드 | admin.pmReassign |
 | `admin.pmReassign.codeFormat` | 프로젝트 코드는 영문·숫자로 시작하는 영문·숫자·하이픈(-) 2~20자입니다. | admin.pmReassign |
@@ -178,9 +233,18 @@
 | `admin.pmReassign.userRequired` | 새 PM으로 지정할 사용자를 선택해 주세요. | admin.pmReassign |
 | `admin.pmReassign.userSearch` | 새 PM 이름 또는 아이디 검색 | admin.pmReassign |
 | `admin.pmReassign.userSearchHint` | 활성 일반 사용자만 PM으로 지정할 수 있습니다. | admin.pmReassign |
+| `admin.resetConfirmLead` | {name} 사용자의 비밀번호를 초기화합니다. 기존 세션은 모두 종료됩니다. | admin |
+| `admin.resetCopied` | 클립보드에 복사했습니다. | admin |
+| `admin.resetCopyFailed` | 복사하지 못했습니다. 직접 선택해 복사해 주세요. | admin |
+| `admin.resetDescription` | 임시 비밀번호를 발급하고 계정 잠금을 해제합니다. 대상 사용자는 다음 로그인 후 비밀번호를 변경해야 합니다. | admin |
 | `admin.resetFilters` | 필터 초기화 | admin |
+| `admin.resetIssuedLead` | {name} 사용자의 임시 비밀번호입니다. 이 창을 닫으면 다시 볼 수 없으니 지금 대상 사용자에게 안전하게 전달해 주세요. | admin |
+| `admin.resetServerUserIdHint` | 사용자 목록 API가 연결되기 전까지는 인증 서버의 사용자 ID를 직접 입력합니다. 이 브라우저에서 서버로 로그인한 적이 있는 사용자는 자동으로 채워집니다. | admin |
+| `admin.resetServerUserIdLabel` | 서버 사용자 ID | admin |
+| `admin.resetTitle` | 비밀번호 초기화 | admin |
 | `admin.retry` | 다시 시도 | admin |
 | `admin.roleChangeConfirmBody` | 역할을 바꾸면 대상 사용자의 모든 세션이 즉시 종료되어 다시 로그인해야 합니다. | admin |
+| `admin.roleChangeConfirmLead` | {name}님의 시스템 역할을 {from}에서 {to}(으)로 바꿉니다. | admin |
 | `admin.roleChangeConfirmTitle` | 시스템 역할 변경 | admin |
 | `admin.save` | 저장 | admin |
 | `admin.saving` | 저장 중 | admin |
@@ -188,33 +252,77 @@
 | `admin.self` | 나 | admin |
 | `admin.serverAppliedNote` | 변경 사항은 서버에 바로 반영되고 감사 로그에 기록됩니다. | admin |
 | `admin.showInactive` | 비활성 부서 보기 | admin |
+| `admin.statusChangeConfirmLead` | {name} 계정을 {status} 상태로 바꿉니다. | admin |
 | `admin.topLevel` | 최상위 | admin |
+| `admin.topLevelDepartment` | 최상위 부서 | admin |
+| `admin.userCreateDescription` | 계정만 만들어집니다. 만든 뒤 임시 비밀번호를 발급해야 로그인할 수 있습니다. | admin |
+| `admin.userEditDescription` | 시스템 역할과 상태는 목록에서 따로 바꿉니다. | admin |
+| `admin.userRoleAria` | {name} 시스템 역할 | admin |
 | `admin.usersDescription` | 계정·부서·직무·시스템 역할을 관리합니다. 사용자는 삭제하지 않고 비활성화합니다. | admin |
+| `admin.usersListAria` | 사용자 목록 | admin |
 | `admin.usersTitle` | 사용자 | admin |
 | `auth.accountDisabled` | 비활성화된 계정입니다. 시스템 관리자에게 문의해 주세요. | auth |
 | `auth.accountLocked` | 비밀번호를 5회 연속 잘못 입력해 계정이 잠겼습니다. 시스템 관리자에게 비밀번호 초기화를 요청해 주세요. | auth |
+| `auth.accountLockedShort` | 계정이 잠겨 있습니다. | auth |
 | `auth.accountNotFound` | 계정 정보를 찾을 수 없습니다. 시스템 관리자에게 문의해 주세요. | auth |
+| `auth.changeModalDescription` | 비밀번호는 {policy}여야 합니다. | auth |
+| `auth.changeModalFooterNote` | 비밀번호 규칙: {policy}. 대문자는 필수가 아닙니다. 변경하면 모든 기기에서 로그아웃되며 새 비밀번호로 다시 로그인해야 합니다. | auth |
+| `auth.changeModalTitle` | 비밀번호 변경 | auth |
 | `auth.checkingSession` | 로그인 상태를 확인하는 중입니다 | auth |
+| `auth.confirmPasswordLabel` | 새 비밀번호 확인 | auth |
+| `auth.confirmPasswordMismatch` | 새 비밀번호와 일치하지 않습니다. | auth |
+| `auth.confirmPasswordPlaceholder` | 새 비밀번호 다시 입력 | auth |
+| `auth.confirmPasswordRequired` | 새 비밀번호 확인을 입력해 주세요. | auth |
+| `auth.currentPasswordLabel` | 현재 비밀번호 | auth |
 | `auth.currentPasswordMismatch` | 현재 비밀번호가 일치하지 않습니다. | auth |
+| `auth.currentPasswordPlaceholder` | 현재(또는 임시) 비밀번호 입력 | auth |
+| `auth.currentPasswordRequired` | 현재 비밀번호를 입력해 주세요. | auth |
 | `auth.forcedChangeDescription` | 임시 비밀번호로 로그인했습니다. 비밀번호를 변경해야 다른 기능을 사용할 수 있습니다. | auth |
 | `auth.forcedChangeTitle` | 비밀번호 변경 필요 | auth |
 | `auth.goToLogin` | 로그인 화면으로 | auth |
+| `auth.hideFieldPassword` | {label} 숨기기 | auth |
 | `auth.invalidCredentials` | 아이디 또는 비밀번호가 올바르지 않습니다. | auth |
+| `auth.lockoutHint` | 5회 연속 실패하면 계정이 잠깁니다. | auth |
+| `auth.loginFooterPolicy` | 비밀번호 규칙: {policy} · 회원가입·소셜 로그인은 제공하지 않습니다. | auth |
+| `auth.loginIdEmailLabel` | 아이디 (이메일) | auth |
+| `auth.loginIdLabel` | 아이디 | auth |
+| `auth.loginIdPlaceholder` | 아이디 입력 | auth |
 | `auth.loginIdRequired` | 아이디를 입력해 주세요. | auth |
 | `auth.loginIdTooLong` | 아이디는 50자 이하로 입력해 주세요. | auth |
+| `auth.loginSubtitle` | 사내 계정으로 로그인해 주세요. | auth |
+| `auth.loginTitle` | 로그인 | auth |
 | `auth.network` | 서버에 연결하지 못했습니다. 네트워크 상태를 확인한 뒤 다시 시도해 주세요. | auth |
 | `auth.newPasswordInvalid` | 새 비밀번호가 비밀번호 규칙에 맞지 않습니다. | auth |
+| `auth.newPasswordLabel` | 새 비밀번호 | auth |
+| `auth.newPasswordPlaceholder` | 새 비밀번호 입력 | auth |
+| `auth.newPasswordRequired` | 새 비밀번호를 입력해 주세요. | auth |
+| `auth.newPasswordRulesUnmet` | 비밀번호 규칙을 모두 충족해야 합니다. | auth |
 | `auth.passwordChangedNote` | 보안을 위해 모든 기기에서 로그아웃되었습니다. 새 비밀번호로 다시 로그인해 주세요. | auth |
 | `auth.passwordChangedTitle` | 비밀번호가 변경되었습니다. | auth |
+| `auth.passwordLabel` | 비밀번호 | auth |
+| `auth.passwordPlaceholder` | 비밀번호 입력 | auth |
+| `auth.passwordPolicy` | 영문·숫자·특수문자를 각 1자 이상 포함한 8~64자 (공백·한글 불가) | auth |
+| `auth.passwordPolicyUnmet` | {missing} 조건을 충족해야 합니다. | auth |
 | `auth.passwordRequired` | 비밀번호를 입력해 주세요. | auth |
+| `auth.passwordRuleCharset` | 공백·한글 없음 | auth |
+| `auth.passwordRuleDigit` | 숫자 포함 | auth |
+| `auth.passwordRuleLength` | {min}~{max}자 | auth |
+| `auth.passwordRuleLetter` | 영문 포함 | auth |
+| `auth.passwordRulesAria` | 비밀번호 규칙 | auth |
+| `auth.passwordRuleSpecial` | 특수문자 포함 | auth |
 | `auth.passwordTooLong` | 비밀번호는 128자 이하로 입력해 주세요. | auth |
 | `auth.resetDemoOnly` | 데모 모드에서는 실제 비밀번호를 변경하지 않습니다. | auth |
 | `auth.resetForbidden` | 시스템 관리자만 비밀번호를 초기화할 수 있습니다. | auth |
 | `auth.resetUserIdInvalid` | 서버 사용자 ID는 1 이상의 숫자로 입력해 주세요. | auth |
 | `auth.resetUserNotFound` | 대상 사용자를 찾을 수 없습니다. 서버 사용자 ID를 확인해 주세요. | auth |
 | `auth.retry` | 다시 시도 | auth |
+| `auth.ruleMet` | 충족 | auth |
+| `auth.ruleUnmet` | 미충족 | auth |
 | `auth.sameAsCurrent` | 현재 비밀번호와 다른 비밀번호를 입력해 주세요. | auth |
 | `auth.serviceUnavailable` | 로그인 서버에 일시적인 문제가 있습니다. 잠시 후 다시 시도해 주세요. | auth |
+| `auth.sessionExpiredNote` | 일정 시간 동안 활동이 없어 세션이 종료되었습니다. 다시 로그인하면 이전에 보던 화면으로 이동합니다. | auth |
+| `auth.sessionExpiredTitle` | 로그인이 만료되었습니다. 다시 로그인해주세요. | auth |
+| `auth.showFieldPassword` | {label} 표시 | auth |
 | `auth.timeout` | 서버 응답이 늦어 요청을 중단했습니다. 다시 시도해 주세요. | auth |
 | `auth.unknown` | 요청을 처리하지 못했습니다. 잠시 후 다시 시도해 주세요. | auth |
 | `auth.unreachableBody` | 로그인 상태를 확인할 수 없습니다. 네트워크와 서버 상태를 확인한 뒤 다시 시도해 주세요. | auth |
@@ -249,6 +357,8 @@
 | `board.server.concurrent` | 다른 사용자가 먼저 바꿨습니다. 최신 보드를 다시 불러왔으니 확인한 뒤 다시 시도해 주세요. | board.server |
 | `board.server.dragHint` | 카드를 드래그하거나 '이동'에서 컬럼을 고르면 업무 상태가 바뀝니다. | board.server |
 | `board.server.emptyColumn` | 카드가 없습니다. | board.server |
+| `board.server.emptyFilteredDescription` | 단계·담당자 필터를 변경하거나 초기화해 주세요. | board.server |
+| `board.server.emptyFilteredTitle` | 필터 조건에 해당하는 카드가 없습니다. | board.server |
 | `board.server.forbidden` | 이 작업을 할 권한이 없습니다. 권한이 바뀌었을 수 있어 보드를 새로 불러왔습니다. | board.server |
 | `board.server.invalid` | 입력값을 확인해 주세요. | board.server |
 | `board.server.loadFailed` | 칸반 보드를 불러오지 못했습니다. | board.server |
@@ -261,6 +371,9 @@
 | `board.server.network` | 서버에 연결하지 못했습니다. 네트워크를 확인한 뒤 다시 시도해 주세요. | board.server |
 | `board.server.notFound` | 카드나 컬럼을 찾을 수 없습니다. 보드를 새로 불러왔습니다. | board.server |
 | `board.server.openDetail` | 상세 보기 | board.server |
+| `board.server.phaseAll` | 단계 전체 | board.server |
+| `board.server.phaseFilter` | 단계 | board.server |
+| `board.server.resetFilters` | 필터 초기화 | board.server |
 | `board.server.retry` | 다시 시도 | board.server |
 | `board.server.serverError` | 서버 오류로 처리하지 못했습니다. 잠시 후 다시 시도해 주세요. | board.server |
 | `board.server.subtaskOf` | {name} 하위 | board.server |
@@ -442,10 +555,38 @@
 | `button.writeJournal` | 업무일지 작성 | button |
 | `button.writePost` | 글쓰기 | button |
 | `button.yes` | 네 | button |
+| `common.ui.brandLogo` | CoreviaAI 로고 | common.ui |
+| `common.ui.comingSoonBadge` | 준비 중 | common.ui |
+| `common.ui.comingSoonNotice` | 이 화면은 아직 구현되지 않았습니다. 실제 동작 없이 완료 메시지를 표시하지 않으며, 다음 단계에서 데이터와 함께 제공될 예정입니다. | common.ui |
+| `common.ui.countUnit` | 건 | common.ui |
+| `common.ui.demoPermissionNote` | 데모 UI 권한 시뮬레이션입니다. 실제 서버 접근 제어가 아닙니다. | common.ui |
+| `common.ui.demoPrototypeFooter` | CoreviaAI 데모 프로토타입 | common.ui |
+| `common.ui.goToMyWork` | 내 업무로 이동 | common.ui |
+| `common.ui.goToProjects` | 프로젝트 목록 | common.ui |
+| `common.ui.goToProjectsBack` | 프로젝트 목록으로 | common.ui |
+| `common.ui.infoTipLabel` | 설명 보기 | common.ui |
+| `common.ui.itemUnit` | 개 | common.ui |
+| `common.ui.noAccessDescription` | 현재 계정에는 이 화면을 볼 수 있는 권한이 없습니다. 필요한 경우 프로젝트 PM 또는 시스템 관리자에게 권한을 요청해 주세요. | common.ui |
+| `common.ui.noAccessTitle` | 이 화면에 접근할 권한이 없습니다 | common.ui |
+| `common.ui.notFoundPathPrefix` | 요청한 경로 | common.ui |
+| `common.ui.notFoundPathSuffix` | 가 존재하지 않습니다. | common.ui |
+| `common.ui.notFoundTitle` | 페이지를 찾을 수 없습니다 | common.ui |
+| `common.ui.personUnit` | 명 | common.ui |
+| `common.ui.requiredRolePrefix` | 필요한 권한 | common.ui |
+| `common.ui.riskScore` | 리스크 점수: {score}점 | common.ui |
+| `common.ui.riskScoreUnknown` | 리스크 점수 정보 없음 | common.ui |
+| `common.ui.scoreUnit` | {score}점 | common.ui |
+| `common.ui.unassigned` | 미지정 | common.ui |
 | `i18n.language.changeFailed` | 언어를 바꾸지 못했습니다. 잠시 후 다시 시도해 주세요. | i18n.language |
 | `i18n.language.changing` | 언어를 바꾸는 중 | i18n.language |
 | `i18n.language.label` | 표시 언어 | i18n.language |
 | `i18n.language.savedButNotApplied` | 언어 설정은 저장했지만 문구를 불러오지 못했습니다. 새로고침하면 적용됩니다. | i18n.language |
+| `layout.topbar.currentStage` | 현재 단계 {stage} | layout.topbar |
+| `layout.topbar.demoSessionNote` | 데모 세션입니다. 실제 인증·세션 관리는 연결되어 있지 않습니다. | layout.topbar |
+| `layout.topbar.progress` | 진척률 | layout.topbar |
+| `layout.topbar.unsavedBody` | 저장하지 않은 입력이 있을 때만 이 확인을 표시합니다. 입력을 마무리하려면 계속 작성하기를 선택해 주세요. | layout.topbar |
+| `layout.topbar.unsavedDescription` | 이 화면에서 나가면 작성 중인 내용은 저장되지 않습니다. | layout.topbar |
+| `layout.topbar.unsavedTitle` | 저장하지 않은 내용이 있습니다 | layout.topbar |
 | `meeting.form.actionAssignee` | 담당자 | meeting.form |
 | `meeting.form.actionContent` | 할 일 | meeting.form |
 | `meeting.form.actionDue` | 기한 | meeting.form |
@@ -636,6 +777,8 @@
 | `mywork.schedule.updated` | '{name}' 일정을 수정했습니다. | mywork.schedule |
 | `mywork.todo.add` | 할 일 추가 | mywork.todo |
 | `mywork.todo.addTitle` | 개인 할 일 추가 | mywork.todo |
+| `mywork.todo.approvalPendingDesc` | 승인 요청 목록은 후속 서버 연동 후 표시됩니다. | mywork.todo |
+| `mywork.todo.approvalPendingTitle` | 승인 요청 연동 준비 중 | mywork.todo |
 | `mywork.todo.cancel` | 취소 | mywork.todo |
 | `mywork.todo.completed` | '{name}'을(를) 완료했습니다. | mywork.todo |
 | `mywork.todo.concurrent` | 다른 요청과 겹쳐 처리하지 못했습니다. 목록을 새로 불러왔으니 다시 시도해 주세요. | mywork.todo |
@@ -759,6 +902,45 @@
 | `notification.typeSuffix` | {type} 알림 | notification |
 | `notification.unreadCount` | 읽지 않음 {count}건 | notification |
 | `notification.unreadNotice` | 확인하지 않은 알림 {count}건이 있습니다 | notification |
+| `portfolio.activeFocusChip` | 현재 지표 · {label} | portfolio |
+| `portfolio.allGrades` | 등급 전체 | portfolio |
+| `portfolio.allStages` | 단계 전체 | portfolio |
+| `portfolio.clickMetricHint` | 지표를 누르면 아래 프로젝트 목록에 해당 조건이 적용됩니다. | portfolio |
+| `portfolio.colDeadline` | 마감 | portfolio |
+| `portfolio.colStageShort` | 단계 | portfolio |
+| `portfolio.deptItemCount` | {projects}개 · 미완료 {openTasks}건 | portfolio |
+| `portfolio.deptProgressTitle` | 부서별 진척률 | portfolio |
+| `portfolio.deptScopeExec` | 소속 범위 부서 단위 집계 | portfolio |
+| `portfolio.deptScopePm` | 프로젝트 주관 부서 단위 집계 | portfolio |
+| `portfolio.emptyDeptData` | 부서 데이터가 없습니다. | portfolio |
+| `portfolio.emptyProjectsDescription` | 조회 범위에 프로젝트가 없습니다. | portfolio |
+| `portfolio.emptyProjectsTitle` | 표시할 프로젝트가 없습니다 | portfolio |
+| `portfolio.endDateSuffix` | {date} 종료 | portfolio |
+| `portfolio.ended` | 종료 | portfolio |
+| `portfolio.execPrivacyNote` | 경영진에게는 개인 업무량·개인 지연 이력·개인 순위를 표시하지 않습니다. | portfolio |
+| `portfolio.filteredCount` | {total}건 중 {shown}건 표시 | portfolio |
+| `portfolio.footerRowHint` | 행을 클릭하면 해당 프로젝트 상세로 이동합니다. | portfolio |
+| `portfolio.hintAll` | 조회 범위 기준 | portfolio |
+| `portfolio.hintDone` | 이행까지 종료 | portfolio |
+| `portfolio.hintLate` | 완료 전 · 마감일 경과 | portfolio |
+| `portfolio.hintOngoing` | 완료 전 · 마감일 이내 | portfolio |
+| `portfolio.lateBadge` | 지연 | portfolio |
+| `portfolio.metricsAria` | 프로젝트 요약 지표 | portfolio |
+| `portfolio.noAccessDescription` | 현재 계정에는 전체 현황 열람 권한이 없습니다. 프로젝트 PM 또는 시스템 관리자에게 권한을 요청해 주세요. | portfolio |
+| `portfolio.noAccessTitle` | 전체 현황은 PM과 경영진만 볼 수 있습니다 | portfolio |
+| `portfolio.noIndividualMetric` | 개인별 지표 없음 | portfolio |
+| `portfolio.noMatchDescription` | 상태·단계·부서·PM·등급 필터를 변경해 다시 확인해 주세요. | portfolio |
+| `portfolio.noMatchTitle` | 조건에 맞는 프로젝트가 없습니다 | portfolio |
+| `portfolio.overdueDays` | {days}일 경과 | portfolio |
+| `portfolio.readOnly` | 읽기 전용 | portfolio |
+| `portfolio.requiredRole` | 프로젝트 PM 또는 경영진 | portfolio |
+| `portfolio.ruleBasedDemoScore` | 규칙 기반 데모 점수 | portfolio |
+| `portfolio.scopeExec` | 경영진 · 소속 부서 범위 | portfolio |
+| `portfolio.scopePm` | PM · 참여 프로젝트 | portfolio |
+| `portfolio.summaryDescription` | 여러 프로젝트의 진척률·마감일·지연·리스크를 한 화면에서 비교합니다. 개인별 성과 비교는 제공하지 않습니다. | portfolio |
+| `portfolio.topRiskDescription` | 리스크 점수 기준 내림차순입니다. | portfolio |
+| `portfolio.topRiskTitle` | 위험 프로젝트 상위 5개 | portfolio |
+| `portfolio.viewSameInProjects` | 프로젝트 목록에서 같은 조건으로 보기 | portfolio |
 | `project.create.actorInUse` | 멤버 역할로 쓰는 액터는 해제할 수 없습니다. 그 멤버의 역할을 바꾸거나 제외해 주세요. | project.create |
 | `project.create.actorsHint` | PM은 필수 액터라 해제할 수 없습니다. | project.create |
 | `project.create.actorsRequired` | PM 액터는 반드시 포함되어야 합니다. | project.create |
@@ -813,6 +995,9 @@
 | `project.create.namePlaceholder` | 예) 사내 업무포털 고도화 | project.create |
 | `project.create.nameRequired` | 프로젝트명을 입력해 주세요. | project.create |
 | `project.create.nameTooLong` | 프로젝트명은 100자 이하로 입력해 주세요. | project.create |
+| `project.create.nextStep` | 다음 | project.create |
+| `project.create.noAccessDescription` | 프로젝트는 활성 상태의 일반 사용자라면 누구나 만들 수 있습니다. 경영진은 프로젝트를 조회만 하고, 시스템 관리자는 프로젝트 데이터에 접근하지 않습니다. | project.create |
+| `project.create.noAccessTitle` | 프로젝트를 만들 수 없는 계정입니다 | project.create |
 | `project.create.noDepartmentType` | 부서 유형 — SW 부서 유형이 활성 상태가 아닙니다. | project.create |
 | `project.create.noMethodology` | 운영 방식 — 고를 수 있는(활성) 운영 방식이 없습니다. | project.create |
 | `project.create.noPmActor` | 액터 — 필수 PM 액터를 고를 수 없습니다. | project.create |
@@ -823,14 +1008,23 @@
 | `project.create.periodInvalid` | 시작일은 종료일보다 늦을 수 없습니다. | project.create |
 | `project.create.pmSection` | PM | project.create |
 | `project.create.pmSelf` | {name} (나) — 만든 사람이 첫 PM이 됩니다. | project.create |
+| `project.create.prevStep` | 이전 | project.create |
 | `project.create.removeDepartment` | {name} 주관 부서 해제 | project.create |
 | `project.create.removeMember` | {name} 멤버 제외 | project.create |
 | `project.create.startDate` | 시작일 (선택) | project.create |
+| `project.create.stepActors` | 액터 | project.create |
+| `project.create.stepApprover` | 게이트 승인자 | project.create |
+| `project.create.stepBasic` | 기본 정보 | project.create |
+| `project.create.stepFeatures` | 기능 구성 | project.create |
+| `project.create.stepMembers` | 멤버 | project.create |
+| `project.create.stepsNavAria` | 프로젝트 생성 단계 | project.create |
+| `project.create.stepStructure` | 템플릿·운영 방식 | project.create |
 | `project.create.structureSection` | 템플릿·운영 방식 | project.create |
 | `project.create.submit` | 프로젝트 만들기 | project.create |
 | `project.create.submitting` | 만드는 중 | project.create |
 | `project.create.template` | 템플릿 | project.create |
 | `project.create.title` | 새 프로젝트 | project.create |
+| `project.create.unsavedMessage` | 저장하지 않은 프로젝트 정보가 있습니다. | project.create |
 | `project.create.visibility` | 공개 범위 | project.create |
 | `project.feature.board` | 게시판 | project.feature |
 | `project.feature.deliverable` | 산출물·게이트 | project.feature |
@@ -840,6 +1034,42 @@
 | `project.feature.kanban` | 칸반 | project.feature |
 | `project.feature.meeting` | 회의록 | project.feature |
 | `project.feature.wbs` | WBS·간트 | project.feature |
+| `project.list.allDepartments` | 부서 전체 | project.list |
+| `project.list.allPms` | PM 전체 | project.list |
+| `project.list.allRisks` | 리스크 전체 | project.list |
+| `project.list.allStatuses` | 상태 전체 | project.list |
+| `project.list.colDepartment` | 주관 부서 | project.list |
+| `project.list.colMethodology` | 운영 방식 | project.list |
+| `project.list.colNameCode` | 프로젝트명 · 코드 | project.list |
+| `project.list.colPeriod` | 기간 | project.list |
+| `project.list.colPm` | PM | project.list |
+| `project.list.colProgress` | 진척률 | project.list |
+| `project.list.colStage` | 현재 단계 | project.list |
+| `project.list.colStatus` | 상태 | project.list |
+| `project.list.emptyAdminDescription` | 시스템 관리자 역할로는 프로젝트 데이터에 접근할 수 없습니다. 프로젝트 멤버로 참여한 계정으로 확인해 주세요. | project.list |
+| `project.list.emptyTitle` | 볼 수 있는 프로젝트가 없습니다 | project.list |
+| `project.list.emptyUserDescription` | 참여 중이거나 공개 범위에 포함된 프로젝트가 여기에 표시됩니다. | project.list |
+| `project.list.focusAppliedSuffix` | 지표가 적용되었습니다. | project.list |
+| `project.list.footerCount` | 총 {total}건 중 {shown}건 표시 | project.list |
+| `project.list.footerRowHint` | 행을 클릭하면 프로젝트 개요로 이동합니다 | project.list |
+| `project.list.hintAll` | 진행·완료 포함 | project.list |
+| `project.list.hintDone` | 이행까지 종료된 프로젝트 | project.list |
+| `project.list.hintLate` | 완료 전 · 마감일 경과 | project.list |
+| `project.list.hintOngoing` | 완료 전 · 마감일 이내 | project.list |
+| `project.list.noMatchDescription` | 검색어나 필터 조건을 변경해 다시 시도해 주세요. | project.list |
+| `project.list.noMatchTitle` | 검색 결과가 없습니다 | project.list |
+| `project.list.progressFormulaNote` | 진척률은 WBS 최하위 업무의 예상 작업량 가중 평균입니다 | project.list |
+| `project.list.searchPlaceholder` | 프로젝트명, 코드, 부서로 검색 | project.list |
+| `project.list.stageUnknownHint` | 상세 화면에서 단계를 불러오면 표시됩니다 | project.list |
+| `project.list.visibleCountApi` | 볼 수 있는 프로젝트 {count}건 | project.list |
+| `project.list.visibleCountDemo` | 가상 프로젝트 {count}건 | project.list |
+| `project.load.loadDetailFailed` | 프로젝트를 불러오지 못했습니다 | project.load |
+| `project.load.loading` | 프로젝트를 불러오는 중입니다 | project.load |
+| `project.load.loadListFailed` | 프로젝트 목록을 불러오지 못했습니다 | project.load |
+| `project.load.notFoundDescription` | 삭제되었거나 공개 범위에서 제외된 프로젝트입니다. 프로젝트 목록에서 다시 확인해 주세요. | project.load |
+| `project.load.notFoundTitle` | 프로젝트를 찾을 수 없거나 접근 권한이 없습니다 | project.load |
+| `project.load.retry` | 다시 시도 | project.load |
+| `project.load.staleDetailBanner` | 최신 프로젝트 정보를 불러오지 못해 마지막으로 받은 내용을 보여주고 있습니다. {message} | project.load |
 | `project.member.actor.customerLiaison` | 고객 담당자 | project.member.actor |
 | `project.member.actor.deptStaff` | 부서 담당자 | project.member.actor |
 | `project.member.alreadyMember` | 이미 프로젝트 멤버인 사용자가 있어 아무도 초대하지 않았습니다. 멤버 목록을 다시 불러왔으니 확인 후 다시 시도해 주세요. | project.member |
@@ -909,10 +1139,39 @@
 | `project.member.submitting` | 처리 중 | project.member |
 | `project.member.title` | 현재 멤버 ({count}명) | project.member |
 | `project.member.unknownName` | (이름 없음) | project.member |
+| `project.settings.approverBadge` | 승인자 | project.settings |
+| `project.settings.approverCandidatesHint` | 승인자 후보는 이 중 PM을 제외한 멤버입니다. | project.settings |
+| `project.settings.approverNoAutoAssign` | · 승인자로 지정해도 업무 담당자로 자동 배정되지 않습니다. | project.settings |
 | `project.settings.approverNotConnected` | 게이트 승인자 변경은 서버 API가 아직 없어 이 화면에서 바꿀 수 없습니다(FR-PRJ-05). | project.settings |
+| `project.settings.approverRoleDesc` | · 게이트 승인자: 산출물 검수와 단계 전환을 판정하는 사람 (승인 요청에 표시) | project.settings |
+| `project.settings.assigneeRoleDesc` | · 업무 담당자: 업무를 수행하는 사람 (내 업무·업무 목록에 표시) | project.settings |
+| `project.settings.assigneeVsApproverTitle` | 업무 담당자와 승인자는 다릅니다 | project.settings |
+| `project.settings.badgeCurrentPm` | 현재 PM | project.settings |
+| `project.settings.badgeNoPermission` | 권한 없음 | project.settings |
+| `project.settings.currentMembersTitle` | 현재 멤버 ({count}명) | project.settings |
+| `project.settings.delegateBlockedNote` | 위임 대상이 게이트 승인자로 지정되어 있으면 위임이 차단됩니다. 이 경우 승인자 지정을 먼저 해제한 후 다시 시도해 주세요. 승인자 지정은 자동으로 해제되지 않습니다. | project.settings |
+| `project.settings.delegateModalDescription` | 위임이 완료되면 프로젝트의 PM 표시와 PM 권한이 함께 바뀝니다. | project.settings |
+| `project.settings.delegateModalTitle` | PM을 위임하시겠습니까? | project.settings |
+| `project.settings.description` | 게이트 승인자는 프로젝트 멤버 중에서 PM이 직접 지정합니다. 단계마다 서로 다른 승인자를 둘 수 있습니다. | project.settings |
+| `project.settings.gateCandidatesCount` | 5단계 · 승인자 {count}명 후보 | project.settings |
+| `project.settings.gateSectionTitle` | 게이트별 승인자 · 승인 상태 | project.settings |
 | `project.settings.inviteTitle` | 멤버 초대 | project.settings |
+| `project.settings.newPm` | 새 PM | project.settings |
+| `project.settings.noPmCandidates` | 위임할 수 있는 다른 활성 멤버가 없습니다. PM이 아닌 프로젝트 멤버만 위임 대상이 될 수 있습니다. | project.settings |
+| `project.settings.notFoundDescription` | 삭제되었거나 접근 권한이 없는 프로젝트입니다. 프로젝트 목록에서 다시 확인해 주세요. | project.settings |
+| `project.settings.notFoundTitle` | 프로젝트를 찾을 수 없습니다 | project.settings |
+| `project.settings.pmCannotBeApprover` | 현재 PM은 게이트 승인자로 지정할 수 없습니다. 아래 PM 위임 절차를 사용해 주세요. | project.settings |
+| `project.settings.pmCardTitle` | 프로젝트 PM | project.settings |
+| `project.settings.pmChangePermissionNote` | PM 변경은 현재 PM 또는 시스템 관리자만 수행할 수 있습니다. | project.settings |
+| `project.settings.pmChangeTitle` | PM 변경·위임 | project.settings |
+| `project.settings.pmDelegateGuide` | 위임 전에 기존 PM과 새 PM을 확인합니다. 일반 멤버는 PM을 변경할 수 없습니다. | project.settings |
 | `project.settings.pmOnlyInvite` | 멤버 초대는 프로젝트 PM만 할 수 있습니다. | project.settings |
+| `project.settings.previousPm` | 기존 PM | project.settings |
+| `project.settings.readOnlyPmOnly` | 읽기 전용 · 승인자 변경은 PM만 가능 | project.settings |
+| `project.settings.selectNewPm` | 새 PM 선택 | project.settings |
+| `project.settings.selectNewPmRequired` | 새 PM으로 위임할 멤버를 선택해 주세요. | project.settings |
 | `project.settings.serverMembers` | 서버 멤버 목록 기준 | project.settings |
+| `project.settings.title` | 멤버·설정 | project.settings |
 | `project.template.empty` | 빈 템플릿 | project.template |
 | `project.template.itProject` | IT 프로젝트 템플릿 | project.template |
 | `project.userSearch.empty` | '{keyword}'(으)로 초대할 수 있는 사용자를 찾지 못했습니다. | project.userSearch |
@@ -1014,6 +1273,13 @@
 | `task.server.derived` | 하위작업 기간으로 산출 | task.server |
 | `task.server.description` | 설명 | task.server |
 | `task.server.effort` | 예상 공수 | task.server |
+| `task.server.fieldBoardColumnId` | 보드 컬럼 | task.server |
+| `task.server.fieldCompletionCriteria` | 완료 조건 | task.server |
+| `task.server.fieldDueDate` | 마감일 | task.server |
+| `task.server.fieldEndDate` | 종료일 | task.server |
+| `task.server.fieldName` | 작업명 | task.server |
+| `task.server.fieldSortOrder` | 정렬 순서 | task.server |
+| `task.server.fieldStartDate` | 시작일 | task.server |
 | `task.server.forbidden` | 이 업무를 수정할 권한이 없습니다. 업무를 새로 불러왔습니다. | task.server |
 | `task.server.histories` | 변경 이력 | task.server |
 | `task.server.historiesEmpty` | 변경 이력이 없습니다. | task.server |
@@ -1098,6 +1364,8 @@
 | `wbs.form.assigneePmOnly` | 담당자 배정은 PM만 할 수 있습니다. | wbs.form |
 | `wbs.form.assigneeSelfOnly` | 담당자는 비우거나 본인만 지정할 수 있습니다. | wbs.form |
 | `wbs.form.cancel` | 취소 | wbs.form |
+| `wbs.form.completionCriteria` | 완료 조건 (선택) | wbs.form |
+| `wbs.form.completionCriteriaTooLong` | 완료 조건은 2000자 이하로 입력해 주세요. | wbs.form |
 | `wbs.form.createSubtaskTitle` | '{name}' 하위작업 추가 | wbs.form |
 | `wbs.form.createTitle` | 작업 추가 | wbs.form |
 | `wbs.form.dateOrder` | 시작일은 종료일보다 늦을 수 없습니다. | wbs.form |
@@ -1114,6 +1382,7 @@
 | `wbs.form.nameTooLong` | 작업명은 200자 이하로 입력해 주세요. | wbs.form |
 | `wbs.form.phase` | 단계 | wbs.form |
 | `wbs.form.phaseInherited` | 하위작업은 상위 작업의 단계를 따릅니다. | wbs.form |
+| `wbs.form.priority` | 우선순위 | wbs.form |
 | `wbs.form.progressDoneNote` | 완료 상태의 작업은 진척률이 100이어야 합니다. | wbs.form |
 | `wbs.form.progressInvalid` | 진척률은 0~100 사이의 정수로 입력해 주세요. | wbs.form |
 | `wbs.form.progressLabel` | 진척률 (0~100%) | wbs.form |
@@ -1121,6 +1390,7 @@
 | `wbs.form.startDate` | 시작일 | wbs.form |
 | `wbs.form.submit` | 저장 | wbs.form |
 | `wbs.form.submitting` | 저장 중 | wbs.form |
+| `wbs.form.taskType` | 유형 | wbs.form |
 | `wbs.milestone.add` | 마일스톤 추가 | wbs.milestone |
 | `wbs.milestone.aiSource` | AI 초안 | wbs.milestone |
 | `wbs.milestone.cancel` | 취소 | wbs.milestone |
@@ -1192,6 +1462,14 @@
 | `wbs.server.dependencyNote` | 선후행 관계 편집은 아직 서버와 연결하지 않았습니다. | wbs.server |
 | `wbs.server.derivedProgress` | 하위작업 공수 가중 평균 | wbs.server |
 | `wbs.server.derivedSchedule` | 하위작업 기간으로 산출 | wbs.server |
+| `wbs.server.derivedStatus` | 하위 작업 상태 기준 자동 계산 | wbs.server |
+| `wbs.server.dragCrossPhase` | 다른 단계로의 최상위 순서 이동은 지원하지 않습니다. 작업 수정에서 단계를 바꾸거나 다른 작업 아래로 옮겨 주세요. | wbs.server |
+| `wbs.server.dragDescendant` | 상위 작업을 자신의 하위작업 아래로 옮길 수 없습니다. | wbs.server |
+| `wbs.server.dragForbidden` | 작업 순서·계층 이동은 프로젝트 PM만 할 수 있습니다. | wbs.server |
+| `wbs.server.dragHandle` | 드래그하여 이동 | wbs.server |
+| `wbs.server.dragHint` | 작업 행을 끌어 같은 단계 내 순서를 바꾸거나 다른 작업 아래 하위작업으로 옮길 수 있습니다. | wbs.server |
+| `wbs.server.dragMaxDepth` | 하위작업은 2단계(작업 > 하위작업)까지만 만들 수 있습니다. | wbs.server |
+| `wbs.server.dragSamePosition` | 이미 같은 위치에 있습니다. | wbs.server |
 | `wbs.server.edit` | 수정 | wbs.server |
 | `wbs.server.editProgress` | 진척률 수정 | wbs.server |
 | `wbs.server.empty` | 등록된 작업이 없습니다. | wbs.server |
@@ -1213,8 +1491,16 @@
 | `wbs.server.notFound` | 대상 작업이나 단계를 찾을 수 없습니다. WBS를 새로 불러왔습니다. | wbs.server |
 | `wbs.server.openDetail` | 업무 상세 | wbs.server |
 | `wbs.server.personDays` | {value}인일 | wbs.server |
+| `wbs.server.phaseDerivedSchedule` | 소속 작업 기간으로 자동 산출 | wbs.server |
+| `wbs.server.phaseEffort` | 예상 공수 {effort} | wbs.server |
+| `wbs.server.phasePeriod` | 기간 {period} | wbs.server |
+| `wbs.server.phaseTaskCount` | 작업 {count}건 | wbs.server |
 | `wbs.server.progress` | 진척률 | wbs.server |
 | `wbs.server.progressSaved` | 진척률을 {value}%로 저장했습니다. | wbs.server |
+| `wbs.server.reparent` | 상위 작업 변경 | wbs.server |
+| `wbs.server.reparentDescription` | {name}의 위치를 변경합니다. 다른 단계의 상위 작업 아래로 옮기면 해당 단계로 함께 이동합니다. | wbs.server |
+| `wbs.server.reparentRoot` | 최상위 작업으로 올리기 | wbs.server |
+| `wbs.server.reparentTarget` | 이동할 상위 작업 | wbs.server |
 | `wbs.server.retry` | 다시 시도 | wbs.server |
 | `wbs.server.serverError` | 서버 오류로 처리하지 못했습니다. 잠시 후 다시 시도해 주세요. | wbs.server |
 | `wbs.server.timeout` | 응답이 늦어 요청을 멈췄습니다. 잠시 후 다시 시도해 주세요. | wbs.server |
@@ -1224,12 +1510,19 @@
 | `wbs.server.updated` | '{name}'을(를) 수정했습니다. | wbs.server |
 | `wbs.server.viewerNote` | 현재 역할로는 WBS를 조회만 할 수 있습니다. | wbs.server |
 
-## BE에 이미 시드됨 (7개, V9 공통 코드 라벨)
+## BE에 이미 시드됨 (18개, V9 공통 코드 라벨)
 
 FE가 공통 코드와 같은 값을 표시할 때 이 키를 그대로 씁니다. 등록할 필요가 없습니다.
 
 | 라벨 키 | 한국어 기본 문구 | 구분 |
 | --- | --- | --- |
+| `code.PROJECT_STATUS.CANCELLED` | 취소 | 상태 · 프로젝트 |
+| `code.PROJECT_STATUS.COMPLETED` | 완료 | 상태 · 프로젝트 |
+| `code.PROJECT_STATUS.IN_PROGRESS` | 진행 중 | 상태 · 프로젝트 |
+| `code.PROJECT_STATUS.ON_HOLD` | 보류 | 상태 · 프로젝트 |
+| `code.PROJECT_STATUS.PLANNED` | 계획 | 상태 · 프로젝트 |
+| `code.REQUEST_RESULT.FAILURE` | 실패 | 상태 · 요청 결과 |
+| `code.REQUEST_RESULT.SUCCESS` | 성공 | 상태 · 요청 결과 |
 | `code.RISK_LEVEL.CAUTION` | 주의 | 상태 · 리스크 수준 |
 | `code.RISK_LEVEL.DANGER` | 위험 | 상태 · 리스크 수준 |
 | `code.RISK_LEVEL.NORMAL` | 정상 | 상태 · 리스크 수준 |
@@ -1237,3 +1530,7 @@ FE가 공통 코드와 같은 값을 표시할 때 이 키를 그대로 씁니�
 | `code.TASK_STATUS.IN_PROGRESS` | 진행 | 상태 · 업무 |
 | `code.TASK_STATUS.REVIEW` | 검토 | 상태 · 업무 |
 | `code.TASK_STATUS.TODO` | 대기 | 상태 · 업무 |
+| `codeGroup.PROJECT_STATUS` | 프로젝트 상태 | 공통 코드 그룹 |
+| `codeGroup.REQUEST_RESULT` | 요청 처리 결과 | 공통 코드 그룹 |
+| `codeGroup.RISK_LEVEL` | 위험 수준 | 공통 코드 그룹 |
+| `codeGroup.TASK_STATUS` | 업무 진행 상태 | 공통 코드 그룹 |
